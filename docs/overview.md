@@ -87,3 +87,7 @@ TODO
 ## Future Improvements
 
 TODO: Describe improvements (see VM Secure Boot trello ticket)
+
+# Related
+
+1. https://github.com/xcp-ng-rpms/edk2/blob/master/SOURCES/add-xen-variable.patch
