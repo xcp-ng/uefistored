@@ -44,7 +44,7 @@ by being accessible only in SMM mode and the variables are stored in SMRAM.
 ## Architecture
 
 Virtualizing UEFI Secure Boot should preserve the properties observed in the
-above-mentioned architecture.  These include, (1) operating system integrity is
+above-mentioned context.  These include, (1) operating system integrity is
 verified prior to execution, and (2) UEFI Variables and Variable service
 methods reside in a protected space.
 
