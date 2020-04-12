@@ -4,9 +4,16 @@ This project aims to support UEFI Secure Boot in guest VMs on XCP-ng.
 
 ## TODO
 
-- [ ] Build OVMF from https://github.com/xcp-ng-rpms/edk2.git
-- [ ] Create a VM that uses this OVMF
-- [ ] Depoy this VM on xcp-ng
+- [x] Build OVMF from https://github.com/xcp-ng-rpms/edk2.git
+- [x] Create a VM that uses this OVMF (hvmloader)
+- [x] Setup virtual network with QEMU dev machine
+- [x] Install XCP-ng on QEMU dev machine
+- [x] Deploy well-known image with XL
+    - Deployed an Alpine PV guest
+- [ ] ~Change QEMU machine from user network to bridge network to~
+      ~support remote VNC access to HVM guest.~
+- [ ] Deploy on XCP-ng native host to simplify virtual net
+- [ ] Deploy HVM VM on xcp-ng w/ XL low level tool
 - [ ] Test varstored on xcp-ng with the new VM to see the behavior
 - [ ] After seeing the correct behavior (i.e., signed os passes, unsigned fails),
       then uninstall varstored.
