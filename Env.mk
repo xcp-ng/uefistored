@@ -17,7 +17,7 @@ print-%:
 	@:$(info $($*))
 
 # Generic GIT repo clones
-xcp-ng-build-env/.cloned: GIT_REPO := https://github.com/xcp-ng/xcp-ng-build-env.git
+xcp-ng-build-env/.cloned: GIT_REPO := https://github.com/beshleman/xcp-ng-build-env.git
 
 %/.cloned:
 	git clone $(GIT_REPO)
@@ -27,4 +27,4 @@ docker-shell:
 	docker run $(DOCKER_ARGS) bash
 
 docker-%:
-	docker run $(DOCKER_ARGS) $(notdir $(MAKE)) $(MAKE) $* $(MAKEFLAGS)
+	docker run $(DOCKER_ARGS) $(notdir $(MAKE)) $* $(MAKEFLAGS)
