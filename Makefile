@@ -8,7 +8,9 @@ LIBS :=	\
 
 LINK := $(foreach lib,$(LIBS),-l$(lib))
 
-varstored: main.c
+all: varserviced
+
+varserviced: main.c
 	gcc -o $@ $< $(LINK)
 
 .PHONY: clean
