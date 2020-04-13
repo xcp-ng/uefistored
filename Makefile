@@ -1,4 +1,6 @@
-LIBS :=	\
+CFLAGS :=  -DDEBUG -g
+
+LIB_DEPS :=	\
 	xenstore \
 	xenctrl \
 	xenforeignmemory \
@@ -6,12 +8,12 @@ LIBS :=	\
 	xenevtchn \
 	xentoolcore
 
-LINK := $(foreach lib,$(LIBS),-l$(lib))
+LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 
 all: varserviced
 
 varserviced: main.c
-	gcc -o $@ $< $(LINK)
+	gcc -o $@ $< $(LIBS) $(CFLAGS)
 
 .PHONY: clean
 clean:
