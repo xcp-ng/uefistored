@@ -6,6 +6,8 @@
 #include <getopt.h>
 
 #include <xenctrl.h>
+#include <xendevicemodel.h>
+#include <xenforeignmemory.h>
 #include <xen/hvm/params.h>
 
 #define varserviced_fprintf(fd, ...)                    \
@@ -13,7 +15,7 @@
         fprintf(fd, "varserviced_initialize: ");        \
         fprintf(fd, __VA_ARGS__);                       \
         fflush(fd);                                     \
-    } while(0)
+    } while( 0 )
 
 #define varserviced_error(...) varserviced_fprintf(stderr, "ERROR: " __VA_ARGS__)
 #define varserviced_info(...) varserviced_fprintf(stdout,  "INFO: "   __VA_ARGS__)
@@ -49,6 +51,8 @@ int main(int argc, char **argv)
 {
     xc_interface *xc_handle;
     xc_dominfo_t domain_info;
+    xendevicemodel_handle* xdm;
+    xenforeignmemory_handle* xfm;
 
     int domid;
     uint64_t ioreq_server_pages_cnt;
@@ -74,28 +78,30 @@ int main(int argc, char **argv)
         {0, 0, 0, 0},
     };
 
-    if (argc == 1) {
+    if ( argc == 1 )
+    {
         printf(USAGE);
         exit(1);
     }
 
-    while (1) {
+    while ( 1 )
+    {
         c = getopt_long(argc, argv, "d:rnpu:g:c:i:b:h",
                         options, &option_index);
 
         /* Detect the end of the options. */
-        if (c == -1)
+        if ( c == -1 )
             break;
 
         switch (c)
         {
         case 0:
             /* If this option set a flag, do nothing else now. */
-            if (options[option_index].flag != 0)
+            if ( options[option_index].flag != 0 )
                 break;
 
             printf ("option %s", options[option_index].name);
-            if (optarg)
+            if ( optarg )
                 printf (" with arg %s", optarg);
             printf ("\n");
             break;
@@ -147,8 +153,9 @@ int main(int argc, char **argv)
 #warning "TODO: implement signal handlers in order to tear down resources upon SIGKILL, etc..."
 
     /* Gain access to the hypervisor */
-    xc_handle = xc_interface_open(0,0,0);
-    if (!xc_handle) {
+    xc_handle = xc_interface_open(0, 0, 0);
+    if ( !xc_handle )
+    {
         varserviced_error("Failed to open xc_interface handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto done;
@@ -156,23 +163,27 @@ int main(int argc, char **argv)
 
     /* Get info on the domain */
     ret = xc_domain_getinfo(xc_handle, domid, 1, &domain_info);
-    if (ret < 0) {
+    if ( ret < 0 )
+    {
         ret = errno;
         varserviced_error("Domid %u, xc_domain_getinfo error: %d, %s\n", domain_info.domid, errno, strerror(errno));
         goto cleanup;
     }
 
     /* Verify the requested domain == the returned domain */
-    if (domid != domain_info.domid) {
+    if ( domid != domain_info.domid )
+    {
         ret = errno;
         varserviced_error("Domid %u does not match expected %u\n", domain_info.domid, domid);
         goto cleanup;
     }
 
     /* Retrieve IO req server page count, retry until available */
-    for (i=0; i<10; i++) {
+    for ( i=0; i<10; i++ )
+    {
         ret = xc_hvm_param_get(xc_handle, domid, HVM_PARAM_NR_IOREQ_SERVER_PAGES, &ioreq_server_pages_cnt);
-        if (ret < 0) {
+        if ( ret < 0 )
+        {
             varserviced_error("xc_hvm_param_get failed: %d, %s\n", errno, strerror(errno));
             goto cleanup;
         }
@@ -185,9 +196,18 @@ int main(int argc, char **argv)
     }
     varserviced_info("HVM_PARAM_NR_IOREQ_SERVER_PAGES = %ld\n", ioreq_server_pages_cnt);
 
+    /* Close hypervisor interface */
+    xc_interface_close(xc_handle);
+
     /* Open xen device model */
+    xdm = xendevicemodel_open(0, 0);
+    if ( !xdm )
+        varserviced_error("Failed to open xendevicemodel handle: %d, %s\n", errno, strerror(errno));
 
     /* Open xen foreign memory interface */
+    xfm = xendevicemodel_open(0, 0);
+    if ( !xdm )
+        varserviced_error("Failed to open xendevicemodel handle: %d, %s\n", errno, strerror(errno));
 
     /* Open xen event channel */
 
