@@ -6,9 +6,11 @@
 #include <getopt.h>
 
 #include <xenctrl.h>
+#include <xenevtchn.h>
 #include <xendevicemodel.h>
 #include <xenforeignmemory.h>
 #include <xen/hvm/params.h>
+#include <xen/hvm/dm_op.h>
 
 #define varserviced_fprintf(fd, ...)                    \
     do {                                                \
@@ -51,12 +53,14 @@ int main(int argc, char **argv)
 {
     xc_interface *xc_handle;
     xc_dominfo_t domain_info;
-    xendevicemodel_handle* xdm;
-    xenforeignmemory_handle* xfm;
+    xendevicemodel_handle *dmod;
+    xenforeignmemory_handle *fmem;
+    xenevtchn_handle *xce;
 
     int domid;
     uint64_t ioreq_server_pages_cnt;
     int vcpu_count;
+    ioservid_t ioreq_server_id;
 
     int ret;
     int opt;
@@ -108,6 +112,7 @@ int main(int argc, char **argv)
 
         case 'd':
             varserviced_info("servicing UEFI variables for Domain %s\n", optarg);
+            domid = options[option_index].val;
             break;
 
         case 'r':
@@ -158,7 +163,7 @@ int main(int argc, char **argv)
     {
         varserviced_error("Failed to open xc_interface handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto done;
+        goto error;
     }
 
     /* Get info on the domain */
@@ -166,7 +171,7 @@ int main(int argc, char **argv)
     if ( ret < 0 )
     {
         ret = errno;
-        varserviced_error("Domid %u, xc_domain_getinfo error: %d, %s\n", domain_info.domid, errno, strerror(errno));
+        varserviced_error("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno, strerror(errno));
         goto cleanup;
     }
 
@@ -188,7 +193,7 @@ int main(int argc, char **argv)
             goto cleanup;
         }
 
-        if (ioreq_server_pages_cnt != 0)
+        if ( ioreq_server_pages_cnt != 0 )
             break;
 
         printf("Waiting for ioreq server");
@@ -198,25 +203,55 @@ int main(int argc, char **argv)
 
     /* Close hypervisor interface */
     xc_interface_close(xc_handle);
+    xc_handle = NULL;
 
     /* Open xen device model */
-    xdm = xendevicemodel_open(0, 0);
-    if ( !xdm )
+    dmod = xendevicemodel_open(0, 0);
+    if ( !dmod )
+    {
         varserviced_error("Failed to open xendevicemodel handle: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto cleanup;
+    }
 
     /* Open xen foreign memory interface */
-    xfm = xendevicemodel_open(0, 0);
-    if ( !xdm )
-        varserviced_error("Failed to open xendevicemodel handle: %d, %s\n", errno, strerror(errno));
+    fmem = xenforeignmemory_open(0, 0);
+    if ( !fmem )
+    {
+        varserviced_error("Failed to open xenforeignmemory handle: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto close_dmod;
+    }
 
     /* Open xen event channel */
+    xce = xenevtchn_open(NULL, 0);
+    if ( !xce )
+    {
+        varserviced_error("Failed to open evtchn handle: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto close_fmem;
+    }
 
     /* Restrict varserviced's privileged accesses */
+    ret = xentoolcore_restrict_all(domid);
+    if ( ret < 0 )
+    {
+        varserviced_error("Failed to restrict Xen handles: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto close_evtchn;
+    }
 
     /* Create an IO Req server for Port IO requests in the port
      * range 0x100 to 0x103.  XenVariable in OVMF uses 0x100,
      * 0x101-0x103 are reserved.
      */
+    ret = xendevicemodel_create_ioreq_server(dmod, domid, 1, &ioreq_server_id);
+    if ( ret < 0 )
+    {
+        varserviced_error("Failed to create ioreq server: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto close_evtchn;
+    }
 
     /* Map ioreq server to domU */
 
@@ -243,10 +278,32 @@ int main(int argc, char **argv)
     /* Initialize UEFI keys */
 
     /* Initialize event channel handler */
+done:
+    return 0;
+
+close_evtchn:
+    xenevtchn_close(xce);
+
+close_fmem:
+    xenforeignmemory_close(fmem);
+
+close_dmod:
+    xendevicemodel_close(dmod);
 
 cleanup:
-    xc_interface_close(xc_handle);
-done:
+    if ( xc_handle )
+        xc_interface_close(xc_handle);
+
+#if 0
+    xenevtchn_unbind(xenevtchn_handle);
+    xenevtchn_unbind(xenevtchn_handle);
+    xenforeignmemory_unmap_resource(xenforeignmemory_handle);
+    xendevicemodel_destroy_ioreq_server(xendevicemodel_handle,(ulong)domain,(ulong)ioreq_server_id);
+
+    xendevicemodel_set_ioreq_server_state
+    (xendevicemodel_handle,(ulong)domain,(ulong)ioreq_server_id,0);
+#endif
+error:
     return ret;
 }
 
