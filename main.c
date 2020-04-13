@@ -38,6 +38,12 @@
     "    --backend <backend> \n"        \
     "    --arg <name>:<val> \n\n"
 
+#define UNIMPLEMENTED(opt)                                      \
+    do {                                                        \
+        varserviced_error(opt " option not implemented!\n");    \
+        exit(1);                                                \
+    } while(0)
+
 int main(int argc, char **argv)
 
 {
@@ -86,47 +92,48 @@ int main(int argc, char **argv)
         case 0:
             /* If this option set a flag, do nothing else now. */
             if (options[option_index].flag != 0)
-            break;
+                break;
+
             printf ("option %s", options[option_index].name);
             if (optarg)
-            printf (" with arg %s", optarg);
+                printf (" with arg %s", optarg);
             printf ("\n");
             break;
 
         case 'd':
-            printf ("option -d with value '%s'\n", optarg);
+            varserviced_info("servicing UEFI variables for Domain %s\n", optarg);
             break;
 
         case 'r':
-            puts ("option -r\n");
+            UNIMPLEMENTED("resume");
             break;
 
         case 'n':
-            puts ("option -n\n");
+            UNIMPLEMENTED("nonpersistent");
             break;
 
         case 'p':
-            puts ("option -p\n");
+            UNIMPLEMENTED("depriv");
             break;
 
         case 'u':
-            printf ("option -u with value '%s'\n", optarg);
+            UNIMPLEMENTED("uid");
             break;
 
         case 'g':
-            printf ("option -g with value '%s'\n", optarg);
+            UNIMPLEMENTED("gid");
             break;
 
         case 'c':
-            printf ("option -c with value '%s'\n", optarg);
+            UNIMPLEMENTED("chroot");
             break;
 
         case 'i':
-            printf ("option -i with value '%s'\n", optarg);
+            UNIMPLEMENTED("pid");
             break;
 
         case 'b':
-            printf ("option -b with value '%s'\n", optarg);
+            UNIMPLEMENTED("backend");
             break;
 
         case 'h':
