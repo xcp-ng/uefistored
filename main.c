@@ -1,16 +1,22 @@
-#include <stdio.h>
+#include <assert.h>
 #include <errno.h>
+#include <getopt.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <getopt.h>
+#include <sys/mman.h>
 
 #include <xenctrl.h>
-#include <xenevtchn.h>
 #include <xendevicemodel.h>
+#include <xenevtchn.h>
 #include <xenforeignmemory.h>
-#include <xen/hvm/params.h>
 #include <xen/hvm/dm_op.h>
+#include <xen/hvm/ioreq.h>
+#include <xen/hvm/params.h>
+#include <xen/memory.h>
+
+#define IOREQ_SERVER_TYPE 0
+#define IOREQ_SERVER_FRAME_NR 2
 
 #define varserviced_fprintf(fd, ...)                    \
     do {                                                \
@@ -19,13 +25,13 @@
         fflush(fd);                                     \
     } while( 0 )
 
-#define varserviced_error(...) varserviced_fprintf(stderr, "ERROR: " __VA_ARGS__)
-#define varserviced_info(...) varserviced_fprintf(stdout,  "INFO: "   __VA_ARGS__)
+#define ERROR(...) varserviced_fprintf(stderr, "ERROR: " __VA_ARGS__)
+#define INFO(...) varserviced_fprintf(stdout,  "INFO: "   __VA_ARGS__)
 
 #ifdef DEBUG
-#define varserviced_debug(...) varserviced_fprintf(stdout, "DEBUG: " __VA_ARGS__)
+#define DEBUG(...) varserviced_fprintf(stdout, "DEBUG: " __VA_ARGS__)
 #else
-#define varserviced_debug(...) ((void)0)
+#define DEBUG(...) ((void)0)
 #endif
 
 #define USAGE                           \
@@ -44,9 +50,96 @@
 
 #define UNIMPLEMENTED(opt)                                      \
     do {                                                        \
-        varserviced_error(opt " option not implemented!\n");    \
+        ERROR(opt " option not implemented!\n");    \
         exit(1);                                                \
     } while(0)
+
+static inline int xen_get_ioreq_server_info(xc_interface *xen_xc,
+                                            domid_t dom,
+                                            xen_pfn_t *bufioreq_pfn,
+                                            evtchn_port_t *bufioreq_evtchn)
+{
+    unsigned long param;
+    int rc;
+
+    rc = xc_get_hvm_param(xen_xc, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
+    if (rc < 0) {
+        fprintf(stderr, "failed to get HVM_PARAM_BUFIOREQ_PFN\n");
+        return -1;
+    }
+
+    *bufioreq_pfn = param;
+
+    rc = xc_get_hvm_param(xen_xc, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
+                          &param);
+    if (rc < 0) {
+        fprintf(stderr, "failed to get HVM_PARAM_BUFIOREQ_EVTCHN\n");
+        return -1;
+    }
+
+    *bufioreq_evtchn = param;
+
+    return 0;
+}
+
+static int xen_map_ioreq_server(xc_interface* xc_handle,
+                                xenforeignmemory_handle *xen_fmem,
+                                domid_t domid,
+                                ioservid_t ioservid,
+                                buffered_iopage_t **buffered_io_page,
+                                evtchn_port_t *bufioreq_remote_port,
+                                xenforeignmemory_resource_handle **fres)
+{
+    void *addr = NULL;
+    xen_pfn_t bufioreq_pfn;
+    evtchn_port_t bufioreq_evtchn;
+    int rc;
+
+    /*
+     * Attempt to map using the resource API and fall back to normal
+     * foreign mapping if this is not supported.
+     */
+    *fres = xenforeignmemory_map_resource(xen_fmem, domid,
+                                         XENMEM_resource_ioreq_server,
+                                         ioservid, 0, 2,
+                                         &addr,
+                                         PROT_READ | PROT_WRITE, 0);
+    if ( *fres != NULL ) {
+        *buffered_io_page = addr;
+    } else if ( errno != EOPNOTSUPP ) {
+        ERROR("failed to map ioreq server resources: error %d: %s",
+                     errno, strerror(errno));
+        return -1;
+    }
+
+    rc = xen_get_ioreq_server_info(xc_handle, domid,
+                                   &bufioreq_pfn,
+                                   &bufioreq_evtchn);
+    if ( rc < 0 ) {
+        ERROR("failed to get ioreq server info: error %d: %s",
+                     errno, strerror(errno));
+        return rc;
+    }
+
+    if ( *buffered_io_page == NULL ) {
+        DEBUG("buffered io page at pfn %lx\n", bufioreq_pfn);
+
+        *buffered_io_page = xenforeignmemory_map(xen_fmem, domid,
+                                                       PROT_READ | PROT_WRITE,
+                                                       1, &bufioreq_pfn,
+                                                       NULL);
+        if ( *buffered_io_page == NULL ) {
+            ERROR("map buffered IO page returned error %d", errno);
+            return -1;
+        }
+    }
+
+    DEBUG("buffered io evtchn is %x\n", bufioreq_evtchn);
+
+    *bufioreq_remote_port = bufioreq_evtchn;
+
+    return 0;
+}
 
 int main(int argc, char **argv)
 
@@ -56,11 +149,18 @@ int main(int argc, char **argv)
     xendevicemodel_handle *dmod;
     xenforeignmemory_handle *fmem;
     xenevtchn_handle *xce;
+    xenforeignmemory_resource_handle *fmem_resource;
+    xen_pfn_t ioreq_gfn;
+    xen_pfn_t bufioioreq_gfn;
+    evtchn_port_t bufioreq_remote_port;
+
+    buffered_iopage_t *buffered_io_page;
+
 
     int domid;
     uint64_t ioreq_server_pages_cnt;
     int vcpu_count;
-    ioservid_t ioreq_server_id;
+    ioservid_t ioservid;
 
     int ret;
     int opt;
@@ -111,7 +211,7 @@ int main(int argc, char **argv)
             break;
 
         case 'd':
-            varserviced_info("servicing UEFI variables for Domain %s\n", optarg);
+            INFO("servicing UEFI variables for Domain %s\n", optarg);
             domid = options[option_index].val;
             break;
 
@@ -161,7 +261,7 @@ int main(int argc, char **argv)
     xc_handle = xc_interface_open(0, 0, 0);
     if ( !xc_handle )
     {
-        varserviced_error("Failed to open xc_interface handle: %d, %s\n", errno, strerror(errno));
+        ERROR("Failed to open xc_interface handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto error;
     }
@@ -171,7 +271,7 @@ int main(int argc, char **argv)
     if ( ret < 0 )
     {
         ret = errno;
-        varserviced_error("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno, strerror(errno));
+        ERROR("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno, strerror(errno));
         goto cleanup;
     }
 
@@ -179,7 +279,7 @@ int main(int argc, char **argv)
     if ( domid != domain_info.domid )
     {
         ret = errno;
-        varserviced_error("Domid %u does not match expected %u\n", domain_info.domid, domid);
+        ERROR("Domid %u does not match expected %u\n", domain_info.domid, domid);
         goto cleanup;
     }
 
@@ -189,7 +289,7 @@ int main(int argc, char **argv)
         ret = xc_hvm_param_get(xc_handle, domid, HVM_PARAM_NR_IOREQ_SERVER_PAGES, &ioreq_server_pages_cnt);
         if ( ret < 0 )
         {
-            varserviced_error("xc_hvm_param_get failed: %d, %s\n", errno, strerror(errno));
+            ERROR("xc_hvm_param_get failed: %d, %s\n", errno, strerror(errno));
             goto cleanup;
         }
 
@@ -199,7 +299,7 @@ int main(int argc, char **argv)
         printf("Waiting for ioreq server");
         usleep(100000);
     }
-    varserviced_info("HVM_PARAM_NR_IOREQ_SERVER_PAGES = %ld\n", ioreq_server_pages_cnt);
+    INFO("HVM_PARAM_NR_IOREQ_SERVER_PAGES = %ld\n", ioreq_server_pages_cnt);
 
     /* Close hypervisor interface */
     xc_interface_close(xc_handle);
@@ -209,7 +309,7 @@ int main(int argc, char **argv)
     dmod = xendevicemodel_open(0, 0);
     if ( !dmod )
     {
-        varserviced_error("Failed to open xendevicemodel handle: %d, %s\n", errno, strerror(errno));
+        ERROR("Failed to open xendevicemodel handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto cleanup;
     }
@@ -218,7 +318,7 @@ int main(int argc, char **argv)
     fmem = xenforeignmemory_open(0, 0);
     if ( !fmem )
     {
-        varserviced_error("Failed to open xenforeignmemory handle: %d, %s\n", errno, strerror(errno));
+        ERROR("Failed to open xenforeignmemory handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto close_dmod;
     }
@@ -227,7 +327,7 @@ int main(int argc, char **argv)
     xce = xenevtchn_open(NULL, 0);
     if ( !xce )
     {
-        varserviced_error("Failed to open evtchn handle: %d, %s\n", errno, strerror(errno));
+        ERROR("Failed to open evtchn handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto close_fmem;
     }
@@ -236,7 +336,7 @@ int main(int argc, char **argv)
     ret = xentoolcore_restrict_all(domid);
     if ( ret < 0 )
     {
-        varserviced_error("Failed to restrict Xen handles: %d, %s\n", errno, strerror(errno));
+        ERROR("Failed to restrict Xen handles: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto close_evtchn;
     }
@@ -245,19 +345,33 @@ int main(int argc, char **argv)
      * range 0x100 to 0x103.  XenVariable in OVMF uses 0x100,
      * 0x101-0x103 are reserved.
      */
-    ret = xendevicemodel_create_ioreq_server(dmod, domid, 1, &ioreq_server_id);
+    ret = xendevicemodel_create_ioreq_server(dmod, domid,
+                                             HVM_IOREQSRV_BUFIOREQ_LEGACY, &ioservid);
     if ( ret < 0 )
     {
-        varserviced_error("Failed to create ioreq server: %d, %s\n", errno, strerror(errno));
+        ERROR("Failed to create ioreq server: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto close_evtchn;
     }
 
-    /* Map ioreq server to domU */
+    INFO("ioservid = %u\n", ioservid);
 
-    /* Get ioreq server info */
+    ret = xen_map_ioreq_server(
+            xc_handle, fmem, domid, ioservid,
+            &buffered_io_page, &bufioreq_remote_port,
+            &fmem_resource);
+    if ( ret < 0 )
+    {
+        goto close_evtchn;
+    }
 
-    /* Set the ioreq server state to ready */
+    /* Enable the ioreq server state */
+    ret = xendevicemodel_set_ioreq_server_state(dmod, domid, ioservid, 1);
+    if (ret < 0) {
+        ERROR("Failed to enable ioreq server: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto unmap_resource;
+    }
 
     /* Setup memory to receive port IO RPC requests */
 
@@ -281,6 +395,9 @@ int main(int argc, char **argv)
 done:
     return 0;
 
+unmap_resource:
+    xenforeignmemory_unmap_resource(fmem, fmem_resource);
+
 close_evtchn:
     xenevtchn_close(xce);
 
@@ -297,11 +414,10 @@ cleanup:
 #if 0
     xenevtchn_unbind(xenevtchn_handle);
     xenevtchn_unbind(xenevtchn_handle);
-    xenforeignmemory_unmap_resource(xenforeignmemory_handle);
-    xendevicemodel_destroy_ioreq_server(xendevicemodel_handle,(ulong)domain,(ulong)ioreq_server_id);
+    xendevicemodel_destroy_ioreq_server(xendevicemodel_handle,(ulong)domain,(ulong)ioservid);
 
     xendevicemodel_set_ioreq_server_state
-    (xendevicemodel_handle,(ulong)domain,(ulong)ioreq_server_id,0);
+    (xendevicemodel_handle,(ulong)domain,(ulong)ioservid,0);
 #endif
 error:
     return ret;
