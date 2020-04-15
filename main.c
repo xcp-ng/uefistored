@@ -29,6 +29,7 @@
 #define INFO(...) varserviced_fprintf(stdout,  "INFO: "   __VA_ARGS__)
 
 #ifdef DEBUG
+#undef DEBUG
 #define DEBUG(...) varserviced_fprintf(stdout, "DEBUG: " __VA_ARGS__)
 #else
 #define DEBUG(...) ((void)0)
@@ -54,43 +55,57 @@
         exit(1);                                                \
     } while(0)
 
-static inline int xen_get_ioreq_server_info(xc_interface *xen_xc,
+static inline int xen_get_ioreq_server_info(xc_interface *xc,
                                             domid_t dom,
+                                            xen_pfn_t *ioreq_pfn,
                                             xen_pfn_t *bufioreq_pfn,
                                             evtchn_port_t *bufioreq_evtchn)
 {
     unsigned long param;
     int rc;
 
-    rc = xc_get_hvm_param(xen_xc, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
-    if (rc < 0) {
-        fprintf(stderr, "failed to get HVM_PARAM_BUFIOREQ_PFN\n");
+    rc = xc_get_hvm_param(xc, dom, HVM_PARAM_IOREQ_PFN, &param);
+    if ( rc < 0 )
+    {
+        ERROR("failed to get HVM_PARAM_IOREQ_PFN\n");
         return -1;
     }
+    *ioreq_pfn = param;
 
+    rc = xc_get_hvm_param(xc, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
+    if ( rc < 0 )
+    {
+        ERROR("failed to get HVM_PARAM_BUFIOREQ_PFN\n");
+        return -1;
+    }
     *bufioreq_pfn = param;
 
-    rc = xc_get_hvm_param(xen_xc, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
+    rc = xc_get_hvm_param(xc, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
                           &param);
-    if (rc < 0) {
-        fprintf(stderr, "failed to get HVM_PARAM_BUFIOREQ_EVTCHN\n");
+    if ( rc < 0 )
+    {
+        ERROR("failed to get HVM_PARAM_BUFIOREQ_EVTCHN\n");
         return -1;
     }
-
     *bufioreq_evtchn = param;
 
     return 0;
 }
 
+#warning "Determine this page size correctly, are all supported page sizes 4KB?"
+#define TARGET_PAGE_SIZE (4<<12)
+
 static int xen_map_ioreq_server(xc_interface* xc_handle,
-                                xenforeignmemory_handle *xen_fmem,
+                                xenforeignmemory_handle *fmem,
                                 domid_t domid,
                                 ioservid_t ioservid,
+                                shared_iopage_t **shared_page,
                                 buffered_iopage_t **buffered_io_page,
                                 evtchn_port_t *bufioreq_remote_port,
                                 xenforeignmemory_resource_handle **fres)
 {
     void *addr = NULL;
+    xen_pfn_t ioreq_pfn;
     xen_pfn_t bufioreq_pfn;
     evtchn_port_t bufioreq_evtchn;
     int rc;
@@ -99,36 +114,57 @@ static int xen_map_ioreq_server(xc_interface* xc_handle,
      * Attempt to map using the resource API and fall back to normal
      * foreign mapping if this is not supported.
      */
-    *fres = xenforeignmemory_map_resource(xen_fmem, domid,
+    *fres = xenforeignmemory_map_resource(fmem, domid,
                                          XENMEM_resource_ioreq_server,
                                          ioservid, 0, 2,
                                          &addr,
                                          PROT_READ | PROT_WRITE, 0);
-    if ( *fres != NULL ) {
+    if ( *fres != NULL )
+    {
         *buffered_io_page = addr;
-    } else if ( errno != EOPNOTSUPP ) {
+        *shared_page = addr + TARGET_PAGE_SIZE;
+    }
+    else if ( errno != EOPNOTSUPP )
+    {
         ERROR("failed to map ioreq server resources: error %d: %s",
                      errno, strerror(errno));
         return -1;
     }
 
     rc = xen_get_ioreq_server_info(xc_handle, domid,
+                                   &ioreq_pfn,
                                    &bufioreq_pfn,
                                    &bufioreq_evtchn);
-    if ( rc < 0 ) {
+    if ( rc < 0 )
+    {
         ERROR("failed to get ioreq server info: error %d: %s",
                      errno, strerror(errno));
         return rc;
     }
 
-    if ( *buffered_io_page == NULL ) {
+    if ( *shared_page == NULL)
+    {
+        DEBUG("shared page at pfn %lx\n", ioreq_pfn);
+        *shared_page = xenforeignmemory_map(fmem, domid,
+                                            PROT_READ | PROT_WRITE,
+                                            1, &ioreq_pfn, NULL);
+        if ( *shared_page == NULL )
+        {
+            ERROR("map shared IO page returned error %d: %s",
+                   errno, strerror(errno));
+        }
+    }
+
+    if ( *buffered_io_page == NULL )
+    {
         DEBUG("buffered io page at pfn %lx\n", bufioreq_pfn);
 
-        *buffered_io_page = xenforeignmemory_map(xen_fmem, domid,
+        *buffered_io_page = xenforeignmemory_map(fmem, domid,
                                                        PROT_READ | PROT_WRITE,
                                                        1, &bufioreq_pfn,
                                                        NULL);
-        if ( *buffered_io_page == NULL ) {
+        if ( *buffered_io_page == NULL )
+        {
             ERROR("map buffered IO page returned error %d", errno);
             return -1;
         }
@@ -154,6 +190,7 @@ int main(int argc, char **argv)
     xen_pfn_t bufioioreq_gfn;
     evtchn_port_t bufioreq_remote_port;
 
+    shared_iopage_t *shared_page;
     buffered_iopage_t *buffered_io_page;
 
 
@@ -357,7 +394,7 @@ int main(int argc, char **argv)
     INFO("ioservid = %u\n", ioservid);
 
     ret = xen_map_ioreq_server(
-            xc_handle, fmem, domid, ioservid,
+            xc_handle, fmem, domid, ioservid, &shared_page,
             &buffered_io_page, &bufioreq_remote_port,
             &fmem_resource);
     if ( ret < 0 )
