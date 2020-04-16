@@ -4,7 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/mman.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <xenctrl.h>
 #include <xendevicemodel.h>
@@ -18,25 +23,52 @@
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
 
-#define varserviced_fprintf(fd, ...)                    \
+#define VARSTORED_LOGFILE "/var/log/varstored-%d.log"
+#define VARSTORED_LOGFILE_MAX 32
+
+static int _logfd = NULL;
+
+static inline void set_logfd(int logfd)
+{
+    _logfd = logfd;
+}
+
+#define varstored_dprintf(fd, ...)                    \
     do {                                                \
-        fprintf(fd, "varserviced_initialize: ");        \
-        fprintf(fd, __VA_ARGS__);                       \
-        fflush(fd);                                     \
+        dprintf(fd, "varstored_initialize: ");        \
+        dprintf(fd, __VA_ARGS__);                       \
     } while( 0 )
 
-#define ERROR(...) varserviced_fprintf(stderr, "ERROR: " __VA_ARGS__)
-#define INFO(...) varserviced_fprintf(stdout,  "INFO: "   __VA_ARGS__)
+#define varstored_fprintf(stream, ...)                    \
+    do {                                                \
+        fprintf(stream, "varstored_initialize: ");        \
+        fprintf(stream, __VA_ARGS__);                       \
+        fflush(stream);                                     \
+    } while( 0 )
 
-#ifdef DEBUG
-#undef DEBUG
-#define DEBUG(...) varserviced_fprintf(stdout, "DEBUG: " __VA_ARGS__)
-#else
-#define DEBUG(...) ((void)0)
-#endif
+#define ERROR(...)                                                  \
+    do {                                                            \
+        varstored_fprintf(stderr, "ERROR: " __VA_ARGS__);           \
+        if ( _logfd )                                                 \
+            varstored_dprintf(_logfd, "ERROR: " __VA_ARGS__);       \
+    } while ( 0 )
+
+#define INFO(...)                                                   \
+    do {                                                            \
+        varstored_fprintf(stdout,  "INFO: "   __VA_ARGS__);         \
+        if ( _logfd )                                                 \
+            varstored_dprintf(_logfd,  "INFO: "   __VA_ARGS__);     \
+    } while ( 0 )
+
+#define DEBUG(...)                                              \
+    do {                                                        \
+        varstored_fprintf(stdout, "DEBUG: " __VA_ARGS__);       \
+        if ( _logfd )                                             \
+            varstored_dprintf(_logfd, "DEBUG: "  __VA_ARGS__);   \
+    } while ( 0 )
 
 #define USAGE                           \
-    "Usage: varserviced <options> \n"   \
+    "Usage: varstored <options> \n"   \
     "\n"                                \
     "    --domain <domid> \n"           \
     "    --resume \n"                   \
@@ -50,10 +82,9 @@
     "    --arg <name>:<val> \n\n"
 
 #define UNIMPLEMENTED(opt)                                      \
-    do {                                                        \
-        ERROR(opt " option not implemented!\n");    \
-        exit(1);                                                \
-    } while(0)
+        ERROR(opt " option not implemented!\n")
+
+#define TRACE()  DEBUG("%s: %d\n", __func__, __LINE__)
 
 static inline int xen_get_ioreq_server_info(xc_interface *xc,
                                             domid_t dom,
@@ -64,23 +95,59 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc,
     unsigned long param;
     int rc;
 
-    rc = xc_get_hvm_param(xc, dom, HVM_PARAM_IOREQ_PFN, &param);
+    if ( !ioreq_pfn )
+    {
+        ERROR("invalid NULL ioreq_pfn in %s\n", __func__);
+        return -EINVAL;
+    }
+
+    if ( !bufioreq_pfn )
+    {
+        ERROR("invalid NULL bufioreq_pfn in %s\n", __func__);
+        return -EINVAL;
+    }
+
+    if ( !bufioreq_evtchn )
+    {
+        ERROR("invalid NULL bufioreq_evtchn in %s\n", __func__);
+        return -EINVAL;
+    }
+
+    if ( !xc )
+    {
+        ERROR("invalid NULL xc ptr in %s\n", __func__);
+        return -EINVAL;
+    }
+
+
+    DEBUG("%s: domid=%d\n", __func__, dom);
+
+    TRACE();
+    rc = xc_hvm_param_get(xc, dom, HVM_PARAM_IOREQ_PFN, &param);
     if ( rc < 0 )
     {
+        TRACE();
         ERROR("failed to get HVM_PARAM_IOREQ_PFN\n");
         return -1;
     }
+
+    TRACE();
     *ioreq_pfn = param;
 
-    rc = xc_get_hvm_param(xc, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
+    TRACE();
+
+    rc = xc_hvm_param_get(xc, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
     if ( rc < 0 )
     {
         ERROR("failed to get HVM_PARAM_BUFIOREQ_PFN\n");
         return -1;
     }
+    TRACE();
     *bufioreq_pfn = param;
 
-    rc = xc_get_hvm_param(xc, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
+    TRACE();
+
+    rc = xc_hvm_param_get(xc, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
                           &param);
     if ( rc < 0 )
     {
@@ -88,6 +155,8 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc,
         return -1;
     }
     *bufioreq_evtchn = param;
+
+    TRACE();
 
     return 0;
 }
@@ -110,6 +179,8 @@ static int xen_map_ioreq_server(xc_interface* xc_handle,
     evtchn_port_t bufioreq_evtchn;
     int rc;
 
+    DEBUG("%s: %d\n", __func__, __LINE__);
+
     /*
      * Attempt to map using the resource API and fall back to normal
      * foreign mapping if this is not supported.
@@ -131,6 +202,8 @@ static int xen_map_ioreq_server(xc_interface* xc_handle,
         return -1;
     }
 
+    DEBUG("%s: %d\n", __func__, __LINE__);
+
     rc = xen_get_ioreq_server_info(xc_handle, domid,
                                    &ioreq_pfn,
                                    &bufioreq_pfn,
@@ -142,9 +215,11 @@ static int xen_map_ioreq_server(xc_interface* xc_handle,
         return rc;
     }
 
+    DEBUG("%s: %d\n", __func__, __LINE__);
+
     if ( *shared_page == NULL)
     {
-        DEBUG("shared page at pfn %lx\n", ioreq_pfn);
+        DEBUG("%d: shared page at pfn %lx\n", __LINE__, ioreq_pfn);
         *shared_page = xenforeignmemory_map(fmem, domid,
                                             PROT_READ | PROT_WRITE,
                                             1, &ioreq_pfn, NULL);
@@ -154,10 +229,11 @@ static int xen_map_ioreq_server(xc_interface* xc_handle,
                    errno, strerror(errno));
         }
     }
+    DEBUG("%s: %d\n", __func__, __LINE__);
 
     if ( *buffered_io_page == NULL )
     {
-        DEBUG("buffered io page at pfn %lx\n", bufioreq_pfn);
+        DEBUG("%d: buffered io page at pfn %lx\n", __LINE__, bufioreq_pfn);
 
         *buffered_io_page = xenforeignmemory_map(fmem, domid,
                                                        PROT_READ | PROT_WRITE,
@@ -170,12 +246,13 @@ static int xen_map_ioreq_server(xc_interface* xc_handle,
         }
     }
 
-    DEBUG("buffered io evtchn is %x\n", bufioreq_evtchn);
+    DEBUG("%d: buffered io evtchn is %x\n", __LINE__, bufioreq_evtchn);
 
     *bufioreq_remote_port = bufioreq_evtchn;
 
     return 0;
 }
+
 
 int main(int argc, char **argv)
 
@@ -189,16 +266,14 @@ int main(int argc, char **argv)
     xen_pfn_t ioreq_gfn;
     xen_pfn_t bufioioreq_gfn;
     evtchn_port_t bufioreq_remote_port;
-
     shared_iopage_t *shared_page;
     buffered_iopage_t *buffered_io_page;
-
-
+    int logfd;
     int domid;
     uint64_t ioreq_server_pages_cnt;
-    int vcpu_count;
+    size_t vcpu_count = 1;
     ioservid_t ioservid;
-
+    char *logfile_name;
     int ret;
     int opt;
     int option_index = 0;
@@ -215,9 +290,13 @@ int main(int argc, char **argv)
         {"chroot", required_argument,  0, 'c'},
         {"pidfile", required_argument, 0, 'i'},
         {"backend", required_argument, 0, 'b'},
+        {"arg", required_argument, 0, 'a'},
         {"help", no_argument,          0, 'h'},
         {0, 0, 0, 0},
     };
+
+    logfile_name = malloc(VARSTORED_LOGFILE_MAX);
+    memset(logfile_name, '\0', VARSTORED_LOGFILE_MAX);
 
     if ( argc == 1 )
     {
@@ -225,9 +304,26 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+#warning "TODO: move this to after parsing and change the number from being getpid() to domid"
+    ret = snprintf(logfile_name, VARSTORED_LOGFILE_MAX,  VARSTORED_LOGFILE, getpid());
+    if ( ret < 0 )
+    {
+        ERROR("BUG: snprintf() error");
+    }
+
+    logfd = open(logfile_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    if ( logfd < 0 )
+    {
+        ERROR("failed to open %s, err: %d, %s\n", logfile_name, errno, strerror(errno));
+    }
+
+    set_logfd(logfd);
+
+    DEBUG("%d: Starting parsing args...\n", __LINE__);
+
     while ( 1 )
     {
-        c = getopt_long(argc, argv, "d:rnpu:g:c:i:b:h",
+        c = getopt_long(argc, argv, "d:rnpu:g:c:i:b:ha:",
                         options, &option_index);
 
         /* Detect the end of the options. */
@@ -249,7 +345,7 @@ int main(int argc, char **argv)
 
         case 'd':
             INFO("servicing UEFI variables for Domain %s\n", optarg);
-            domid = options[option_index].val;
+            domid = atoi(optarg);
             break;
 
         case 'r':
@@ -284,6 +380,10 @@ int main(int argc, char **argv)
             UNIMPLEMENTED("backend");
             break;
 
+        case 'a':
+            UNIMPLEMENTED("arg");
+            break;
+
         case 'h':
         case '?':
         default:
@@ -302,6 +402,7 @@ int main(int argc, char **argv)
         ret = errno;
         goto error;
     }
+    DEBUG("%d: xc_interface_open()\n", __LINE__);
 
     /* Get info on the domain */
     ret = xc_domain_getinfo(xc_handle, domid, 1, &domain_info);
@@ -311,6 +412,7 @@ int main(int argc, char **argv)
         ERROR("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno, strerror(errno));
         goto cleanup;
     }
+    DEBUG("%d: xc_domain_getinfo()\n", __LINE__);
 
     /* Verify the requested domain == the returned domain */
     if ( domid != domain_info.domid )
@@ -329,6 +431,7 @@ int main(int argc, char **argv)
             ERROR("xc_hvm_param_get failed: %d, %s\n", errno, strerror(errno));
             goto cleanup;
         }
+        DEBUG("%d: xc_hvm_param_get()\n", __LINE__);
 
         if ( ioreq_server_pages_cnt != 0 )
             break;
@@ -337,10 +440,6 @@ int main(int argc, char **argv)
         usleep(100000);
     }
     INFO("HVM_PARAM_NR_IOREQ_SERVER_PAGES = %ld\n", ioreq_server_pages_cnt);
-
-    /* Close hypervisor interface */
-    xc_interface_close(xc_handle);
-    xc_handle = NULL;
 
     /* Open xen device model */
     dmod = xendevicemodel_open(0, 0);
@@ -369,7 +468,7 @@ int main(int argc, char **argv)
         goto close_fmem;
     }
 
-    /* Restrict varserviced's privileged accesses */
+    /* Restrict varstored's privileged accesses */
     ret = xentoolcore_restrict_all(domid);
     if ( ret < 0 )
     {
@@ -399,18 +498,30 @@ int main(int argc, char **argv)
             &fmem_resource);
     if ( ret < 0 )
     {
+        ERROR("Failed to map ioreq server: %d, %s\n", errno, strerror(errno));
         goto close_evtchn;
     }
 
+    DEBUG("Mapped ioreq server\n");
+
+    void *iopage = buffered_io_page + 0x400;
+    INFO("shared_page = %p\n", shared_page);
+    INFO("iopage = %p\n",iopage);
+    INFO("buffered_io_page = %p\n", buffered_io_page);
+
     /* Enable the ioreq server state */
     ret = xendevicemodel_set_ioreq_server_state(dmod, domid, ioservid, 1);
-    if (ret < 0) {
+    if ( ret < 0 )
+    {
         ERROR("Failed to enable ioreq server: %d, %s\n", errno, strerror(errno));
         ret = errno;
         goto unmap_resource;
     }
 
     /* Setup memory to receive port IO RPC requests */
+    INFO("%d vCPU(s)\n", vcpu_count);
+    unsigned long *port_array = malloc(vcpu_count << 2);
+    memset(port_array, 0xff, vcpu_count << 2);
 
     /* Bind the interdomain event channel */
 
@@ -422,13 +533,14 @@ int main(int argc, char **argv)
 
     /* Store the varserved pid in XenStore */
 
-    /* Containerize varserviced */
+    /* Containerize varstored */
 
     /* Initialize UEFI variables */
 
     /* Initialize UEFI keys */
 
     /* Initialize event channel handler */
+    INFO("Done!\n");
 done:
     return 0;
 

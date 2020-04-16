@@ -1,4 +1,4 @@
-CFLAGS :=  -DDEBUG -g
+CFLAGS := -g
 
 LIB_DEPS :=	\
 	xenstore \
@@ -10,9 +10,9 @@ LIB_DEPS :=	\
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 
-all: varserviced
+all: varstored
 
-varserviced: main.c
+varstored: main.c
 	gcc -o $@ $< $(LIBS) $(CFLAGS)
 
 .PHONY: clean
