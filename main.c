@@ -209,24 +209,6 @@ static int xen_map_ioreq_server(
     return 0;
 }
 
-void printfd(int fd)
-{
-    int ret;
-    char *procfile = malloc(32);
-    char *path = malloc(128);
-
-    snprintf(procfile, 32, "/proc/self/fd/%d", fd);
-    ret = readlink(procfile, path, 128);
-    if ( ret == -1 )
-        ERROR("Failed to readlink\n");
-    else
-        DEBUG("fd=%d, path=%s\n", fd, path);
-
-    free(procfile);
-    free(path);
-}
-
-
 int main(int argc, char **argv)
 
 {
