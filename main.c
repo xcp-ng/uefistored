@@ -86,7 +86,7 @@ static inline void set_logfd(int logfd)
 
 #define TRACE()  DEBUG("%s: %d\n", __func__, __LINE__)
 
-static inline int xen_get_ioreq_server_info(xc_interface *xc,
+static inline int xen_get_ioreq_server_info(xc_interface *xc_handle,
                                             domid_t dom,
                                             xen_pfn_t *ioreq_pfn,
                                             xen_pfn_t *bufioreq_pfn,
@@ -113,20 +113,20 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc,
         return -EINVAL;
     }
 
-    if ( !xc )
+    if ( !xc_handle )
     {
-        ERROR("invalid NULL xc ptr in %s\n", __func__);
+        ERROR("invalid NULL xc_handle ptr in %s\n", __func__);
         return -EINVAL;
     }
 
+#if 0
 
     DEBUG("%s: domid=%d\n", __func__, dom);
 
     TRACE();
-    rc = xc_hvm_param_get(xc, dom, HVM_PARAM_IOREQ_PFN, &param);
+    rc = xc_hvm_param_get(xc_handle, dom, HVM_PARAM_IOREQ_PFN, &param);
     if ( rc < 0 )
     {
-        TRACE();
         ERROR("failed to get HVM_PARAM_IOREQ_PFN\n");
         return -1;
     }
@@ -136,7 +136,7 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc,
 
     TRACE();
 
-    rc = xc_hvm_param_get(xc, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
+    rc = xc_hvm_param_get(xc_handle, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
     if ( rc < 0 )
     {
         ERROR("failed to get HVM_PARAM_BUFIOREQ_PFN\n");
@@ -147,7 +147,7 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc,
 
     TRACE();
 
-    rc = xc_hvm_param_get(xc, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
+    rc = xc_hvm_param_get(xc_handle, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
                           &param);
     if ( rc < 0 )
     {
@@ -157,6 +157,7 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc,
     *bufioreq_evtchn = param;
 
     TRACE();
+#endif
 
     return 0;
 }
@@ -164,7 +165,7 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc,
 #warning "Determine this page size correctly, are all supported page sizes 4KB?"
 #define TARGET_PAGE_SIZE (4<<12)
 
-static int xen_map_ioreq_server(xc_interface* xc_handle,
+static int xen_map_ioreq_server(
                                 xenforeignmemory_handle *fmem,
                                 domid_t domid,
                                 ioservid_t ioservid,
@@ -174,83 +175,55 @@ static int xen_map_ioreq_server(xc_interface* xc_handle,
                                 xenforeignmemory_resource_handle **fres)
 {
     void *addr = NULL;
-    xen_pfn_t ioreq_pfn;
-    xen_pfn_t bufioreq_pfn;
-    evtchn_port_t bufioreq_evtchn;
-    int rc;
+    xen_pfn_t ioreq_pfn = 0;
+    xen_pfn_t bufioreq_pfn = 0;
+    evtchn_port_t bufioreq_evtchn = 0;
+    xenforeignmemory_resource_handle *ret;
+
+    if ( !fmem )
+    {
+        ERROR("Invalid NULL ptr for fmem\n");
+        abort();
+    }
 
     DEBUG("%s: %d\n", __func__, __LINE__);
 
-    /*
-     * Attempt to map using the resource API and fall back to normal
-     * foreign mapping if this is not supported.
-     */
-    *fres = xenforeignmemory_map_resource(fmem, domid,
+    ret = xenforeignmemory_map_resource(fmem, domid,
                                          XENMEM_resource_ioreq_server,
                                          ioservid, 0, 2,
                                          &addr,
                                          PROT_READ | PROT_WRITE, 0);
-    if ( *fres != NULL )
-    {
-        *buffered_io_page = addr;
-        *shared_page = addr + TARGET_PAGE_SIZE;
-    }
-    else if ( errno != EOPNOTSUPP )
+
+
+    if ( !ret )
     {
         ERROR("failed to map ioreq server resources: error %d: %s",
                      errno, strerror(errno));
         return -1;
     }
 
-    DEBUG("%s: %d\n", __func__, __LINE__);
-
-    rc = xen_get_ioreq_server_info(xc_handle, domid,
-                                   &ioreq_pfn,
-                                   &bufioreq_pfn,
-                                   &bufioreq_evtchn);
-    if ( rc < 0 )
-    {
-        ERROR("failed to get ioreq server info: error %d: %s",
-                     errno, strerror(errno));
-        return rc;
-    }
-
-    DEBUG("%s: %d\n", __func__, __LINE__);
-
-    if ( *shared_page == NULL)
-    {
-        DEBUG("%d: shared page at pfn %lx\n", __LINE__, ioreq_pfn);
-        *shared_page = xenforeignmemory_map(fmem, domid,
-                                            PROT_READ | PROT_WRITE,
-                                            1, &ioreq_pfn, NULL);
-        if ( *shared_page == NULL )
-        {
-            ERROR("map shared IO page returned error %d: %s",
-                   errno, strerror(errno));
-        }
-    }
-    DEBUG("%s: %d\n", __func__, __LINE__);
-
-    if ( *buffered_io_page == NULL )
-    {
-        DEBUG("%d: buffered io page at pfn %lx\n", __LINE__, bufioreq_pfn);
-
-        *buffered_io_page = xenforeignmemory_map(fmem, domid,
-                                                       PROT_READ | PROT_WRITE,
-                                                       1, &bufioreq_pfn,
-                                                       NULL);
-        if ( *buffered_io_page == NULL )
-        {
-            ERROR("map buffered IO page returned error %d", errno);
-            return -1;
-        }
-    }
-
-    DEBUG("%d: buffered io evtchn is %x\n", __LINE__, bufioreq_evtchn);
-
-    *bufioreq_remote_port = bufioreq_evtchn;
+    *fres = ret;
+    *buffered_io_page = addr;
+    *shared_page = addr + 0x400;
 
     return 0;
+}
+
+void printfd(int fd)
+{
+    int ret;
+    char *procfile = malloc(32);
+    char *path = malloc(128);
+
+    snprintf(procfile, 32, "/proc/self/fd/%d", fd);
+    ret = readlink(procfile, path, 128);
+    if ( ret == -1 )
+        ERROR("Failed to readlink\n");
+    else
+        DEBUG("fd=%d, path=%s\n", fd, path);
+
+    free(procfile);
+    free(path);
 }
 
 
@@ -493,7 +466,7 @@ int main(int argc, char **argv)
     INFO("ioservid = %u\n", ioservid);
 
     ret = xen_map_ioreq_server(
-            xc_handle, fmem, domid, ioservid, &shared_page,
+            fmem, domid, ioservid, &shared_page,
             &buffered_io_page, &bufioreq_remote_port,
             &fmem_resource);
     if ( ret < 0 )
@@ -569,6 +542,7 @@ cleanup:
     (xendevicemodel_handle,(ulong)domain,(ulong)ioservid,0);
 #endif
 error:
+    free(logfile_name);
     return ret;
 }
 
