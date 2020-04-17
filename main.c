@@ -162,8 +162,7 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc_handle,
     return 0;
 }
 
-#warning "Determine this page size correctly, are all supported page sizes 4KB?"
-#define TARGET_PAGE_SIZE (4<<12)
+#define TARGET_PAGE_SIZE (1<<12)
 
 static int xen_map_ioreq_server(
                                 xenforeignmemory_handle *fmem,
@@ -171,13 +170,11 @@ static int xen_map_ioreq_server(
                                 ioservid_t ioservid,
                                 shared_iopage_t **shared_page,
                                 buffered_iopage_t **buffered_io_page,
-                                evtchn_port_t *bufioreq_remote_port,
                                 xenforeignmemory_resource_handle **fres)
 {
     void *addr = NULL;
     xen_pfn_t ioreq_pfn = 0;
     xen_pfn_t bufioreq_pfn = 0;
-    evtchn_port_t bufioreq_evtchn = 0;
     xenforeignmemory_resource_handle *ret;
 
     if ( !fmem )
@@ -189,11 +186,10 @@ static int xen_map_ioreq_server(
     DEBUG("%s: %d\n", __func__, __LINE__);
 
     ret = xenforeignmemory_map_resource(fmem, domid,
-                                         XENMEM_resource_ioreq_server,
-                                         ioservid, 0, 2,
-                                         &addr,
-                                         PROT_READ | PROT_WRITE, 0);
-
+                                        XENMEM_resource_ioreq_server,
+                                        ioservid, 0, 2,
+                                        &addr,
+                                        PROT_READ | PROT_WRITE, 0);
 
     if ( !ret )
     {
@@ -204,10 +200,77 @@ static int xen_map_ioreq_server(
 
     *fres = ret;
     *buffered_io_page = addr;
-    *shared_page = addr + 0x400;
+    *shared_page = addr + TARGET_PAGE_SIZE;
 
     return 0;
 }
+
+void (*_do_xfm_mamp)(long param_1,int param_2);
+static xendevicemodel_handle *_dmod = NULL;
+static xenforeignmemory_handle *_fmem = NULL;
+static int _domid = -1;
+static int some_static_var;
+static ioservid_t _ioservid;
+static unsigned long static_portio_port = 0x100;
+static int DAT_0060d620;
+
+void do_many_allocs_and_memcmp(int ret)
+{
+    (void) ret;
+}
+
+void do_xenforeignmemory_map(long param_1,int param_2)
+{
+    void *p;
+    int ret;
+    unsigned long array [16];
+
+    if ( param_1 == 0 )
+    {
+        ret = 0;
+        do {
+            array[ret] = (unsigned long)(param_2 + ret);
+            ret = ret + 1;
+        } while ( ret != 0x10 );
+
+        p = xenforeignmemory_map(_fmem, _domid, 3, 0x10, array,0);
+        if ( p != 0 ) {
+            do_many_allocs_and_memcmp(ret);
+            xenforeignmemory_unmap(_fmem, p, 0x10);
+            return;
+        }
+    }
+    return;
+}
+
+int init_io_port(xendevicemodel_handle *dmod,
+                 xenforeignmemory_handle *fmem,
+                 int domid,
+                 ioservid_t ioservid)
+{
+    int ret;
+    _dmod = dmod;
+    _fmem = fmem;
+    _domid = domid;
+    _ioservid = ioservid;
+
+    if ( some_static_var == 0 )
+    {
+        _do_xfm_mamp = do_xenforeignmemory_map;
+        DAT_0060d620 = 4;
+        some_static_var = 1;
+        static_portio_port = 0x100;
+        ret = xendevicemodel_map_io_range_to_ioreq_server(dmod, domid, ioservid, 0, 0x100, 0x103);
+        if ( ret < 0 )
+        {
+            ERROR("Failed to map io range to ioreq server: %d, %s\n", errno, strerror(errno));
+            return ret;
+        }
+    }
+
+    return 0;
+}
+
 
 int main(int argc, char **argv)
 
@@ -221,6 +284,7 @@ int main(int argc, char **argv)
     xen_pfn_t ioreq_gfn;
     xen_pfn_t bufioioreq_gfn;
     evtchn_port_t bufioreq_remote_port;
+    evtchn_port_t bufioreq_local_port;
     shared_iopage_t *shared_page;
     buffered_iopage_t *buffered_io_page;
     int logfd;
@@ -449,7 +513,7 @@ int main(int argc, char **argv)
 
     ret = xen_map_ioreq_server(
             fmem, domid, ioservid, &shared_page,
-            &buffered_io_page, &bufioreq_remote_port,
+            &buffered_io_page,
             &fmem_resource);
     if ( ret < 0 )
     {
@@ -458,10 +522,7 @@ int main(int argc, char **argv)
     }
 
     DEBUG("Mapped ioreq server\n");
-
-    void *iopage = buffered_io_page + 0x400;
     INFO("shared_page = %p\n", shared_page);
-    INFO("iopage = %p\n",iopage);
     INFO("buffered_io_page = %p\n", buffered_io_page);
 
     /* Enable the ioreq server state */
@@ -473,14 +534,53 @@ int main(int argc, char **argv)
         goto unmap_resource;
     }
 
-    /* Setup memory to receive port IO RPC requests */
-    INFO("%d vCPU(s)\n", vcpu_count);
-    unsigned long *port_array = malloc(vcpu_count << 2);
-    memset(port_array, 0xff, vcpu_count << 2);
-
     /* Bind the interdomain event channel */
+    ret = xendevicemodel_get_ioreq_server_info(dmod, domid, ioservid, 0, 0, &bufioreq_remote_port);
+    if ( ret < 0 )
+    {
+        ERROR("Failed to get ioreq server info: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto unmap_resource;
+    }
 
     /* Initialize Port IO for domU */
+    INFO("%d vCPU(s)\n", vcpu_count);
+    size_t sz = vcpu_count * sizeof(unsigned long);
+    unsigned long *port_array = malloc(sz);
+    memset(port_array, 0xff, vcpu_count * sz);
+    DEBUG("port_array=0x%x%x\n", port_array[0], port_array[1]);
+
+    for ( i=0; i<vcpu_count; i++ )
+    {
+        ret = xenevtchn_bind_interdomain(xce, domid, shared_page->vcpu_ioreq[i].vp_eport);
+        if ( ret < 0 )
+        {
+            ERROR("failed to bind evtchns: %d, %s\n", errno, strerror(errno));
+            goto unmap_resource;
+        }
+
+        port_array[i] = ret;
+    }
+
+    for ( i=0; i<vcpu_count; i++ )
+    {
+        printf("VCPU%d: %u -> %u\n", i, port_array[i], shared_page->vcpu_ioreq[i].vp_eport);
+    }
+
+    ret = xenevtchn_bind_interdomain(xce, domid, bufioreq_remote_port);
+    if ( ret < 0 )
+    {
+        ERROR("failed to bind evtchns: %d, %s\n", errno, strerror(errno));
+        goto unmap_resource;
+    }
+    bufioreq_local_port = ret;
+
+    ret = init_io_port(dmod, fmem, domid, ioservid);
+    if ( ret < 0 )
+    {
+        ERROR("failed to init port io: %d\n", ret);
+        goto unmap_resource;
+    }
 
     /* Check secure boot is enabled */
 
@@ -495,6 +595,7 @@ int main(int argc, char **argv)
     /* Initialize UEFI keys */
 
     /* Initialize event channel handler */
+
     INFO("Done!\n");
 done:
     return 0;
