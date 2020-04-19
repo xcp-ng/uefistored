@@ -12,6 +12,7 @@
 #include <fcntl.h>
 
 #include <xenctrl.h>
+#include <xenstore.h>
 #include <xendevicemodel.h>
 #include <xenevtchn.h>
 #include <xenforeignmemory.h>
@@ -25,6 +26,9 @@
 
 #define VARSTORED_LOGFILE "/var/log/varstored-%d.log"
 #define VARSTORED_LOGFILE_MAX 32
+
+#define STRINGBUF_MAX 0x40
+#define PIDSTRING_MAX 16
 
 static int _logfd = NULL;
 
@@ -205,14 +209,13 @@ static int xen_map_ioreq_server(
     return 0;
 }
 
-void (*_do_xfm_mamp)(long param_1,int param_2);
 static xendevicemodel_handle *_dmod = NULL;
 static xenforeignmemory_handle *_fmem = NULL;
 static int _domid = -1;
 static int some_static_var;
 static ioservid_t _ioservid;
-static unsigned long static_portio_port = 0x100;
-static int DAT_0060d620;
+static const unsigned long portio_port_start = 0x100;
+static const unsigned long portio_port_end = 0x103;
 
 void do_many_allocs_and_memcmp(int ret)
 {
@@ -243,33 +246,124 @@ void do_xenforeignmemory_map(long param_1,int param_2)
     return;
 }
 
-int init_io_port(xendevicemodel_handle *dmod,
+int setup_portio(xendevicemodel_handle *dmod,
                  xenforeignmemory_handle *fmem,
                  int domid,
                  ioservid_t ioservid)
 {
-    int ret;
     _dmod = dmod;
     _fmem = fmem;
     _domid = domid;
     _ioservid = ioservid;
+    int ret;
 
-    if ( some_static_var == 0 )
+    ret = xendevicemodel_map_io_range_to_ioreq_server(dmod, domid, ioservid,
+                                                      0, portio_port_start, portio_port_end);
+    if ( ret < 0 )
     {
-        _do_xfm_mamp = do_xenforeignmemory_map;
-        DAT_0060d620 = 4;
-        some_static_var = 1;
-        static_portio_port = 0x100;
-        ret = xendevicemodel_map_io_range_to_ioreq_server(dmod, domid, ioservid, 0, 0x100, 0x103);
-        if ( ret < 0 )
-        {
-            ERROR("Failed to map io range to ioreq server: %d, %s\n", errno, strerror(errno));
-            return ret;
-        }
+        ERROR("Failed to map io range to ioreq server: %d, %s\n", errno, strerror(errno));
+        return ret;
     }
 
     return 0;
 }
+
+#define AUTH_FILE "/auth/file/path/"
+#define MB(x) (x << 20)
+
+static void *auth_file;
+
+int load_auth_file(void)
+{
+    int fd;
+    ssize_t read_size;
+    int ret;
+    struct stat stat;
+    FILE *stream;
+
+    stream = fopen(AUTH_FILE, "r");
+    if ( !stream )
+    {
+        if ( errno == 2 )
+        {
+            ERROR("Auth file %s is missing!\n");
+        }
+        else
+        {
+            ERROR("Failed to open %s\n", AUTH_FILE);
+        }
+
+        ret = errno;
+        goto error;
+    }
+
+    fd = fileno(stream);
+    if ( fd < 0 )
+    {
+        ERROR("Not a file!\n");
+        ret = errno;
+        goto error;
+    }
+
+    ret = fstat(fd, &stat);
+    if ( ret == -1 )
+    {
+        ERROR("Failed to stat \'%s\'\n", AUTH_FILE);
+        goto error;
+    }
+
+    if ( stat.st_size > MB(1) )
+    {
+        ERROR("Auth file too large: %luMB\n", stat.st_size >> 20);
+        goto error;
+    }
+
+    auth_file = malloc((size_t) stat.st_size);
+    if ( !auth_file )
+    {
+        ERROR("Out of memory!\n");
+        goto error;
+    }
+
+    read_size = fread(auth_file, 1, (size_t)stat.st_size, stream);
+    if ( read_size != stat.st_size )
+    {
+        ERROR("Failed to read \'%s\'\n", AUTH_FILE);
+        goto error;
+    }
+
+    fclose(stream);
+    return 0;
+
+
+error:
+    if ( auth_file )
+        free(auth_file);
+
+    fclose(stream);
+    return ret;
+}
+
+char *varstored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int domid, unsigned int *len)
+{
+    char stringbuf[STRINGBUF_MAX];
+
+    snprintf(stringbuf, STRINGBUF_MAX, xs_path, domid);
+    return xs_read(xsh, XBT_NULL, stringbuf, len);
+}
+
+bool varstored_xs_read_bool(struct xs_handle *xsh, const char *xs_path, int domid)
+{
+    char *data;
+    unsigned int len;
+
+    data = varstored_xs_read_string(xsh, xs_path, domid, &len);
+    if ( !data )
+        return false;
+
+    return strncmp(data, "true", len) == 0;
+}
+
 
 
 int main(int argc, char **argv)
@@ -280,6 +374,7 @@ int main(int argc, char **argv)
     xendevicemodel_handle *dmod;
     xenforeignmemory_handle *fmem;
     xenevtchn_handle *xce;
+    struct xs_handle *xsh;
     xenforeignmemory_resource_handle *fmem_resource;
     xen_pfn_t ioreq_gfn;
     xen_pfn_t bufioioreq_gfn;
@@ -287,16 +382,22 @@ int main(int argc, char **argv)
     evtchn_port_t bufioreq_local_port;
     shared_iopage_t *shared_page;
     buffered_iopage_t *buffered_io_page;
+    bool secureboot_enabled;
+    bool enforcement_level;
     int logfd;
     int domid;
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     ioservid_t ioservid;
+    char stringbuf[STRINGBUF_MAX];
     char *logfile_name;
+    char *data;
     int ret;
     int opt;
     int option_index = 0;
     int i;
+    unsigned int len;
+    char pidstring[PIDSTRING_MAX];
     char c;
 
     const struct option options[] = {
@@ -575,20 +676,51 @@ int main(int argc, char **argv)
     }
     bufioreq_local_port = ret;
 
-    ret = init_io_port(dmod, fmem, domid, ioservid);
+    ret = setup_portio(dmod, fmem, domid, ioservid);
     if ( ret < 0 )
     {
         ERROR("failed to init port io: %d\n", ret);
         goto unmap_resource;
     }
 
+    xsh = xs_open(0);
+    if ( !xsh )
+    {
+        ERROR("Couldn\'t open xenstore: %d, %s", errno, strerror(errno));
+        goto unmap_resource;
+    }
+
     /* Check secure boot is enabled */
+    secureboot_enabled = varstored_xs_read_bool(xsh, "/local/domain/%u/platform/secureboot", domid);
+    INFO("Secure boot enabled: %s\n", secureboot_enabled ? "true" : "false");
 
     /* Check enforcment level */
+    enforcement_level = varstored_xs_read_bool(xsh, "/local/domain/%u/platform/auth-enforce", domid);
+    INFO("Authenticated variables: %s\n", enforcement_level ? "enforcing" : "permissive");
 
-    /* Store the varserved pid in XenStore */
+    /* Store the varstored pid in XenStore */
+    ret =  snprintf(stringbuf, STRINGBUF_MAX, "/local/domain/%u/varserviced-pid", domid);
+    if ( ret < 0 )
+    {
+        ERROR("buffer error: %d, %s\n", errno, strerror(errno));
+        goto unmap_resource;
+    }
 
-    /* Containerize varstored */
+    ret = snprintf(pidstring, PIDSTRING_MAX, "%d", getpid());
+    if ( ret < 0 )
+    {
+        ERROR("buffer error: %d, %s\n", errno, strerror(errno));
+        goto unmap_resource;
+    }
+
+    ret = xs_write(xsh, XBT_NULL, stringbuf, pidstring, ret);
+    if ( ret == false )
+    {
+        ERROR("xs_write failed: %d, %s\n", errno, strerror(errno));
+        goto unmap_resource;
+    }
+
+    /* TODO: Containerize varstored */
 
     /* Initialize UEFI variables */
 
