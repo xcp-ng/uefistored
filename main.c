@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <poll.h>
 #include <sys/mman.h>
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -364,7 +364,51 @@ bool varstored_xs_read_bool(struct xs_handle *xsh, const char *xs_path, int domi
     return strncmp(data, "true", len) == 0;
 }
 
+void handler_loop(xenevtchn_handle *xce, unsigned long *port_array, size_t sz)
+{
+    size_t i;
+    int fd;
+    int ret;
+    struct pollfd pollfd;
 
+    pollfd.fd = xenevtchn_fd(xce);
+    pollfd.events = POLLIN | POLLERR;
+
+    DEBUG("xenevtchn_fd() = %d\n", pollfd.fd);
+    while ( true )
+    {
+        DEBUG("polling fd %d\n", pollfd.fd);
+        ret = poll(&pollfd, 1, -1);
+        DEBUG("poll() %d\n", ret);
+
+        if ( ret < 0 )
+        {
+            ERROR("poll error on fd %d: %d, %s\n", pollfd.fd, errno, strerror(errno));
+            usleep(100000);
+            continue;
+        }
+
+
+        if ( ret >= 0 )
+        {
+            ret = xenevtchn_pending(xce);
+            DEBUG("xenevtchn_pending() %d\n", ret);
+            if ( ret >= 0 )
+            {
+                for ( i=0; i<sz; i++ )
+                {
+                    unsigned long port = port_array[i];
+                    ret = xenevtchn_unmask(xce, port);
+                    DEBUG("xenevtchn_unmask(port=%lu) %d\n", port, ret);
+                    if ( ret >= 0 )
+                    {
+                        /* TODO */
+                    }
+                }
+            }
+        }
+    }
+}
 
 int main(int argc, char **argv)
 
@@ -648,7 +692,7 @@ int main(int argc, char **argv)
     INFO("%d vCPU(s)\n", vcpu_count);
     size_t sz = vcpu_count * sizeof(unsigned long);
     unsigned long *port_array = malloc(sz);
-    memset(port_array, 0xff, vcpu_count * sz);
+    memset(port_array, 0xffff, vcpu_count * sz);
     DEBUG("port_array=0x%x%x\n", port_array[0], port_array[1]);
 
     for ( i=0; i<vcpu_count; i++ )
@@ -726,9 +770,11 @@ int main(int argc, char **argv)
 
     /* Initialize UEFI keys */
 
+    INFO("Starting handler loop!\n");
     /* Initialize event channel handler */
+    handler_loop(xce, port_array, sz);
+    
 
-    INFO("Done!\n");
 done:
     return 0;
 
