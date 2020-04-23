@@ -30,12 +30,17 @@
 #define STRINGBUF_MAX 0x40
 #define PIDSTRING_MAX 16
 
+#define IOREQ_BUFFER_SLOT_NUM     511 /* 8 bytes each, plus 2 4-byte indexes */
+
 static int _logfd = NULL;
 
 static inline void set_logfd(int logfd)
 {
     _logfd = logfd;
 }
+
+void handle_bufioreq(buf_ioreq_t *buf_ioreq);
+int handle_shared_iopage(shared_iopage_t *shared_iopage, size_t vcpu);
 
 #define varstored_dprintf(fd, ...)                    \
     do {                                                \
@@ -172,14 +177,14 @@ static int xen_map_ioreq_server(
                                 xenforeignmemory_handle *fmem,
                                 domid_t domid,
                                 ioservid_t ioservid,
-                                shared_iopage_t **shared_page,
-                                buffered_iopage_t **buffered_io_page,
-                                xenforeignmemory_resource_handle **fres)
+                                shared_iopage_t **shared_iopage,
+                                buffered_iopage_t **buffered_iopage,
+                                xenforeignmemory_resource_handle **fresp)
 {
     void *addr = NULL;
     xen_pfn_t ioreq_pfn = 0;
     xen_pfn_t bufioreq_pfn = 0;
-    xenforeignmemory_resource_handle *ret;
+    xenforeignmemory_resource_handle *fres;
 
     if ( !fmem )
     {
@@ -189,22 +194,22 @@ static int xen_map_ioreq_server(
 
     DEBUG("%s: %d\n", __func__, __LINE__);
 
-    ret = xenforeignmemory_map_resource(fmem, domid,
+    fres = xenforeignmemory_map_resource(fmem, domid,
                                         XENMEM_resource_ioreq_server,
                                         ioservid, 0, 2,
                                         &addr,
                                         PROT_READ | PROT_WRITE, 0);
 
-    if ( !ret )
+    if ( !fres )
     {
         ERROR("failed to map ioreq server resources: error %d: %s",
                      errno, strerror(errno));
         return -1;
     }
 
-    *fres = ret;
-    *buffered_io_page = addr;
-    *shared_page = addr + TARGET_PAGE_SIZE;
+    *fresp = fres;
+    *buffered_iopage = addr;
+    *shared_iopage = addr + TARGET_PAGE_SIZE;
 
     return 0;
 }
@@ -364,23 +369,27 @@ bool varstored_xs_read_bool(struct xs_handle *xsh, const char *xs_path, int domi
     return strncmp(data, "true", len) == 0;
 }
 
-void handler_loop(xenevtchn_handle *xce, unsigned long *port_array, size_t sz)
+void handler_loop(xenevtchn_handle *xce,
+        buffered_iopage_t *buffered_iopage,
+        evtchn_port_t bufioreq_local_port,
+        evtchn_port_t *remote_vcpu_ports,
+        int vcpu_count,
+        shared_iopage_t *shared_iopage)
 {
     size_t i;
     int fd;
     int ret;
     struct pollfd pollfd;
+    evtchn_port_t port;
 
     pollfd.fd = xenevtchn_fd(xce);
     pollfd.events = POLLIN | POLLERR;
 
-    DEBUG("xenevtchn_fd() = %d\n", pollfd.fd);
+    DEBUG("bufioreq_local_port=%d\n", bufioreq_local_port);
+
     while ( true )
     {
-        DEBUG("polling fd %d\n", pollfd.fd);
         ret = poll(&pollfd, 1, -1);
-        DEBUG("poll() %d\n", ret);
-
         if ( ret < 0 )
         {
             ERROR("poll error on fd %d: %d, %s\n", pollfd.fd, errno, strerror(errno));
@@ -388,26 +397,161 @@ void handler_loop(xenevtchn_handle *xce, unsigned long *port_array, size_t sz)
             continue;
         }
 
-
-        if ( ret >= 0 )
+        port = xenevtchn_pending(xce);
+        if ( port < 0 )
         {
-            ret = xenevtchn_pending(xce);
-            DEBUG("xenevtchn_pending() %d\n", ret);
-            if ( ret >= 0 )
+            ERROR("xenevtchn_pending() error: %d, %s\n", errno, strerror(errno));
+            continue;
+        }
+
+        DEBUG("pending port =%d\n", port);
+        if ( port == bufioreq_local_port )
+        {
+            DEBUG("port == bufioreq_local_port\n");
+
+            ret = xenevtchn_unmask(xce, port);
+            if ( ret < 0 )
             {
-                for ( i=0; i<sz; i++ )
-                {
-                    unsigned long port = port_array[i];
-                    ret = xenevtchn_unmask(xce, port);
-                    DEBUG("xenevtchn_unmask(port=%lu) %d\n", port, ret);
-                    if ( ret >= 0 )
+                ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
+                continue;
+            }
+
+
+            int i;
+            buf_ioreq_t *p;
+
+            for (i=0; i<IOREQ_BUFFER_SLOT_NUM; i++) 
+            {
+                p = &buffered_iopage->buf_ioreq[i];
+
+                /* Do some thing */
+                handle_bufioreq(p);
+            }
+            DEBUG("out of loop\n");
+#if 0
+                /*  zeroeth buffered_iopage_t */
+                iter = *buffered_iopage;
+
+                /*  first buffered_iopage_t */
+                next = buffered_iopage[1];
+
+                // why ?
+                // counter = DAT_0060d640;
+                if (iter == next)
+                    break;
+                do {
+                    tmp = (ulong)((buffered_iopage + (ulong)(iter % 0x1ff) * 2)[2] >> 0xc);
+                    if ((int)(1 << (*(byte *)((long)(buffered_iopage + iter * 2) + 9) >> 2 & 3)) == 8) 
                     {
-                        /* TODO */
+                        uVar3 = iter + 2;
                     }
+                    else
+                    {
+                        uVar3 = iter + 1;
+                    }
+                    iter = uVar3;
+                    handle_bufioreq((shared_or_bufferd_page_t *)&tmp);
+                } while (next != iter);
+                *buffered_iopage = next;
+#endif
+        }
+        else
+        {
+            DEBUG("port ==  0x%x\n", port);
+
+            for ( i=0; i<vcpu_count; i++ )
+            {
+                evtchn_port_t remote_port = remote_vcpu_ports[i];
+                DEBUG("remote_vcpu_port[%ld] == 0x%x\n", i, remote_port);
+
+                if ( remote_port == port )
+                {
+                    ret = handle_shared_iopage(shared_iopage, i);
+                    if ( ret < 0 )
+                        continue;
+#if 0
+                    ret = xenevtchn_unmask(xce, remote_port);
+                    if ( ret < 0 )
+                    {
+                        ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
+                        continue;
+                    }
+#endif
                 }
+
             }
         }
+
     }
+}
+
+void handle_bufioreq(buf_ioreq_t *buf_ioreq)
+{
+    int i;
+
+    if ( !buf_ioreq )
+    {
+        ERROR("buf_ioreq is null\n");
+        return;
+    }
+
+    if ( buf_ioreq->type > 8 )
+    {
+        ERROR("UNKNOWN buf_ioreq type %02x)\n", buf_ioreq->type);
+        return;
+    }
+
+    DEBUG("buf_ioreq: type=%d, pad=%d, dir=%s, size=%d, addr=%x, data=%x\n", 
+            buf_ioreq->type, buf_ioreq->pad, buf_ioreq->dir ? "read" : "write",
+            buf_ioreq->size,
+            buf_ioreq->addr, buf_ioreq->data);
+
+#if 0
+    uVar1 = 1 << (shared_or_buffered_page->field_0x1f & 0x3f);
+    if ((uVar1 & 0x186) == 0)
+    {
+
+        if ((uVar1 & 1) == 0)
+            goto LAB_00408750;
+        if ((shared_or_buffered_page->field_0x1e & 0x20) == 0)
+        {
+            if ((shared_or_buffered_page->field_0x1e & 0x10) != 0)
+            {
+                __assert_fail("0","varstored.c",0x106,"handle_pio");
+            }
+            call_xenforeignmemory_map
+            (shared_or_buffered_page->field_0x0,(ulong)shared_or_buffered_page->field_0x14,
+            (ulong)shared_or_buffered_page->field_0x8);
+            return;
+        }
+    }
+#endif
+    return;
+}
+
+int handle_shared_iopage(shared_iopage_t *shared_iopage, size_t vcpu)
+{
+    struct ioreq *p;
+
+    if ( !shared_iopage )
+    {
+        ERROR("null sharedio_page\n");
+        return -1;
+    }
+
+    p = &shared_iopage->vcpu_ioreq[vcpu];
+
+    if ( !p )
+    {
+        ERROR("null vcpu_ioreq\n");
+        return -1;
+    }
+
+    DEBUG("ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
+            p->addr, p->data, p->count, p->size,
+            p->vp_eport, p->state, p->data_is_ptr, p->dir, p->type);
+
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -424,8 +568,8 @@ int main(int argc, char **argv)
     xen_pfn_t bufioioreq_gfn;
     evtchn_port_t bufioreq_remote_port;
     evtchn_port_t bufioreq_local_port;
-    shared_iopage_t *shared_page;
-    buffered_iopage_t *buffered_io_page;
+    shared_iopage_t *shared_iopage;
+    buffered_iopage_t *buffered_iopage;
     bool secureboot_enabled;
     bool enforcement_level;
     int logfd;
@@ -657,8 +801,8 @@ int main(int argc, char **argv)
     INFO("ioservid = %u\n", ioservid);
 
     ret = xen_map_ioreq_server(
-            fmem, domid, ioservid, &shared_page,
-            &buffered_io_page,
+            fmem, domid, ioservid, &shared_iopage,
+            &buffered_iopage,
             &fmem_resource);
     if ( ret < 0 )
     {
@@ -667,8 +811,8 @@ int main(int argc, char **argv)
     }
 
     DEBUG("Mapped ioreq server\n");
-    INFO("shared_page = %p\n", shared_page);
-    INFO("buffered_io_page = %p\n", buffered_io_page);
+    INFO("shared_iopage = %p\n", shared_iopage);
+    INFO("buffered_iopage = %p\n", buffered_iopage);
 
     /* Enable the ioreq server state */
     ret = xendevicemodel_set_ioreq_server_state(dmod, domid, ioservid, 1);
@@ -690,26 +834,23 @@ int main(int argc, char **argv)
 
     /* Initialize Port IO for domU */
     INFO("%d vCPU(s)\n", vcpu_count);
-    size_t sz = vcpu_count * sizeof(unsigned long);
-    unsigned long *port_array = malloc(sz);
-    memset(port_array, 0xffff, vcpu_count * sz);
-    DEBUG("port_array=0x%x%x\n", port_array[0], port_array[1]);
+    evtchn_port_t *remote_vcpu_ports = malloc(sizeof(evtchn_port_t) * vcpu_count);
 
     for ( i=0; i<vcpu_count; i++ )
     {
-        ret = xenevtchn_bind_interdomain(xce, domid, shared_page->vcpu_ioreq[i].vp_eport);
+        ret = xenevtchn_bind_interdomain(xce, domid, shared_iopage->vcpu_ioreq[i].vp_eport);
         if ( ret < 0 )
         {
             ERROR("failed to bind evtchns: %d, %s\n", errno, strerror(errno));
             goto unmap_resource;
         }
 
-        port_array[i] = ret;
+        remote_vcpu_ports[i] = ret;
     }
 
     for ( i=0; i<vcpu_count; i++ )
     {
-        printf("VCPU%d: %u -> %u\n", i, port_array[i], shared_page->vcpu_ioreq[i].vp_eport);
+        printf("VCPU%d: %u -> %u\n", i, remote_vcpu_ports[i], shared_iopage->vcpu_ioreq[i].vp_eport);
     }
 
     ret = xenevtchn_bind_interdomain(xce, domid, bufioreq_remote_port);
@@ -772,8 +913,7 @@ int main(int argc, char **argv)
 
     INFO("Starting handler loop!\n");
     /* Initialize event channel handler */
-    handler_loop(xce, port_array, sz);
-    
+    handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports, vcpu_count, shared_iopage);
 
 done:
     return 0;
