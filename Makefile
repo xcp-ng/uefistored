@@ -1,5 +1,3 @@
-CFLAGS := -g
-
 LIB_DEPS :=	\
 	xenstore \
 	xenctrl \
@@ -10,13 +8,24 @@ LIB_DEPS :=	\
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 
-all: varstored
+INC := -I inc/
+OBJS := src/xen-hvm.o src/common.o
+CFLAGS := -g -Wall
 
-varstored: main.c
-	gcc -o $@ $< $(LIBS) $(CFLAGS)
+all: varstored tools
+
+varstored: src/main.c $(OBJS)
+	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
+
+%.o: %.c
+	gcc -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
 
 .PHONY: clean
 clean:
-	rm varstored
+	rm varstored $(OBJS)
+
+.PHONY: tools
+tools:
+	make -C tools
 
 include Env.mk
