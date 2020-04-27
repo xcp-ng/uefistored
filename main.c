@@ -13,6 +13,7 @@
 
 #include <xenctrl.h>
 #include <xenstore.h>
+#include <xentoolcore.h>
 #include <xendevicemodel.h>
 #include <xenevtchn.h>
 #include <xenforeignmemory.h>
@@ -26,10 +27,6 @@
 
 #define VARSTORED_LOGFILE "/var/log/varstored-%d.log"
 #define VARSTORED_LOGFILE_MAX 32
-
-#define STRINGBUF_MAX 0x40
-#define PIDSTRING_MAX 16
-
 #define IOREQ_BUFFER_SLOT_NUM     511 /* 8 bytes each, plus 2 4-byte indexes */
 
 static int _logfd = NULL;
@@ -40,40 +37,49 @@ static inline void set_logfd(int logfd)
 }
 
 void handle_bufioreq(buf_ioreq_t *buf_ioreq);
-int handle_shared_iopage(shared_iopage_t *shared_iopage, size_t vcpu);
+int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, size_t vcpu);
+
+char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
 
 #define varstored_dprintf(fd, ...)                    \
     do {                                                \
-        dprintf(fd, "varstored_initialize: ");        \
         dprintf(fd, __VA_ARGS__);                       \
     } while( 0 )
 
 #define varstored_fprintf(stream, ...)                    \
     do {                                                \
-        fprintf(stream, "varstored_initialize: ");        \
         fprintf(stream, __VA_ARGS__);                       \
         fflush(stream);                                     \
     } while( 0 )
 
 #define ERROR(...)                                                  \
     do {                                                            \
-        varstored_fprintf(stderr, "ERROR: " __VA_ARGS__);           \
         if ( _logfd )                                                 \
             varstored_dprintf(_logfd, "ERROR: " __VA_ARGS__);       \
     } while ( 0 )
 
+#define WARNING(...)                                                  \
+    do {                                                            \
+        if ( _logfd )                                                 \
+            varstored_dprintf(_logfd, "WARNING: " __VA_ARGS__);       \
+    } while ( 0 )
+
 #define INFO(...)                                                   \
     do {                                                            \
-        varstored_fprintf(stdout,  "INFO: "   __VA_ARGS__);         \
         if ( _logfd )                                                 \
             varstored_dprintf(_logfd,  "INFO: "   __VA_ARGS__);     \
     } while ( 0 )
 
 #define DEBUG(...)                                              \
     do {                                                        \
-        varstored_fprintf(stdout, "DEBUG: " __VA_ARGS__);       \
         if ( _logfd )                                             \
             varstored_dprintf(_logfd, "DEBUG: "  __VA_ARGS__);   \
+    } while ( 0 )
+
+#define DPRINTF(...)                                              \
+    do {                                                        \
+        if ( _logfd )                                             \
+            dprintf(_logfd, __VA_ARGS__);   \
     } while ( 0 )
 
 #define USAGE                           \
@@ -101,9 +107,6 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc_handle,
                                             xen_pfn_t *bufioreq_pfn,
                                             evtchn_port_t *bufioreq_evtchn)
 {
-    unsigned long param;
-    int rc;
-
     if ( !ioreq_pfn )
     {
         ERROR("invalid NULL ioreq_pfn in %s\n", __func__);
@@ -182,8 +185,6 @@ static int xen_map_ioreq_server(
                                 xenforeignmemory_resource_handle **fresp)
 {
     void *addr = NULL;
-    xen_pfn_t ioreq_pfn = 0;
-    xen_pfn_t bufioreq_pfn = 0;
     xenforeignmemory_resource_handle *fres;
 
     if ( !fmem )
@@ -191,8 +192,6 @@ static int xen_map_ioreq_server(
         ERROR("Invalid NULL ptr for fmem\n");
         abort();
     }
-
-    DEBUG("%s: %d\n", __func__, __LINE__);
 
     fres = xenforeignmemory_map_resource(fmem, domid,
                                         XENMEM_resource_ioreq_server,
@@ -211,44 +210,176 @@ static int xen_map_ioreq_server(
     *buffered_iopage = addr;
     *shared_iopage = addr + TARGET_PAGE_SIZE;
 
+    DEBUG("fresp=%p, buffered_iopage=%p, shared_iopage=%p\n",
+            fresp,
+            buffered_iopage,
+            shared_iopage);
     return 0;
 }
 
+static bool io_port_enabled;
+static size_t io_port_size;
 static xendevicemodel_handle *_dmod = NULL;
 static xenforeignmemory_handle *_fmem = NULL;
 static int _domid = -1;
-static int some_static_var;
 static ioservid_t _ioservid;
-static const unsigned long portio_port_start = 0x100;
-static const unsigned long portio_port_end = 0x103;
+static unsigned long io_port_addr;
 
-void do_many_allocs_and_memcmp(int ret)
+typedef enum command {
+    COMMAND_GET_VARIABLE,
+    COMMAND_SET_VARIABLE,
+    COMMAND_GET_NEXT_VARIABLE,
+    COMMAND_QUERY_VARIABLE_INFO,
+    COMMAND_NOTIFY_SB_FAILURE,
+} command_t;
+
+void handle_uefi_var_request(void *command)
 {
-    (void) ret;
+#if 0
+    int i;
+    void *k = p;
+    DEBUG("k=%p\n", k);
+    DPRINTF("DEBUG: 0x");
+    for (i=0; i<512; i++)
+    {
+        DPRINTF("%x", *(unsigned int*) k);
+        k++;
+    }
+    DPRINTF("\n");
+#endif
+    DEBUG("command@=%p\n", command);
+    uint32_t version = *((uint32_t*) command);
+    uint32_t command_type = *((uint32_t*)(command + 8));
+    DEBUG("version=%u\n", version);
+    switch ( command_type )
+    {
+        case COMMAND_GET_VARIABLE:
+            DEBUG("cmd:GET_VARIABLE\n");
+            break;
+        case COMMAND_SET_VARIABLE:
+            DEBUG("cmd:SET_VARIABLE\n");
+            break;
+        case COMMAND_GET_NEXT_VARIABLE:
+            DEBUG("cmd:GET_NEXT_VARIABLE\n");
+            break;
+        case COMMAND_QUERY_VARIABLE_INFO:
+            DEBUG("cmd:QUERY_VARIABLE_VARIABLE\n");
+            break;
+        case COMMAND_NOTIFY_SB_FAILURE:
+            DEBUG("cmd:NOTIFY_SB_FAILURE\n");
+            break;
+    }
 }
 
-void do_xenforeignmemory_map(long param_1,int param_2)
+/* OVMF XenVariable loads 16 pages of shared memory to pass varstored the command */
+#define SHMEM_PAGES 16
+
+/**
+ * map_guest_memory - Map in a page from the guest address space
+ *
+ * Map the GFNs from start to (start + SHMEM_PAGES) from guest space to varstored
+ * as shared memory.
+ */
+void *map_guest_memory(xen_pfn_t start)
 {
     void *p;
-    int ret;
-    unsigned long array [16];
-
-    if ( param_1 == 0 )
+    int i;
+    xen_pfn_t array[SHMEM_PAGES];
+        
+    for ( i=0; i<SHMEM_PAGES; i++ )
     {
-        ret = 0;
-        do {
-            array[ret] = (unsigned long)(param_2 + ret);
-            ret = ret + 1;
-        } while ( ret != 0x10 );
-
-        p = xenforeignmemory_map(_fmem, _domid, 3, 0x10, array,0);
-        if ( p != 0 ) {
-            do_many_allocs_and_memcmp(ret);
-            xenforeignmemory_unmap(_fmem, p, 0x10);
-            return;
-        }
+        array[i] = start + i;
     }
-    return;
+
+    DEBUG("Attempting to map in: 0x%02lx-0x%02lx\n", start, start + i);
+    return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE, 16, array, NULL);
+}
+
+void io_port_write(struct ioreq *ioreq)
+
+{
+    void *p;
+
+    /* The port number is the ioreq address. */
+    uint64_t port_addr = ioreq->addr;
+
+    /*
+     * The data written to the port is actually the GFN of the XenVariable command.
+     *
+     * See relevant XenVariable here:
+     *  https://github.com/xcp-ng-rpms/edk2/blob/bd307ee95ceddc8edcaafd212ee5416ae7d8a0c9/SOURCES/add-xen-variable.patch#L204
+     */
+    uint64_t gfn = ioreq->data;
+
+    /* This is just the size of the port write.  We only use it to require XenVariable to use 32bit port IO writes. */
+    uint32_t size = ioreq->size;
+
+    DEBUG("%s, ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
+            __func__,
+            ioreq->addr, ioreq->data, ioreq->count, ioreq->size,
+            ioreq->vp_eport, ioreq->state, ioreq->data_is_ptr, ioreq->dir, ioreq->type);
+
+    if ( !io_port_enabled )
+    {
+        ERROR("ioport not yet enabled!\n");
+        return;
+    }
+
+    if ( !(io_port_addr <= port_addr && port_addr < io_port_addr + io_port_size) )
+    {
+        ERROR("port addr 0x%lx not in range (0x%02lx-0x%02lx)\n",
+                port_addr, io_port_addr, io_port_addr + io_port_size - 1);
+        return;
+    }
+
+    if ( size != 4 )
+    {
+        ERROR("Expected size 4, got %u\n", size);
+        return;
+    }
+        
+    p = map_guest_memory(gfn);
+    if ( p )
+    {
+        /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
+         * let's process it. */
+        handle_uefi_var_request(p);
+
+        /* Free up mappable space */
+        xenforeignmemory_unmap(_fmem, p, 16);
+    }
+}
+
+void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
+{
+    if ( ioreq->type > 8 )
+    {
+        ERROR("UNKNOWN (%02x)", ioreq->type);
+        return;
+    }
+
+    if ( ioreq->type != IOREQ_TYPE_PIO )
+    {
+        ERROR("Not PIO ioreq type, 0x%02x\n", ioreq->type);
+        return;
+    }
+
+    assert( ioreq->state < 16 );
+
+    DEBUG("ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
+            ioreq->addr, ioreq->data, ioreq->count, ioreq->size,
+            ioreq->vp_eport, ioreq->state, ioreq->data_is_ptr, ioreq->dir, ioreq->type);
+
+    if ( ioreq->state != STATE_IOREQ_READY )
+    {
+        ERROR("IO request not ready\n");
+        return;
+    }
+
+    ioreq->state = STATE_IOREQ_INPROCESS;
+    io_port_write(ioreq);
+    ioreq->state = STATE_IORESP_READY;
+    xenevtchn_notify(xce, port);
 }
 
 int setup_portio(xendevicemodel_handle *dmod,
@@ -262,14 +393,25 @@ int setup_portio(xendevicemodel_handle *dmod,
     _ioservid = ioservid;
     int ret;
 
+    if ( io_port_enabled )
+    {
+        ERROR("Cannot initialize an already enabled ioport!\n");
+        return -1;
+    }
+
+    io_port_size = 4;
+    io_port_enabled = true;
+    io_port_addr = 0x100;
     ret = xendevicemodel_map_io_range_to_ioreq_server(dmod, domid, ioservid,
-                                                      0, portio_port_start, portio_port_end);
+                                                      0, io_port_addr,
+                                                      io_port_addr + io_port_size - 1);
     if ( ret < 0 )
     {
         ERROR("Failed to map io range to ioreq server: %d, %s\n", errno, strerror(errno));
         return ret;
     }
 
+    INFO("map IO port: 0x%02lx - 0x%02lx\n", io_port_addr, io_port_addr + io_port_size - 1);
     return 0;
 }
 
@@ -291,7 +433,7 @@ int load_auth_file(void)
     {
         if ( errno == 2 )
         {
-            ERROR("Auth file %s is missing!\n");
+            ERROR("Auth file %s is missing!\n", AUTH_FILE);
         }
         else
         {
@@ -351,9 +493,9 @@ error:
 
 char *varstored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int domid, unsigned int *len)
 {
-    char stringbuf[STRINGBUF_MAX];
+    char stringbuf[0x80];
 
-    snprintf(stringbuf, STRINGBUF_MAX, xs_path, domid);
+    snprintf(stringbuf, sizeof(stringbuf), xs_path, domid);
     return xs_read(xsh, XBT_NULL, stringbuf, len);
 }
 
@@ -377,13 +519,12 @@ void handler_loop(xenevtchn_handle *xce,
         shared_iopage_t *shared_iopage)
 {
     size_t i;
-    int fd;
     int ret;
     struct pollfd pollfd;
     evtchn_port_t port;
 
     pollfd.fd = xenevtchn_fd(xce);
-    pollfd.events = POLLIN | POLLERR;
+    pollfd.events = POLLIN | POLLERR | POLLHUP;
 
     DEBUG("bufioreq_local_port=%d\n", bufioreq_local_port);
 
@@ -404,81 +545,39 @@ void handler_loop(xenevtchn_handle *xce,
             continue;
         }
 
-        DEBUG("pending port =%d\n", port);
+        ret = xenevtchn_unmask(xce, port);
+        if ( ret < 0 )
+        {
+            ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
+            continue;
+        }
+
+
         if ( port == bufioreq_local_port )
         {
-            DEBUG("port == bufioreq_local_port\n");
-
-            ret = xenevtchn_unmask(xce, port);
-            if ( ret < 0 )
-            {
-                ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
-                continue;
-            }
-
 
             int i;
             buf_ioreq_t *p;
 
-            for (i=0; i<IOREQ_BUFFER_SLOT_NUM; i++) 
+            for ( i=0; i<IOREQ_BUFFER_SLOT_NUM; i++ ) 
             {
                 p = &buffered_iopage->buf_ioreq[i];
 
                 /* Do some thing */
                 handle_bufioreq(p);
             }
-            DEBUG("out of loop\n");
-#if 0
-                /*  zeroeth buffered_iopage_t */
-                iter = *buffered_iopage;
-
-                /*  first buffered_iopage_t */
-                next = buffered_iopage[1];
-
-                // why ?
-                // counter = DAT_0060d640;
-                if (iter == next)
-                    break;
-                do {
-                    tmp = (ulong)((buffered_iopage + (ulong)(iter % 0x1ff) * 2)[2] >> 0xc);
-                    if ((int)(1 << (*(byte *)((long)(buffered_iopage + iter * 2) + 9) >> 2 & 3)) == 8) 
-                    {
-                        uVar3 = iter + 2;
-                    }
-                    else
-                    {
-                        uVar3 = iter + 1;
-                    }
-                    iter = uVar3;
-                    handle_bufioreq((shared_or_bufferd_page_t *)&tmp);
-                } while (next != iter);
-                *buffered_iopage = next;
-#endif
         }
         else
         {
-            DEBUG("port ==  0x%x\n", port);
-
             for ( i=0; i<vcpu_count; i++ )
             {
                 evtchn_port_t remote_port = remote_vcpu_ports[i];
-                DEBUG("remote_vcpu_port[%ld] == 0x%x\n", i, remote_port);
-
                 if ( remote_port == port )
                 {
-                    ret = handle_shared_iopage(shared_iopage, i);
+                    ret = handle_shared_iopage(xce, shared_iopage, port, i);
                     if ( ret < 0 )
                         continue;
-#if 0
-                    ret = xenevtchn_unmask(xce, remote_port);
-                    if ( ret < 0 )
-                    {
-                        ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
-                        continue;
-                    }
-#endif
                 }
-
             }
         }
 
@@ -487,8 +586,6 @@ void handler_loop(xenevtchn_handle *xce,
 
 void handle_bufioreq(buf_ioreq_t *buf_ioreq)
 {
-    int i;
-
     if ( !buf_ioreq )
     {
         ERROR("buf_ioreq is null\n");
@@ -501,35 +598,16 @@ void handle_bufioreq(buf_ioreq_t *buf_ioreq)
         return;
     }
 
+#if 0
     DEBUG("buf_ioreq: type=%d, pad=%d, dir=%s, size=%d, addr=%x, data=%x\n", 
             buf_ioreq->type, buf_ioreq->pad, buf_ioreq->dir ? "read" : "write",
             buf_ioreq->size,
             buf_ioreq->addr, buf_ioreq->data);
-
-#if 0
-    uVar1 = 1 << (shared_or_buffered_page->field_0x1f & 0x3f);
-    if ((uVar1 & 0x186) == 0)
-    {
-
-        if ((uVar1 & 1) == 0)
-            goto LAB_00408750;
-        if ((shared_or_buffered_page->field_0x1e & 0x20) == 0)
-        {
-            if ((shared_or_buffered_page->field_0x1e & 0x10) != 0)
-            {
-                __assert_fail("0","varstored.c",0x106,"handle_pio");
-            }
-            call_xenforeignmemory_map
-            (shared_or_buffered_page->field_0x0,(ulong)shared_or_buffered_page->field_0x14,
-            (ulong)shared_or_buffered_page->field_0x8);
-            return;
-        }
-    }
 #endif
-    return;
 }
 
-int handle_shared_iopage(shared_iopage_t *shared_iopage, size_t vcpu)
+int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, 
+        size_t vcpu)
 {
     struct ioreq *p;
 
@@ -540,17 +618,13 @@ int handle_shared_iopage(shared_iopage_t *shared_iopage, size_t vcpu)
     }
 
     p = &shared_iopage->vcpu_ioreq[vcpu];
-
     if ( !p )
     {
         ERROR("null vcpu_ioreq\n");
         return -1;
     }
 
-    DEBUG("ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
-            p->addr, p->data, p->count, p->size,
-            p->vp_eport, p->state, p->data_is_ptr, p->dir, p->type);
-
+    handle_pio(xce, port, p);
     return 0;
 }
 
@@ -564,8 +638,6 @@ int main(int argc, char **argv)
     xenevtchn_handle *xce;
     struct xs_handle *xsh;
     xenforeignmemory_resource_handle *fmem_resource;
-    xen_pfn_t ioreq_gfn;
-    xen_pfn_t bufioioreq_gfn;
     evtchn_port_t bufioreq_remote_port;
     evtchn_port_t bufioreq_local_port;
     shared_iopage_t *shared_iopage;
@@ -577,15 +649,12 @@ int main(int argc, char **argv)
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     ioservid_t ioservid;
-    char stringbuf[STRINGBUF_MAX];
     char *logfile_name;
-    char *data;
     int ret;
-    int opt;
     int option_index = 0;
     int i;
-    unsigned int len;
-    char pidstring[PIDSTRING_MAX];
+    char pidstr[21];
+    char pidalive[0x80];
     char c;
 
     const struct option options[] = {
@@ -814,6 +883,14 @@ int main(int argc, char **argv)
     INFO("shared_iopage = %p\n", shared_iopage);
     INFO("buffered_iopage = %p\n", buffered_iopage);
 
+    ret = xendevicemodel_get_ioreq_server_info(dmod, domid, ioservid, 0, 0, &bufioreq_remote_port);
+    if ( ret < 0 )
+    {
+        ERROR("Failed to get ioreq server info: %d, %s\n", errno, strerror(errno));
+        ret = errno;
+        goto unmap_resource;
+    }
+
     /* Enable the ioreq server state */
     ret = xendevicemodel_set_ioreq_server_state(dmod, domid, ioservid, 1);
     if ( ret < 0 )
@@ -823,17 +900,8 @@ int main(int argc, char **argv)
         goto unmap_resource;
     }
 
-    /* Bind the interdomain event channel */
-    ret = xendevicemodel_get_ioreq_server_info(dmod, domid, ioservid, 0, 0, &bufioreq_remote_port);
-    if ( ret < 0 )
-    {
-        ERROR("Failed to get ioreq server info: %d, %s\n", errno, strerror(errno));
-        ret = errno;
-        goto unmap_resource;
-    }
-
     /* Initialize Port IO for domU */
-    INFO("%d vCPU(s)\n", vcpu_count);
+    INFO("%lu vCPU(s)\n", vcpu_count);
     evtchn_port_t *remote_vcpu_ports = malloc(sizeof(evtchn_port_t) * vcpu_count);
 
     for ( i=0; i<vcpu_count; i++ )
@@ -875,6 +943,7 @@ int main(int argc, char **argv)
         goto unmap_resource;
     }
 
+    
     /* Check secure boot is enabled */
     secureboot_enabled = varstored_xs_read_bool(xsh, "/local/domain/%u/platform/secureboot", domid);
     INFO("Secure boot enabled: %s\n", secureboot_enabled ? "true" : "false");
@@ -883,27 +952,29 @@ int main(int argc, char **argv)
     enforcement_level = varstored_xs_read_bool(xsh, "/local/domain/%u/platform/auth-enforce", domid);
     INFO("Authenticated variables: %s\n", enforcement_level ? "enforcing" : "permissive");
 
-    /* Store the varstored pid in XenStore */
-    ret =  snprintf(stringbuf, STRINGBUF_MAX, "/local/domain/%u/varserviced-pid", domid);
+    /* Store the varstored pid in XenStore to signal to XAPI that varstored is alive */
+    ret =  snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid", domid);
     if ( ret < 0 )
     {
         ERROR("buffer error: %d, %s\n", errno, strerror(errno));
         goto unmap_resource;
     }
 
-    ret = snprintf(pidstring, PIDSTRING_MAX, "%d", getpid());
+    DEBUG("%s:%d\n", __func__, __LINE__);
+    ret = snprintf(pidstr, sizeof(pidstr), "%u", getpid());
     if ( ret < 0 )
     {
-        ERROR("buffer error: %d, %s\n", errno, strerror(errno));
-        goto unmap_resource;
+        ERROR("pidstr asprintf failed\n");
     }
 
-    ret = xs_write(xsh, XBT_NULL, stringbuf, pidstring, ret);
+    ret = xs_write(xsh, XBT_NULL, pidalive, pidstr, ret);
     if ( ret == false )
     {
         ERROR("xs_write failed: %d, %s\n", errno, strerror(errno));
         goto unmap_resource;
     }
+
+    DEBUG("xs_write(%s=%s)\n", pidalive, pidstr);
 
     /* TODO: Containerize varstored */
 
@@ -915,7 +986,6 @@ int main(int argc, char **argv)
     /* Initialize event channel handler */
     handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports, vcpu_count, shared_iopage);
 
-done:
     return 0;
 
 unmap_resource:
@@ -937,10 +1007,10 @@ cleanup:
 #if 0
     xenevtchn_unbind(xenevtchn_handle);
     xenevtchn_unbind(xenevtchn_handle);
-    xendevicemodel_destroy_ioreq_server(xendevicemodel_handle,(ulong)domain,(ulong)ioservid);
+    xendevicemodel_destroy_ioreq_server(xendevicemodel_handle,(uint64_t)domain,(uint64_t)ioservid);
 
     xendevicemodel_set_ioreq_server_state
-    (xendevicemodel_handle,(ulong)domain,(ulong)ioservid,0);
+    (xendevicemodel_handle,(uint64_t)domain,(uint64_t)ioservid,0);
 #endif
 error:
     free(logfile_name);

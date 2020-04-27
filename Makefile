@@ -11,7 +11,7 @@ OBJS :=
 INC :=
 CFLAGS := -g -Wall
 
-all: varstored tools
+all: varstored
 
 varstored: main.c $(OBJS)
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
@@ -22,5 +22,9 @@ varstored: main.c $(OBJS)
 .PHONY: clean
 clean:
 	rm varstored $(OBJS)
+
+.PHONY: tools
+tools:
+	$(MAKE) -C tools
 
 include Env.mk
