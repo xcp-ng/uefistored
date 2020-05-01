@@ -2,3 +2,5 @@ varstored
 xcp-ng-build-env/
 edk2/
 varserviced
+tests/test
+test.log
