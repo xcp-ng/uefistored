@@ -27,4 +27,8 @@ clean:
 tools:
 	$(MAKE) -C tools
 
+.PHONY: test
+test:
+	$(MAKE) -C tests/
+
 include Env.mk
