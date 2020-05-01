@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <uchar.h>
 
 #include <xenctrl.h>
 #include <xenstore.h>
@@ -22,6 +23,10 @@
 #include <xen/hvm/params.h>
 #include <xen/memory.h>
 
+#include "backends/mem.h"
+#include "common.h"
+#include "parse.h"
+
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
 
@@ -29,58 +34,10 @@
 #define VARSTORED_LOGFILE_MAX 32
 #define IOREQ_BUFFER_SLOT_NUM     511 /* 8 bytes each, plus 2 4-byte indexes */
 
-static int _logfd = NULL;
-
-static inline void set_logfd(int logfd)
-{
-    _logfd = logfd;
-}
-
 void handle_bufioreq(buf_ioreq_t *buf_ioreq);
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, size_t vcpu);
 
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
-
-#define varstored_dprintf(fd, ...)                    \
-    do {                                                \
-        dprintf(fd, __VA_ARGS__);                       \
-    } while( 0 )
-
-#define varstored_fprintf(stream, ...)                    \
-    do {                                                \
-        fprintf(stream, __VA_ARGS__);                       \
-        fflush(stream);                                     \
-    } while( 0 )
-
-#define ERROR(...)                                                  \
-    do {                                                            \
-        if ( _logfd )                                                 \
-            varstored_dprintf(_logfd, "ERROR: " __VA_ARGS__);       \
-    } while ( 0 )
-
-#define WARNING(...)                                                  \
-    do {                                                            \
-        if ( _logfd )                                                 \
-            varstored_dprintf(_logfd, "WARNING: " __VA_ARGS__);       \
-    } while ( 0 )
-
-#define INFO(...)                                                   \
-    do {                                                            \
-        if ( _logfd )                                                 \
-            varstored_dprintf(_logfd,  "INFO: "   __VA_ARGS__);     \
-    } while ( 0 )
-
-#define DEBUG(...)                                              \
-    do {                                                        \
-        if ( _logfd )                                             \
-            varstored_dprintf(_logfd, "DEBUG: "  __VA_ARGS__);   \
-    } while ( 0 )
-
-#define DPRINTF(...)                                              \
-    do {                                                        \
-        if ( _logfd )                                             \
-            dprintf(_logfd, __VA_ARGS__);   \
-    } while ( 0 )
 
 #define USAGE                           \
     "Usage: varstored <options> \n"   \
@@ -98,8 +55,6 @@ char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
 
 #define UNIMPLEMENTED(opt)                                      \
         ERROR(opt " option not implemented!\n")
-
-#define TRACE()  DEBUG("%s: %d\n", __func__, __LINE__)
 
 static inline int xen_get_ioreq_server_info(xc_interface *xc_handle,
                                             domid_t dom,
@@ -225,48 +180,204 @@ static int _domid = -1;
 static ioservid_t _ioservid;
 static unsigned long io_port_addr;
 
-typedef enum command {
-    COMMAND_GET_VARIABLE,
-    COMMAND_SET_VARIABLE,
-    COMMAND_GET_NEXT_VARIABLE,
-    COMMAND_QUERY_VARIABLE_INFO,
-    COMMAND_NOTIFY_SB_FAILURE,
-} command_t;
+/* UEFI Definitions */
+typedef uint64_t EFI_STATUS;
 
-void handle_uefi_var_request(void *command)
+#define EFI_SUCCESS 0
+#define EFI_NOT_FOUND 14
+
+
+#define VARIABLE_NAME_SZ_OFFSET 8
+#define VARIABLE_NAME_OFFSET 16
+
+#define VARIABLE_GUID_OFFSET(shared_page) \
+    ((variable_name_len(shared_page)) + VARIABLE_NAME_OFFSET)
+
+#define VARIABLE_DATASIZE_OFFSET(shared_page) \
+    VARIABLE_GUID_OFFSET(shared_page) + 16
+
+#define VARIABLE_DATA_OFFSET(shared_page) \
+    (VARIABLE_DATASIZE_OFFSET(shared_page) + 8)
+
+#define COMMAND_OFFSET 4
+
+
+#define SET_VAR_VENDOR_GUID_OFFSET 16
+
+static bool get_next_initialized = false;
+
+typedef struct {
+    uint32_t  data1;
+    uint16_t  data2;
+    uint16_t  data3;
+    uint8_t   data4[8];
+} efi_guid_t;
+
+
+struct req_header {
+    uint32_t version;
+    uint32_t command_type;
+};
+
+
+static inline uint64_t variable_name_sz(void *shared_page)
 {
-#if 0
+    return *((uint64_t *) (shared_page + VARIABLE_NAME_SZ_OFFSET));
+}
+
+static inline char16_t *variable_name(void *shared_page)
+{
+    return (char16_t *)(shared_page + VARIABLE_NAME_OFFSET);
+}
+
+static inline size_t variable_name_len(void *shared_page)
+{
+    return variable_name_sz(shared_page) / sizeof(char16_t);
+}
+
+static uint64_t variable_datalen(void *shared_page)
+{
+    size_t off =
+        COMMAND_OFFSET + VARIABLE_NAME_OFFSET + 
+        variable_name_len(shared_page) + 
+        SET_VAR_VENDOR_GUID_OFFSET - 1;
+    return *((uint64_t*)(shared_page + off));
+}
+
+static void* variable_data(void *shared_page)
+{
+    return shared_page + VARIABLE_DATA_OFFSET(shared_page);
+}
+
+static char strbuf[512];
+
+/**
+ * dprint_vname -  Debug print a variable name
+ *
+ * WARNING: this only prints ASCII characters correctly.
+ * Any char code above 255 will be displayed incorrectly.
+ */
+void dprint_vname(char16_t *vn, uint64_t vnlen)
+{
     int i;
-    void *k = p;
-    DEBUG("k=%p\n", k);
-    DPRINTF("DEBUG: 0x");
-    for (i=0; i<512; i++)
+
+    for (i=0; i<vnlen; i++)
     {
-        DPRINTF("%x", *(unsigned int*) k);
-        k++;
+        strbuf[i] = (char)(vn[i] & 0xff);
+    }
+
+    DEBUG("name (%lu): %s\n", vnlen, strbuf);
+
+    memset(strbuf, '\0', 512);
+}
+
+void handle_uefi_get_variable(void *shared_page)
+{
+    size_t len;
+    int ret;
+    void *val;
+    const uint64_t vnlen = variable_name_len(shared_page);
+    char16_t *vn = variable_name(shared_page);
+
+    dprint_vname(vn, vnlen);
+    DEBUG("cmd:GET_VARIABLE\n");
+
+    ret = db_get((void*) vn, vnlen*2, &val, &len);
+    if ( ret < 0 )
+    {
+        ERROR("Failed to get variable\n");
+        return;
+    }
+
+    DEBUG("End GET_VARIABLE\n");
+}
+
+void handle_uefi_set_variable(void *shared_page)
+{
+    void *data = variable_data(shared_page);
+    uint64_t datalen = variable_datalen(shared_page);
+    int ret;
+    char16_t *vn = variable_name(shared_page);
+    const uint64_t vnlen = variable_name_len(shared_page);
+
+    dprint_vname(vn, vnlen);
+    DEBUG("cmd:SET_VARIABLE\n");
+
+    DEBUG("shared_page=%p, data=%p\n", shared_page, data);
+    DEBUG("datalen=0x%lx\n", datalen);
+    ret = db_set((void*) vn, vnlen, data, datalen);
+    if ( ret < 0 )
+    {
+        ERROR("Failed to set variable in db\n");
+        return;
+    }
+}
+
+
+void handle_uefi_get_next_variable(void *shared_page)
+{
+    const uint64_t vnlen = variable_name_len(shared_page);
+    char16_t *vn = variable_name(shared_page);
+    EFI_STATUS rc;
+
+    DEBUG("cmd:GET_NEXT_VARIABLE\n");
+    DEBUG("vnlen: %lu\n", vnlen);
+
+    /**
+     * To start the search, a Null-terminated string is passed in
+     * VariableName; that is, VariableName is a pointer to a Null character.
+     * This is always done on the initial call to GetNextVariableName().
+     */
+
+    if ( (!get_next_initialized) && (*variable_name) != ((char16_t) '\0') )
+    {
+        /* TODO: Does this make sense ? */
+        rc = EFI_NOT_FOUND;
+    }
+    else
+    {
+        rc = EFI_SUCCESS;
+    }
+
+    get_next_initialized = 1;
+    *((EFI_STATUS *) shared_page) = rc;
+}
+
+void handle_uefi_var_request(void *shared_page)
+{
+    struct req_header *hdr = shared_page;
+
+    DEBUG("version=%u\n", hdr->version);
+
+#if 1
+    int i;
+    DPRINTF("MESSAGE: ");
+    for (i=0; i<0x38; i++)
+    {
+        DPRINTF("0x%x ", *((uint8_t*)(shared_page + i)));
     }
     DPRINTF("\n");
 #endif
-    DEBUG("command@=%p\n", command);
-    uint32_t version = *((uint32_t*) command);
-    uint32_t command_type = *((uint32_t*)(command + 8));
-    DEBUG("version=%u\n", version);
-    switch ( command_type )
+
+    switch ( hdr->command_type )
     {
         case COMMAND_GET_VARIABLE:
-            DEBUG("cmd:GET_VARIABLE\n");
+            handle_uefi_get_variable(shared_page);
             break;
         case COMMAND_SET_VARIABLE:
-            DEBUG("cmd:SET_VARIABLE\n");
+            handle_uefi_set_variable(shared_page);
             break;
         case COMMAND_GET_NEXT_VARIABLE:
-            DEBUG("cmd:GET_NEXT_VARIABLE\n");
+            handle_uefi_get_next_variable(shared_page);
             break;
         case COMMAND_QUERY_VARIABLE_INFO:
             DEBUG("cmd:QUERY_VARIABLE_VARIABLE\n");
             break;
         case COMMAND_NOTIFY_SB_FAILURE:
             DEBUG("cmd:NOTIFY_SB_FAILURE\n");
+            break;
+        default:
+            ERROR("cmd: unknown: 0x%x\n", hdr->command_type);
             break;
     }
 }
@@ -282,20 +393,19 @@ void handle_uefi_var_request(void *command)
  */
 void *map_guest_memory(xen_pfn_t start)
 {
-    void *p;
     int i;
-    xen_pfn_t array[SHMEM_PAGES];
+    xen_pfn_t shmem[SHMEM_PAGES];
         
     for ( i=0; i<SHMEM_PAGES; i++ )
     {
-        array[i] = start + i;
+        shmem[i] = start + i;
     }
 
     DEBUG("Attempting to map in: 0x%02lx-0x%02lx\n", start, start + i);
-    return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE, 16, array, NULL);
+    return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE, 16, shmem, NULL);
 }
 
-void io_port_write(struct ioreq *ioreq)
+void handle_ioreq(struct ioreq *ioreq)
 
 {
     void *p;
@@ -377,7 +487,7 @@ void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
     }
 
     ioreq->state = STATE_IOREQ_INPROCESS;
-    io_port_write(ioreq);
+    handle_ioreq(ioreq);
     ioreq->state = STATE_IORESP_READY;
     xenevtchn_notify(xce, port);
 }
@@ -552,7 +662,6 @@ void handler_loop(xenevtchn_handle *xce,
             continue;
         }
 
-
         if ( port == bufioreq_local_port )
         {
 
@@ -629,7 +738,6 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 }
 
 int main(int argc, char **argv)
-
 {
     xc_interface *xc_handle;
     xc_dominfo_t domain_info;
@@ -681,7 +789,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-#warning "TODO: move this to after parsing and change the number from being getpid() to domid"
     ret = snprintf(logfile_name, VARSTORED_LOGFILE_MAX,  VARSTORED_LOGFILE, getpid());
     if ( ret < 0 )
     {
@@ -979,6 +1086,12 @@ int main(int argc, char **argv)
     /* TODO: Containerize varstored */
 
     /* Initialize UEFI variables */
+    ret = db_init();
+    if ( ret < 0 )
+    {
+        DEBUG("Failed to initialize db\n");
+        goto unmap_resource;
+    }
 
     /* Initialize UEFI keys */
 

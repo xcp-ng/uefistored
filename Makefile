@@ -7,13 +7,13 @@ LIB_DEPS :=	\
 	xentoolcore
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-OBJS :=
-INC :=
+OBJS := src/backends/mem.o src/common.o
+INC := -Iinc/
 CFLAGS := -g -Wall
 
 all: varstored
 
-varstored: main.c $(OBJS)
+varstored: src/main.c $(OBJS) 
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
