@@ -92,6 +92,25 @@ void *parse_guid(void *message, uint8_t guid[16])
     return p;
 }
 
+uint64_t parse_datalen(void *message)
+{
+    size_t len;
+    void *p;
+    uint64_t datalen;
+
+    /* Advance pointer passed Name Length */
+    p = get_len(message, &len);
+
+    /* Advance pointer to GUID field */
+    p += len;
+
+    /* Advance pointer to Data len field */
+    p += 16;
+
+    memcpy(&len, p, DATA_LEN_LEN);
+    return len;
+}
+
 void *parse_data(void *message, void **data, size_t *outl)
 {
     size_t len;
@@ -125,7 +144,7 @@ void *parse_data(void *message, void **data, size_t *outl)
     return p;
 }
 
-uint32_t parse_attr(void *message)
+uint32_t parse_attrs(void *message)
 {
     void *p;
     size_t len;

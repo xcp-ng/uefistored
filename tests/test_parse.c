@@ -50,7 +50,7 @@ void test_set_rtc(void)
 {
     uint8_t guid[16];
     size_t len;
-    size_t datalen;
+    size_t datalen, datalen2;
     void *message;
     void *variable_name;
     void *data;
@@ -74,12 +74,13 @@ void test_set_rtc(void)
     /* Test that the data is parsed correctly */
     parse_data(message, &data, &datalen);
     test(datalen == 0x04);
+    test(datalen == parse_datalen(message));
 
     size_t *sp = (size_t*)&SET_RTC[38];
     test(*sp == 0x04);
     test(memcmp(data, &SET_RTC[38 + 4], 0x04) == 0);
 
-    test(parse_attr(message) == 7);
+    test(parse_attrs(message) == 7);
     test(parse_efiruntime(message) == 0);
 
     /* Free up any used memory */
