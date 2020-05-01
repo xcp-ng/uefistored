@@ -13,6 +13,7 @@ typedef enum command {
 
 command_t parse_command(void *message);
 uint32_t parse_version(void *message);
-void parse_variable_name(void *message, void **variable_name, size_t *len);
+void *parse_variable_name(void *message, void **variable_name, size_t *len);
+void *parse_guid(void *message, uint8_t guid[16]);
 
 #endif

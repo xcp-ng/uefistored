@@ -30,11 +30,8 @@ uint32_t parse_version(void *message)
     return ret;
 }
 
-void parse_variable_name(void *message, void **variable_name, size_t *outl)
+static void *get_len(void *message, size_t *outl)
 {
-    uint32_t ret;
-    size_t len;
-    void *copy;
     void *p;
 
     /* Point to the start of the message */
@@ -45,15 +42,48 @@ void parse_variable_name(void *message, void **variable_name, size_t *outl)
     p += COMMAND_LEN;
 
     /* Stop at the "Name Length" field and copy that into "len" */
-    memcpy(&len, p, NAME_LEN_LEN);
+    memcpy(outl, p, NAME_LEN_LEN);
 
     /* Proceed passed the "Name Length" field */
     p += NAME_LEN_LEN;
+
+    return p;
+}
+
+void *parse_variable_name(void *message, void **variable_name, size_t *outl)
+{
+    uint32_t ret;
+    size_t len;
+    void *copy;
+    void *p;
+
+    /* Advance pointer passed Name Length */
+    p = get_len(message, &len);
 
     /* Stop at the "Variable Name" field and copy the name into "variable_name" */
     copy = malloc(len);
     memcpy(copy, p, len);
 
+    /* Output data */
     *variable_name = copy;
     *outl = len;
+
+    /* Advanced pointer for next field */
+    p += len;
+    return p;
+}
+
+void *parse_guid(void *message, uint8_t guid[16])
+{
+    size_t len;
+    void *buf, *p;
+
+    /* Advanced pointer passed "Variable Name" field */
+    p = parse_variable_name(message, &buf, &len);
+
+    memcpy(guid, p, 16);
+
+    /* Advanced pointer for next field */
+    p += 16;
+    return p;
 }

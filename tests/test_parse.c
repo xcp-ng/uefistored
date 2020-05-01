@@ -48,6 +48,7 @@ void test_get_rtc(void)
 
 void test_set_rtc(void)
 {
+    uint8_t guid[16];
     size_t len;
     void *message;
     void *variable_name;
@@ -63,6 +64,10 @@ void test_set_rtc(void)
     parse_variable_name(message, &variable_name, &len);
     test(memcmp(variable_name, UEFI_RTC_STR, len) == 0);
     test(len == sizeof(UEFI_RTC_STR));
+
+    /* Test that the GUID is parsed correctly */
+    parse_guid(message, guid);
+    test(memcmp(guid, &SET_RTC[22], 16) == 0);
 
     /* Free up any used memory */
     free(variable_name);
