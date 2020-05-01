@@ -37,7 +37,7 @@ void test_get_rtc(void)
     test(parse_command(message) == COMMAND_GET_VARIABLE);
     test(parse_version(message) == 1);
 
-    /* Test that the variable fields parse correctly*/
+    /* Test that the variable fields parse correctly */
     parse_variable_name(message, &variable_name, &len);
     test(memcmp(variable_name, UEFI_RTC_STR, len) == 0);
     test(len == sizeof(UEFI_RTC_STR));
