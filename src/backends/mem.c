@@ -98,7 +98,7 @@ int db_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t
     }
 
     /* Get the variable's attrs */
-    ret = KISSDB_get(&db_var_attrs, key, attrs);
+    ret = KISSDB_get(&db_var_attrs, key, &attrs);
     if ( ret < 0 )
     {
         ERROR("Missing in var attrs db\n");
@@ -151,7 +151,6 @@ int db_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attrs)
     ret = KISSDB_put(&db_var_attrs, key, &attrs);
     if ( ret < 0 )
         return ret;
-
 
     return 0;
 }
