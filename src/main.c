@@ -90,46 +90,6 @@ static inline int xen_get_ioreq_server_info(xc_interface *xc_handle,
         return -EINVAL;
     }
 
-#if 0
-
-    DEBUG("%s: domid=%d\n", __func__, dom);
-
-    TRACE();
-    rc = xc_hvm_param_get(xc_handle, dom, HVM_PARAM_IOREQ_PFN, &param);
-    if ( rc < 0 )
-    {
-        ERROR("failed to get HVM_PARAM_IOREQ_PFN\n");
-        return -1;
-    }
-
-    TRACE();
-    *ioreq_pfn = param;
-
-    TRACE();
-
-    rc = xc_hvm_param_get(xc_handle, dom, HVM_PARAM_BUFIOREQ_PFN, &param);
-    if ( rc < 0 )
-    {
-        ERROR("failed to get HVM_PARAM_BUFIOREQ_PFN\n");
-        return -1;
-    }
-    TRACE();
-    *bufioreq_pfn = param;
-
-    TRACE();
-
-    rc = xc_hvm_param_get(xc_handle, dom, HVM_PARAM_BUFIOREQ_EVTCHN,
-                          &param);
-    if ( rc < 0 )
-    {
-        ERROR("failed to get HVM_PARAM_BUFIOREQ_EVTCHN\n");
-        return -1;
-    }
-    *bufioreq_evtchn = param;
-
-    TRACE();
-#endif
-
     return 0;
 }
 
@@ -186,27 +146,11 @@ static unsigned long io_port_addr;
 
 /* UEFI Definitions */
 typedef uint64_t EFI_STATUS;
-
 #define EFI_SUCCESS 0
+#define EFI_INVALID_PARAMETER 2
+#define EFI_BUFFER_TOO_SMALL 5
 #define EFI_NOT_FOUND 14
-
-
-#define VARIABLE_NAME_SZ_OFFSET 8
-#define VARIABLE_NAME_OFFSET 16
-
-#define VARIABLE_GUID_OFFSET(shared_page) \
-    ((variable_name_len(shared_page)) + VARIABLE_NAME_OFFSET)
-
-#define VARIABLE_DATASIZE_OFFSET(shared_page) \
-    VARIABLE_GUID_OFFSET(shared_page) + 16
-
-#define VARIABLE_DATA_OFFSET(shared_page) \
-    (VARIABLE_DATASIZE_OFFSET(shared_page) + 8)
-
-#define COMMAND_OFFSET 4
-
-
-#define SET_VAR_VENDOR_GUID_OFFSET 16
+#define EFI_SECURITY_VIOLATION 26
 
 static bool get_next_initialized = false;
 
@@ -247,33 +191,103 @@ void dprint_vname(void *vn, size_t vnlen)
     memset(strbuf, '\0', 512);
 }
 
-void set_u8(void *mem, size_t idx, uint8_t value)
+static size_t set_u8(void *mem, uint8_t value)
 {
     uint8_t *p = mem;
-    p[idx] = value;
+    *p = value;
+
+    return 1;
+}
+
+static size_t set_u32(void *mem, uint32_t value)
+{
+    uint32_t *p = mem;
+    *p = value;
+
+    return 4;
+}
+
+static size_t set_u64(void *mem, uint64_t value)
+{
+    uint64_t *p = mem;
+    *p = value;
+
+    return 8;
+}
+
+size_t set_data(void *mem, void *data, size_t datalen)
+{
+    memcpy(mem, data, datalen);
+
+    return datalen;
+}
+
+bool isnull(void *mem, size_t len)
+{
+    uint8_t *p = mem;
+
+    while ( len-- > 0 )
+        if ( *(p++) != 0 )
+            return false;
+
+    return true;
 }
 
 void handle_uefi_get_variable(void *shared_page)
 {
     int ret;
     size_t len, datalen;
+    uint32_t attrs;
+    uint64_t buflen;
     void *data;
     void *variable_name;
+    size_t off;
 
     parse_variable_name(shared_page, &variable_name, &len);
+
+    if ( len == 0 )
+    {
+        INFO("UEFI Error: variable name len is 0\n");
+        off = 0;
+        off += set_u64(shared_page + off, EFI_INVALID_PARAMETER);
+        return;
+    }
+
+    if ( isnull(variable_name, len) )
+    {
+        INFO("UEFI Error: variable name is NULL\n");
+        off = 0;
+        off += set_u64(shared_page + off, EFI_INVALID_PARAMETER);
+        return;
+    }
 
     DEBUG("cmd:GET_VARIABLE\n");
     dprint_vname(variable_name, len);
 
-    ret = db_get(variable_name, len, &data, &datalen);
+    ret = db_get(variable_name, len, &data, &datalen, &attrs);
     if ( ret < 0 )
     {
+        off = 0;
+        off += set_u64(shared_page + off, EFI_NOT_FOUND);
         ERROR("Failed to get variable\n");
-        set_u8(shared_page, 0, EFI_NOT_FOUND);
         return;
     }
 
-
+    buflen = parse_datalen(shared_page);
+    if ( buflen < datalen )
+    {
+        off = 0;
+        off += set_u64(shared_page + off, EFI_BUFFER_TOO_SMALL);
+        off += set_u64(shared_page + off, datalen);
+    }
+    else
+    {
+        off = 0;
+        off += set_u64(shared_page + off, EFI_SUCCESS);
+        off += set_u32(shared_page + off, attrs);
+        off += set_u64(shared_page + off, datalen);
+        off += set_data(shared_page + off, data, datalen);
+    }
 
     /* Free up any used memory */
     free(variable_name);
@@ -281,13 +295,14 @@ void handle_uefi_get_variable(void *shared_page)
 }
 
 #ifdef VALIDATE_WRITES
-void validate(void *variable_name, size_t len, void *data, size_t datalen)
+void validate(void *variable_name, size_t len, void *data, size_t datalen, uint32_t attrs)
 {
     int ret;
     void *test_data;
+    uint32_t test_attrs;
     size_t test_datalen;
 
-    ret = db_get(variable_name, len, &test_data, &test_datalen);
+    ret = db_get(variable_name, len, &test_data, &test_datalen, &test_attrs);
     if ( ret < 0 )
     {
         ERROR("Failed to validate variable!\n");
@@ -298,6 +313,11 @@ void validate(void *variable_name, size_t len, void *data, size_t datalen)
         ERROR("Variable does not match!\n");
     else
         INFO("Variables match!\n");
+
+    if ( attrs == test_attrs )
+        ERROR("Attrs does not match!\n");
+    else
+        INFO("Attrs match!\n");
 
     free(test_data);
 }
@@ -312,30 +332,33 @@ void handle_uefi_set_variable(void *shared_page)
     int ret;
     void *variable_name;
     void *data;
+    uint32_t attrs;
 
     parse_variable_name(shared_page, &variable_name, &len);
     parse_guid(shared_page, guid);
     parse_data(shared_page, &data, &datalen);
+    attrs = parse_attrs(shared_page);
 
-#if 0
-    uint32_t attr;
-    uint8_t efiruntime;
-
-    attr = parse_attr(shared_page);
-    efiruntime = parse_efiruntime(shared_page);
-#endif
+    if ( datalen == 0 )
+    {
+        INFO("UEFI error: datalen == 0\n");
+        set_u64(shared_page, EFI_SECURITY_VIOLATION);
+        return;
+    }
 
     DEBUG("cmd:SET_VARIABLE\n");
     dprint_vname(variable_name, len);
 
-    ret = db_set(variable_name, len, data, datalen);
+    ret = db_set(variable_name, len, data, datalen, attrs);
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
         return;
     }
 
-    validate(variable_name, len, data, datalen);
+    validate(variable_name, len, data, datalen, attrs);
+    set_u64(shared_page, EFI_SUCCESS);
+
 
     free(variable_name);
     free(data);
