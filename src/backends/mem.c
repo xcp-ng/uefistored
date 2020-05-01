@@ -6,184 +6,113 @@
 
 #include "backends/mem.h"
 #include "common.h"
+#include "kissdb/kissdb.h"
+
+/**
+ * This is a super simple backend for varstored.  It simply uses
+ * a file-backed key-value store to maintain UEFI variables.
+ *
+ * Two DBs are used.  One maps the variable name to the variable value.
+ * The other maps the variable name to the variable value len.
+ * This is required because KISSDB only accepts fixed-length keys and values.
+ */
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
-#define DBPATH "/var/run/xen/varstored-db.txt"
+#define DBPATH "/var/run/xen/varstored-db.dat"
+#define DBPATH_VAR_LEN "/var/run/xen/varstored-db-var-len.dat"
 #define ENTRY_LEN 1024
 
-typedef struct {
-    void *var;
-    size_t varlen;
-    void *data;
-    size_t datalen;
-} entry_t;
+#define KISSDB_KEY_SIZE 128 
+#define KISSDB_VAL_SIZE 1024
 
-static entry_t db[ENTRY_LEN];
+static KISSDB db;
+static KISSDB db_var_len;
 
 int db_init(void)
 {
-    return 0;
+    int ret;
+    ret = KISSDB_open(&db, DBPATH, KISSDB_OPEN_MODE_RWCREAT, 1024, KISSDB_KEY_SIZE, KISSDB_VAL_SIZE);
+
+    if ( ret < 0 )
+        return ret;
+
+    return  KISSDB_open(&db_var_len, DBPATH_VAR_LEN, KISSDB_OPEN_MODE_RWCREAT, 1024, KISSDB_KEY_SIZE, sizeof(size_t));
 }
 
 void db_deinit(void)
 {
-    return;
+    KISSDB_close(&db);
+    KISSDB_close(&db_var_len);
 }
 
-int db_get(void *varname, size_t datalen, void** dest, size_t *len)
+int db_get(void *varname, size_t varname_len, void** dest, size_t *len)
 {
-    int i;
-    void *buf;
-    entry_t *p;
+    uint8_t key[KISSDB_KEY_SIZE] = {0};
+    uint8_t val[KISSDB_VAL_SIZE] = {0};
+    size_t tmp;
 
     if ( !varname )
         return -1;
 
-    for ( i=0; i<ENTRY_LEN; i++ )
-    {
-        p = &db[i];
-        if ( p->varlen != datalen )
-            continue;
-
-        if ( memcmp(p->var, varname, p->varlen) )
-            break;
-    }
-
-    /* Not found */
-    if ( i == ENTRY_LEN )
-    {
-        DEBUG("Entry not found\n");
+    if ( !len )
         return -1;
-    }
 
-    buf = malloc(p->datalen);
-    
-    if ( !buf )
-    {
-        DEBUG("Out-of-mem\n");
-        return -1;
-    }
+    memcpy(&key, varname, varname_len);
 
-    memcpy(buf, p->data, p->datalen);
+    /* Get the variable's value */
+    KISSDB_get(&db, key, &val);
 
-    *dest = buf;
-    *len = p->varlen;
+    /* Get the variable's value's length */
+    KISSDB_get(&db_var_len, key, &tmp);
+
+    /* Copy only the correct length (from db_var_len) */
+    *dest = malloc(tmp);
+    memcpy(*dest, val, tmp);
+    *len = tmp;
 
     return 0;
 }
 
-static void store_variable(entry_t *p, void *val, size_t len)
-{
-    TRACE();
-    if ( !p || !val )
-        return;
-
-    TRACE();
-    if ( p->data )
-        free(p->data);
-
-    TRACE();
-    p->datalen = len;
-    p->data = malloc(p->datalen);
-    memcpy(p->data, val, p->datalen);
-    TRACE();
-}
-
-static void new_variable(entry_t *p, void *varname, size_t varlen, void *val, size_t len)
-{
-    TRACE();
-    if ( !p || !val || !varname )
-        return;
-
-    TRACE();
-    if ( p->var )
-        free(p->var);
-
-    TRACE();
-    if ( p->data )
-        free(p->data);
-
-    TRACE();
-
-    p->varlen = varlen;
-    p->var = malloc(p->varlen);
-    memcpy(p->var, varname, p->varlen);
-    TRACE();
-
-    p->datalen = len;
-    p->data = malloc(p->datalen);
-    memcpy(p->data, val, p->datalen);
-    TRACE();
-}
-
 int db_set(void *varname, size_t varlen, void *val, size_t len)
 {
-    int i;
-    entry_t *p;
+    uint8_t key[KISSDB_KEY_SIZE] = {0};
+    uint8_t padval[KISSDB_VAL_SIZE] = {0};
+    int ret;
 
     if ( !varname )
         return -1;
 
-    TRACE();
-    for ( i=0; i<ENTRY_LEN; i++ )
-    {
-        p = &db[i];
-        if ( memcmp(p->var, (void*)varname, p->varlen) )
-            break;
-    }
-    TRACE();
+    if ( !len )
+        return -1;
 
-    /* If this var already exists, replace the data */
-    if ( i != ENTRY_LEN )
+    if ( varlen >=  KISSDB_KEY_SIZE )
     {
-        store_variable(p, val, len);
-        return 0;
-    }
-    TRACE();
-
-    /* Find a free slot and fill it with the new variable */
-    for ( i=0; i<ENTRY_LEN; i++ )
-    {
-        p = &db[i];
-        if ( p->var == NULL || p->data == NULL )
-        {
-            new_variable(p, varname, varlen, val, len);
-            break;
-        }
-    }
-    TRACE();
-
-    /* There are no free entry slots */
-    if ( i == ENTRY_LEN )
-    {
+        ERROR("Variable name length exceeds db size\n");
         return -1;
     }
-    TRACE();
+
+    if ( len >=  KISSDB_VAL_SIZE )
+    {
+        ERROR("Variable name length exceeds db size\n");
+        return -1;
+    }
+
+    memcpy(&key, varname, varlen);
+    memcpy(&padval, val, len);
+
+    ret = KISSDB_put(&db, key, padval);
+    if ( ret < 0 )
+        return ret;
+
+    ret = KISSDB_put(&db_var_len, key, &len);
+    if ( ret < 0 )
+        return ret;
 
     return 0;
 }
 
 int db_save(void)
 {
-#if 0
-    size_t len;
-    int ret, fd;
-
-    fd = open(DBPATH, O_RDWR | O_CREAT);
-    if ( fd < 0 )
-        return -1;
-
-    string = (db);
-    if ( !string )
-        return -1;
-
-    len = strlen(string);
-    ret = write(fd, (void *)string, sizeof(db));
-    if ( ret !=  len )
-    {
-        return -1;
-    }
-#endif
     return -1;
 }

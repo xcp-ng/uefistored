@@ -7,8 +7,8 @@ LIB_DEPS :=	\
 	xentoolcore
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-OBJS := src/backends/mem.o src/common.o
-INC := -Iinc/
+OBJS := src/backends/mem.o src/common.o src/parse.o libs/kissdb/kissdb.o
+INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall
 
 all: varstored

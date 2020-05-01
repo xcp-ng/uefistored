@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <uchar.h>
+#include <wchar.h>
 
 #include <xenctrl.h>
 #include <xenstore.h>
@@ -27,6 +28,8 @@
 #include "common.h"
 #include "parse.h"
 
+#define VALIDATE_WRITES
+
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
 
@@ -38,6 +41,7 @@ void handle_bufioreq(buf_ioreq_t *buf_ioreq);
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, size_t vcpu);
 
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
+char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = {0};
 
 #define USAGE                           \
     "Usage: varstored <options> \n"   \
@@ -213,40 +217,19 @@ typedef struct {
     uint8_t   data4[8];
 } efi_guid_t;
 
-
-struct req_header {
-    uint32_t version;
-    uint32_t command_type;
-};
-
-
-static inline uint64_t variable_name_sz(void *shared_page)
+static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
 {
-    return *((uint64_t *) (shared_page + VARIABLE_NAME_SZ_OFFSET));
-}
+    int i;
+    int j = 0;
 
-static inline char16_t *variable_name(void *shared_page)
-{
-    return (char16_t *)(shared_page + VARIABLE_NAME_OFFSET);
-}
+    for (i=0; i<uc2_len && j<(len-1); i++)
+    {
+        char c = *((char*)(uc2+i));
+        if ( c != '\0' )
+            ascii[j++] = c;
+    }
 
-static inline size_t variable_name_len(void *shared_page)
-{
-    return variable_name_sz(shared_page) / sizeof(char16_t);
-}
-
-static uint64_t variable_datalen(void *shared_page)
-{
-    size_t off =
-        COMMAND_OFFSET + VARIABLE_NAME_OFFSET + 
-        variable_name_len(shared_page) + 
-        SET_VAR_VENDOR_GUID_OFFSET - 1;
-    return *((uint64_t*)(shared_page + off));
-}
-
-static void* variable_data(void *shared_page)
-{
-    return shared_page + VARIABLE_DATA_OFFSET(shared_page);
+    ascii[j++] = '\0';
 }
 
 static char strbuf[512];
@@ -257,109 +240,139 @@ static char strbuf[512];
  * WARNING: this only prints ASCII characters correctly.
  * Any char code above 255 will be displayed incorrectly.
  */
-void dprint_vname(char16_t *vn, uint64_t vnlen)
+void dprint_vname(void *vn, size_t vnlen)
 {
-    int i;
-
-    for (i=0; i<vnlen; i++)
-    {
-        strbuf[i] = (char)(vn[i] & 0xff);
-    }
-
+    uc2_ascii(vn, vnlen, strbuf, 512);
     DEBUG("name (%lu): %s\n", vnlen, strbuf);
-
     memset(strbuf, '\0', 512);
+}
+
+void set_u8(void *mem, size_t idx, uint8_t value)
+{
+    uint8_t *p = mem;
+    p[idx] = value;
 }
 
 void handle_uefi_get_variable(void *shared_page)
 {
-    size_t len;
     int ret;
-    void *val;
-    const uint64_t vnlen = variable_name_len(shared_page);
-    char16_t *vn = variable_name(shared_page);
+    size_t len, datalen;
+    void *data;
+    void *variable_name;
 
-    dprint_vname(vn, vnlen);
+    parse_variable_name(shared_page, &variable_name, &len);
+
     DEBUG("cmd:GET_VARIABLE\n");
+    dprint_vname(variable_name, len);
 
-    ret = db_get((void*) vn, vnlen*2, &val, &len);
+    ret = db_get(variable_name, len, &data, &datalen);
     if ( ret < 0 )
     {
         ERROR("Failed to get variable\n");
+        set_u8(shared_page, 0, EFI_NOT_FOUND);
         return;
     }
 
-    DEBUG("End GET_VARIABLE\n");
+
+
+    /* Free up any used memory */
+    free(variable_name);
+    free(data);
 }
+
+#ifdef VALIDATE_WRITES
+void validate(void *variable_name, size_t len, void *data, size_t datalen)
+{
+    int ret;
+    void *test_data;
+    size_t test_datalen;
+
+    ret = db_get(variable_name, len, &test_data, &test_datalen);
+    if ( ret < 0 )
+    {
+        ERROR("Failed to validate variable!\n");
+        return;
+    }
+
+    if ( memcmp(test_data, data, datalen) )
+        ERROR("Variable does not match!\n");
+    else
+        INFO("Variables match!\n");
+
+    free(test_data);
+}
+#else
+#define validate(...) do { } while ( 0 )
+#endif
 
 void handle_uefi_set_variable(void *shared_page)
 {
-    void *data = variable_data(shared_page);
-    uint64_t datalen = variable_datalen(shared_page);
+    uint8_t guid[16];
+    size_t len, datalen;
     int ret;
-    char16_t *vn = variable_name(shared_page);
-    const uint64_t vnlen = variable_name_len(shared_page);
+    void *variable_name;
+    void *data;
 
-    dprint_vname(vn, vnlen);
+    parse_variable_name(shared_page, &variable_name, &len);
+    parse_guid(shared_page, guid);
+    parse_data(shared_page, &data, &datalen);
+
+#if 0
+    uint32_t attr;
+    uint8_t efiruntime;
+
+    attr = parse_attr(shared_page);
+    efiruntime = parse_efiruntime(shared_page);
+#endif
+
     DEBUG("cmd:SET_VARIABLE\n");
+    dprint_vname(variable_name, len);
 
-    DEBUG("shared_page=%p, data=%p\n", shared_page, data);
-    DEBUG("datalen=0x%lx\n", datalen);
-    ret = db_set((void*) vn, vnlen, data, datalen);
+    ret = db_set(variable_name, len, data, datalen);
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
         return;
     }
+
+    validate(variable_name, len, data, datalen);
+
+    free(variable_name);
+    free(data);
 }
 
 
 void handle_uefi_get_next_variable(void *shared_page)
 {
-    const uint64_t vnlen = variable_name_len(shared_page);
-    char16_t *vn = variable_name(shared_page);
     EFI_STATUS rc;
 
     DEBUG("cmd:GET_NEXT_VARIABLE\n");
-    DEBUG("vnlen: %lu\n", vnlen);
-
     /**
      * To start the search, a Null-terminated string is passed in
      * VariableName; that is, VariableName is a pointer to a Null character.
      * This is always done on the initial call to GetNextVariableName().
      */
-
-    if ( (!get_next_initialized) && (*variable_name) != ((char16_t) '\0') )
-    {
-        /* TODO: Does this make sense ? */
-        rc = EFI_NOT_FOUND;
-    }
-    else
-    {
-        rc = EFI_SUCCESS;
-    }
-
+    rc = EFI_NOT_FOUND;
     get_next_initialized = 1;
     *((EFI_STATUS *) shared_page) = rc;
 }
 
 void handle_uefi_var_request(void *shared_page)
 {
-    struct req_header *hdr = shared_page;
 
-    DEBUG("version=%u\n", hdr->version);
+    DEBUG("version=%u\n", parse_version(shared_page));
 
 #if 1
     int i;
     DPRINTF("MESSAGE: ");
-    for (i=0; i<0x38; i++)
+    for (i=0; i<128; i++)
     {
         DPRINTF("0x%x ", *((uint8_t*)(shared_page + i)));
     }
     DPRINTF("\n");
 #endif
 
-    switch ( hdr->command_type )
+    switch ( parse_command(shared_page) )
     {
         case COMMAND_GET_VARIABLE:
             handle_uefi_get_variable(shared_page);
@@ -377,7 +390,7 @@ void handle_uefi_var_request(void *shared_page)
             DEBUG("cmd:NOTIFY_SB_FAILURE\n");
             break;
         default:
-            ERROR("cmd: unknown: 0x%x\n", hdr->command_type);
+            ERROR("cmd: unknown\n");
             break;
     }
 }
