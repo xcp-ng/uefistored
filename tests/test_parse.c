@@ -21,6 +21,10 @@ static const uint8_t SET_RTC[] = {
 #include "data/set_rtc.txt"
 };
 
+static const uint8_t GET_NEXT[] = {
+#include "data/get_next.txt"
+};
+
 /* UEFI uses 16-bit fixed-width encoding, RTC (3 chars) has length 6 */
 const char UEFI_RTC_STR[] = { 'R', '\0', 'T', '\0', 'C', '\0' }; 
 
@@ -87,10 +91,23 @@ void test_set_rtc(void)
     free(variable_name);
 }
 
+void test_get_next(void)
+{
+    void *message;
+    
+    /* GET_NEXT_VARIABLE tests */
+    message = (void*) GET_NEXT;
+
+    /* Test the command and version parse correctly */
+    test(parse_command(message) == COMMAND_GET_NEXT_VARIABLE);
+    test(parse_version(message) == 1);
+}
+
 int main(void)
 {
     test_get_rtc();
     test_set_rtc();
+    test_get_next();
     printf("%s\n", all_passed ? "ALL PASSED" : "FAILED");
     return all_passed ? 0 : -1;
 }

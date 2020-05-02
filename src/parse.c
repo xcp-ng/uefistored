@@ -51,9 +51,60 @@ static void *get_len(void *message, size_t *outl)
     return p;
 }
 
+size_t parse_variable_name_size(void *message)
+{
+    size_t ret;
+    void *p;
+
+    /* Point to the start of the message */
+    p = message;
+
+    /* Proceed passed the VERSION field and the COMMAND field */
+    p += VERSION_LEN;
+    p += COMMAND_LEN;
+
+    memcpy(&ret, p, sizeof(ret)); 
+
+    return ret;
+}
+
+void *parse_variable_name_next(void *message, void **variable_name, size_t *outl)
+{
+    size_t len;
+    void *copy;
+    void *p;
+
+    /* Point to the start of the message */
+    p = message;
+
+    /* Proceed passed the VERSION field and the COMMAND field */
+    p += VERSION_LEN;
+    p += COMMAND_LEN;
+
+    /* Proceed passed VariableNameSize (UINTN) */
+    p += 8;
+
+    /* Stop at the "Name Length" field and copy that into "len" */
+    memcpy(&len, p, NAME_LEN_LEN);
+
+    /* Proceed passed the "Name Length" field */
+    p += NAME_LEN_LEN;
+
+    /* Stop at the "Variable Name" field and copy the name into "variable_name" */
+    copy = malloc(len);
+    memcpy(copy, p, len);
+
+    /* Output data */
+    *variable_name = copy;
+    *outl = len;
+
+    /* Advance pointer for next field */
+    p += len;
+    return p;
+}
+
 void *parse_variable_name(void *message, void **variable_name, size_t *outl)
 {
-    uint32_t ret;
     size_t len;
     void *copy;
     void *p;
@@ -77,7 +128,7 @@ void *parse_variable_name(void *message, void **variable_name, size_t *outl)
 void *parse_guid(void *message, uint8_t guid[16])
 {
     size_t len;
-    void *buf, *p;
+    void *p;
 
     /* Advance pointer passed Name Length */
     p = get_len(message, &len);
@@ -96,7 +147,6 @@ uint64_t parse_datalen(void *message)
 {
     size_t len;
     void *p;
-    uint64_t datalen;
 
     /* Advance pointer passed Name Length */
     p = get_len(message, &len);

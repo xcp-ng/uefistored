@@ -51,6 +51,10 @@ void set_logfd(int logfd);
     } while ( 0 )
 
 
+#if 1
 #define TRACE()  DEBUG("%s: %d\n", __func__, __LINE__)
+#else
+#define TRACE() do { } while ( 0 )
+#endif
 
 #endif

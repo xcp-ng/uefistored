@@ -79,7 +79,10 @@ int db_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t
     if ( !len )
         return -1;
 
+    TRACE();
+
     memcpy(&key, varname, varname_len);
+    TRACE();
 
     /* Get the variable's value */
     ret = KISSDB_get(&db, key, &val);
@@ -89,6 +92,7 @@ int db_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t
         return ret;
     }
 
+    TRACE();
     /* Get the variable's value's length */
     ret = KISSDB_get(&db_var_len, key, &tmp);
     if ( ret < 0 )
@@ -97,6 +101,7 @@ int db_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t
         return ret;
     }
 
+    TRACE();
     /* Get the variable's attrs */
     ret = KISSDB_get(&db_var_attrs, key, &attrs);
     if ( ret < 0 )
@@ -105,11 +110,13 @@ int db_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t
         return ret;
     }
 
+    TRACE();
     /* Copy only the correct length (from db_var_len) */
     *dest = malloc(tmp);
     memcpy(*dest, val, tmp);
     *len = tmp;
 
+    TRACE();
     return 0;
 }
 
@@ -153,6 +160,10 @@ int db_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attrs)
         return ret;
 
     return 0;
+}
+
+int db_iter_is_initialized(void)
+{
 }
 
 int db_save(void)

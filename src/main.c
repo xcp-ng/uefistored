@@ -264,6 +264,7 @@ void handle_uefi_get_variable(void *shared_page)
     DEBUG("cmd:GET_VARIABLE\n");
     dprint_vname(variable_name, len);
 
+    TRACE();
     ret = db_get(variable_name, len, &data, &datalen, &attrs);
     if ( ret < 0 )
     {
@@ -364,20 +365,70 @@ void handle_uefi_set_variable(void *shared_page)
     free(data);
 }
 
+size_t set_guid(void *shared_page, size_t initial_offset, uint8_t guid[16])
+{
+    size_t off = initial_offset;
+    int i;
+
+    for (i=0; i<16; i++)
+    {
+        off += set_u8(shared_page + off, guid[i]);
+    }
+
+    return 16;
+}
 
 void handle_uefi_get_next_variable(void *shared_page)
 {
-    EFI_STATUS rc;
+    uint8_t buffer[128] = {0};
+    void *variable_name;
+    size_t bufsize;
+    size_t len, off;
+    int ret;
+
+    bufsize = parse_variable_name_size(shared_page);
+    parse_variable_name_next(shared_page, &variable_name, &len);
 
     DEBUG("cmd:GET_NEXT_VARIABLE\n");
-    /**
-     * To start the search, a Null-terminated string is passed in
-     * VariableName; that is, VariableName is a pointer to a Null character.
-     * This is always done on the initial call to GetNextVariableName().
-     */
-    rc = EFI_NOT_FOUND;
-    get_next_initialized = 1;
-    *((EFI_STATUS *) shared_page) = rc;
+
+    if ( !db_iter_is_initialized() )
+    {
+        db_iter_init();
+    }
+
+    ret = db_iter_next(buffer, 128);
+    if ( ret < 0 )
+    {
+        ERROR("db_iter_next() error\n");
+    }
+    else if ( ret == 0 )
+    {
+        DEBUG("db_iter_next() done!\n");
+    }
+    else
+    {
+        len = ret;
+        off = 0;
+        off += set_u64(shared_page + off, EFI_SUCCESS);
+        off += set_u64(shared_page + off, len);
+        memcpy(shared_page, buffer, len);
+        off += len;
+        off += set_guid(shared_page, off, guid);
+    }
+        
+
+#if 0
+    dprint_vname(variable_name, len);
+    if ( isnull(variable_name, len) && len == 0 )
+    {
+        //db_iter_init();
+        //db_iter_next(variable_name, 
+        off = 0;
+        off += set_u64(shared_page + off, EFI_SUCCESS);
+    }
+#endif
+
+    free(variable_name);
 }
 
 void handle_uefi_var_request(void *shared_page)
