@@ -25,10 +25,9 @@
 #include <xen/memory.h>
 
 #include "backends/mem.h"
+#include "xenvariable.h"
 #include "common.h"
 #include "parse.h"
-
-#define VALIDATE_WRITES
 
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
@@ -42,6 +41,8 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
 char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = {0};
+
+#define UNUSED(var) ((void)var);
 
 #define USAGE                           \
     "Usage: varstored <options> \n"   \
@@ -59,41 +60,6 @@ char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = {0};
 
 #define UNIMPLEMENTED(opt)                                      \
         ERROR(opt " option not implemented!\n")
-
-static inline int xen_get_ioreq_server_info(xc_interface *xc_handle,
-                                            domid_t dom,
-                                            xen_pfn_t *ioreq_pfn,
-                                            xen_pfn_t *bufioreq_pfn,
-                                            evtchn_port_t *bufioreq_evtchn)
-{
-    if ( !ioreq_pfn )
-    {
-        ERROR("invalid NULL ioreq_pfn in %s\n", __func__);
-        return -EINVAL;
-    }
-
-    if ( !bufioreq_pfn )
-    {
-        ERROR("invalid NULL bufioreq_pfn in %s\n", __func__);
-        return -EINVAL;
-    }
-
-    if ( !bufioreq_evtchn )
-    {
-        ERROR("invalid NULL bufioreq_evtchn in %s\n", __func__);
-        return -EINVAL;
-    }
-
-    if ( !xc_handle )
-    {
-        ERROR("invalid NULL xc_handle ptr in %s\n", __func__);
-        return -EINVAL;
-    }
-
-    return 0;
-}
-
-#define TARGET_PAGE_SIZE (1<<12)
 
 static int xen_map_ioreq_server(
                                 xenforeignmemory_handle *fmem,
@@ -143,334 +109,6 @@ static xenforeignmemory_handle *_fmem = NULL;
 static int _domid = -1;
 static ioservid_t _ioservid;
 static unsigned long io_port_addr;
-
-/* UEFI Definitions */
-typedef uint64_t EFI_STATUS;
-#define EFI_SUCCESS 0
-#define EFI_INVALID_PARAMETER 2
-#define EFI_BUFFER_TOO_SMALL 5
-#define EFI_NOT_FOUND 14
-#define EFI_SECURITY_VIOLATION 26
-
-static bool get_next_initialized = false;
-
-typedef struct {
-    uint32_t  data1;
-    uint16_t  data2;
-    uint16_t  data3;
-    uint8_t   data4[8];
-} efi_guid_t;
-
-static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
-{
-    int i;
-    int j = 0;
-
-    for (i=0; i<uc2_len && j<(len-1); i++)
-    {
-        char c = *((char*)(uc2+i));
-        if ( c != '\0' )
-            ascii[j++] = c;
-    }
-
-    ascii[j++] = '\0';
-}
-
-static char strbuf[512];
-
-/**
- * dprint_vname -  Debug print a variable name
- *
- * WARNING: this only prints ASCII characters correctly.
- * Any char code above 255 will be displayed incorrectly.
- */
-void dprint_vname(void *vn, size_t vnlen)
-{
-    uc2_ascii(vn, vnlen, strbuf, 512);
-    DEBUG("name (%lu): %s\n", vnlen, strbuf);
-    memset(strbuf, '\0', 512);
-}
-
-static size_t set_u8(void *mem, uint8_t value)
-{
-    uint8_t *p = mem;
-    *p = value;
-
-    return 1;
-}
-
-static size_t set_u32(void *mem, uint32_t value)
-{
-    uint32_t *p = mem;
-    *p = value;
-
-    return 4;
-}
-
-static size_t set_u64(void *mem, uint64_t value)
-{
-    uint64_t *p = mem;
-    *p = value;
-
-    return 8;
-}
-
-size_t set_data(void *mem, void *data, size_t datalen)
-{
-    memcpy(mem, data, datalen);
-
-    return datalen;
-}
-
-bool isnull(void *mem, size_t len)
-{
-    uint8_t *p = mem;
-
-    while ( len-- > 0 )
-        if ( *(p++) != 0 )
-            return false;
-
-    return true;
-}
-
-void handle_uefi_get_variable(void *shared_page)
-{
-    int ret;
-    size_t len, datalen;
-    uint32_t attrs;
-    uint64_t buflen;
-    void *data;
-    void *variable_name;
-    size_t off;
-
-    parse_variable_name(shared_page, &variable_name, &len);
-
-    if ( len == 0 )
-    {
-        INFO("UEFI Error: variable name len is 0\n");
-        off = 0;
-        off += set_u64(shared_page + off, EFI_INVALID_PARAMETER);
-        return;
-    }
-
-    if ( isnull(variable_name, len) )
-    {
-        INFO("UEFI Error: variable name is NULL\n");
-        off = 0;
-        off += set_u64(shared_page + off, EFI_INVALID_PARAMETER);
-        return;
-    }
-
-    DEBUG("cmd:GET_VARIABLE\n");
-    dprint_vname(variable_name, len);
-
-    TRACE();
-    ret = db_get(variable_name, len, &data, &datalen, &attrs);
-    if ( ret < 0 )
-    {
-        off = 0;
-        off += set_u64(shared_page + off, EFI_NOT_FOUND);
-        ERROR("Failed to get variable\n");
-        return;
-    }
-
-    buflen = parse_datalen(shared_page);
-    if ( buflen < datalen )
-    {
-        off = 0;
-        off += set_u64(shared_page + off, EFI_BUFFER_TOO_SMALL);
-        off += set_u64(shared_page + off, datalen);
-    }
-    else
-    {
-        off = 0;
-        off += set_u64(shared_page + off, EFI_SUCCESS);
-        off += set_u32(shared_page + off, attrs);
-        off += set_u64(shared_page + off, datalen);
-        off += set_data(shared_page + off, data, datalen);
-    }
-
-    /* Free up any used memory */
-    free(variable_name);
-    free(data);
-}
-
-#ifdef VALIDATE_WRITES
-void validate(void *variable_name, size_t len, void *data, size_t datalen, uint32_t attrs)
-{
-    int ret;
-    void *test_data;
-    uint32_t test_attrs;
-    size_t test_datalen;
-
-    ret = db_get(variable_name, len, &test_data, &test_datalen, &test_attrs);
-    if ( ret < 0 )
-    {
-        ERROR("Failed to validate variable!\n");
-        return;
-    }
-
-    if ( memcmp(test_data, data, datalen) )
-        ERROR("Variable does not match!\n");
-    else
-        INFO("Variables match!\n");
-
-    if ( attrs == test_attrs )
-        ERROR("Attrs does not match!\n");
-    else
-        INFO("Attrs match!\n");
-
-    free(test_data);
-}
-#else
-#define validate(...) do { } while ( 0 )
-#endif
-
-void handle_uefi_set_variable(void *shared_page)
-{
-    uint8_t guid[16];
-    size_t len, datalen;
-    int ret;
-    void *variable_name;
-    void *data;
-    uint32_t attrs;
-
-    parse_variable_name(shared_page, &variable_name, &len);
-    parse_guid(shared_page, guid);
-    parse_data(shared_page, &data, &datalen);
-    attrs = parse_attrs(shared_page);
-
-    if ( datalen == 0 )
-    {
-        INFO("UEFI error: datalen == 0\n");
-        set_u64(shared_page, EFI_SECURITY_VIOLATION);
-        return;
-    }
-
-    DEBUG("cmd:SET_VARIABLE\n");
-    dprint_vname(variable_name, len);
-
-    ret = db_set(variable_name, len, data, datalen, attrs);
-    if ( ret < 0 )
-    {
-        ERROR("Failed to set variable in db\n");
-        return;
-    }
-
-    validate(variable_name, len, data, datalen, attrs);
-    set_u64(shared_page, EFI_SUCCESS);
-
-
-    free(variable_name);
-    free(data);
-}
-
-size_t set_guid(void *shared_page, size_t initial_offset, uint8_t guid[16])
-{
-    size_t off = initial_offset;
-    int i;
-
-    for (i=0; i<16; i++)
-    {
-        off += set_u8(shared_page + off, guid[i]);
-    }
-
-    return 16;
-}
-
-void handle_uefi_get_next_variable(void *shared_page)
-{
-    uint8_t buffer[128] = {0};
-    void *variable_name;
-    size_t bufsize;
-    size_t len, off;
-    int ret;
-
-    bufsize = parse_variable_name_size(shared_page);
-    parse_variable_name_next(shared_page, &variable_name, &len);
-
-    DEBUG("cmd:GET_NEXT_VARIABLE\n");
-
-    if ( !db_iter_is_initialized() )
-    {
-        db_iter_init();
-    }
-
-    ret = db_iter_next(buffer, 128);
-    if ( ret < 0 )
-    {
-        ERROR("db_iter_next() error\n");
-    }
-    else if ( ret == 0 )
-    {
-        DEBUG("db_iter_next() done!\n");
-    }
-    else
-    {
-        len = ret;
-        off = 0;
-        off += set_u64(shared_page + off, EFI_SUCCESS);
-        off += set_u64(shared_page + off, len);
-        memcpy(shared_page, buffer, len);
-        off += len;
-        off += set_guid(shared_page, off, guid);
-    }
-        
-
-#if 0
-    dprint_vname(variable_name, len);
-    if ( isnull(variable_name, len) && len == 0 )
-    {
-        //db_iter_init();
-        //db_iter_next(variable_name, 
-        off = 0;
-        off += set_u64(shared_page + off, EFI_SUCCESS);
-    }
-#endif
-
-    free(variable_name);
-}
-
-void handle_uefi_var_request(void *shared_page)
-{
-
-    DEBUG("version=%u\n", parse_version(shared_page));
-
-#if 1
-    int i;
-    DPRINTF("MESSAGE: ");
-    for (i=0; i<128; i++)
-    {
-        DPRINTF("0x%x ", *((uint8_t*)(shared_page + i)));
-    }
-    DPRINTF("\n");
-#endif
-
-    switch ( parse_command(shared_page) )
-    {
-        case COMMAND_GET_VARIABLE:
-            handle_uefi_get_variable(shared_page);
-            break;
-        case COMMAND_SET_VARIABLE:
-            handle_uefi_set_variable(shared_page);
-            break;
-        case COMMAND_GET_NEXT_VARIABLE:
-            handle_uefi_get_next_variable(shared_page);
-            break;
-        case COMMAND_QUERY_VARIABLE_INFO:
-            DEBUG("cmd:QUERY_VARIABLE_VARIABLE\n");
-            break;
-        case COMMAND_NOTIFY_SB_FAILURE:
-            DEBUG("cmd:NOTIFY_SB_FAILURE\n");
-            break;
-        default:
-            ERROR("cmd: unknown\n");
-            break;
-    }
-}
-
-/* OVMF XenVariable loads 16 pages of shared memory to pass varstored the command */
-#define SHMEM_PAGES 16
 
 /**
  * map_guest_memory - Map in a page from the guest address space
@@ -540,7 +178,7 @@ void handle_ioreq(struct ioreq *ioreq)
     {
         /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
          * let's process it. */
-        handle_uefi_var_request(p);
+        xenvariable_handle_request(p);
 
         /* Free up mappable space */
         xenforeignmemory_unmap(_fmem, p, 16);
@@ -866,6 +504,9 @@ int main(int argc, char **argv)
         {"help", no_argument,          0, 'h'},
         {0, 0, 0, 0},
     };
+
+    UNUSED(assertsz);
+    UNUSED(assertsz2);
 
     logfile_name = malloc(VARSTORED_LOGFILE_MAX);
     memset(logfile_name, '\0', VARSTORED_LOGFILE_MAX);

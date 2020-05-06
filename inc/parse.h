@@ -3,23 +3,17 @@
 
 #include <stdint.h>
 
-typedef enum command {
-    COMMAND_GET_VARIABLE,
-    COMMAND_SET_VARIABLE,
-    COMMAND_GET_NEXT_VARIABLE,
-    COMMAND_QUERY_VARIABLE_INFO,
-    COMMAND_NOTIFY_SB_FAILURE,
-} command_t;
+#include "xenvar.h"
 
-command_t parse_command(void *message);
-uint32_t parse_version(void *message);
-void *parse_variable_name(void *message, void **variable_name, size_t *len);
-void *parse_variable_name_next(void *message, void **variable_name, size_t *outl);
-size_t parse_variable_name_size(void *message);
-void *parse_guid(void *message, uint8_t guid[16]);
-void *parse_data(void *message, void **data, size_t *outl);
-uint32_t parse_attrs(void *message);
-uint8_t parse_efiruntime(void *message);
-uint64_t parse_datalen(void *message);
+command_t parse_command(void *comm_buff);
+uint32_t parse_version(void *comm_buff);
+void *parse_variable_name(void *comm_buff, void **variable_name, size_t *len);
+void *parse_variable_name_next(void *comm_buff, void **variable_name, size_t *outl);
+size_t parse_variable_name_size(void *comm_buff);
+void *parse_guid(void *comm_buff, uint8_t guid[16]);
+void *parse_data(void *comm_buff, void **data, size_t *outl);
+uint32_t parse_attrs(void *comm_buff);
+uint8_t parse_efiruntime(void *comm_buff);
+uint64_t parse_datalen(void *comm_buff);
 
 #endif

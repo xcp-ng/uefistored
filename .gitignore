@@ -5,3 +5,4 @@ edk2/
 varserviced
 tests/test
 test.log
+valgrind-out.txt

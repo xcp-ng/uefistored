@@ -2,16 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+
+#include "common.h"
 #include "parse.h"
-
-#define test(assertion)                                                 \
-    do {                                                                \
-        printf("%s: %s\n", #assertion, (assertion) ? "pass" : "fail");   \
-        if ( !(assertion) )                                             \
-            all_passed = 0;                                             \
-    } while ( 0 )
-
-int all_passed = 1;
 
 static const uint8_t GET_RTC[] = {
 #include "data/get_rtc.txt"
@@ -89,6 +82,7 @@ void test_set_rtc(void)
 
     /* Free up any used memory */
     free(variable_name);
+    free(data);
 }
 
 void test_get_next(void)
@@ -101,13 +95,4 @@ void test_get_next(void)
     /* Test the command and version parse correctly */
     test(parse_command(message) == COMMAND_GET_NEXT_VARIABLE);
     test(parse_version(message) == 1);
-}
-
-int main(void)
-{
-    test_get_rtc();
-    test_set_rtc();
-    test_get_next();
-    printf("%s\n", all_passed ? "ALL PASSED" : "FAILED");
-    return all_passed ? 0 : -1;
 }
