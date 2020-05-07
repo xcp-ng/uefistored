@@ -8,7 +8,7 @@
 extern int _logfd;
 
 /* OVMF XenVariable loads 16 pages of shared memory to pass varstored the command */
-#define TARGET_PAGE_SIZE (4<<10)
+#define PAGE_SIZE (4<<10)
 #define SHMEM_PAGES 16
 #define SHMEM_SIZE (SHMEM_PAGES * PAGE_SIZE)
 

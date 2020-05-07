@@ -1,8 +1,10 @@
 #include "test_parse.h"
 #include "test_xenvar.h"
-#include "common.h"
+#include "test_xenvariable.h"
+#include "test_common.h"
 
-int all_passed = 1;
+int passcount = 0;
+int failcount = 0;
 
 int main(void)
 {
@@ -10,6 +12,8 @@ int main(void)
     test_set_rtc();
     test_get_next();
     test_xenvar();
-    printf("%s\n", all_passed ? "ALL PASSED" : "FAILED");
-    return all_passed ? 0 : -1;
+    test_xenvariable();
+
+    printf("PASSED (%d), FAILED (%d)\n", passcount, failcount);
+    return failcount == 0 ? 0 : -1;
 }

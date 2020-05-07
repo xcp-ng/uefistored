@@ -3,14 +3,13 @@
 #include <uchar.h>
 
 #include "mock/XenVariable.h"
-#include "common.h"
+#include "test_common.h"
 #include "parse.h"
-
 
 #define DEBUG 1
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
-void *comm_buf = comm_buf_phys;
+static void *comm_buf = comm_buf_phys;
 
 static void test_getvar(void)
 {
@@ -47,5 +46,6 @@ static void test_getvar(void)
 
 void test_xenvar(void)
 {
+    mock_xenvariable_set_buffer(comm_buf);
     test_getvar();
 }

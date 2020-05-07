@@ -22,8 +22,12 @@
 #define ReleaseSpinLock(...) do { } while( 0 )
 #define UNUSED(var) ((void)var)
 
-extern uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
-extern void *comm_buf;
+static void *comm_buf;
+
+void mock_xenvariable_set_buffer(void *p)
+{
+    comm_buf = p;
+}
 
 static size_t StrLen(char16_t *str)
 {

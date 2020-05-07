@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "common.h"
+#include "test_common.h"
 #include "parse.h"
 
 static const uint8_t GET_RTC[] = {

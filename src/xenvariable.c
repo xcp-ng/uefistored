@@ -2,13 +2,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "backends/mem.h"
+#include "backends/filedb.h"
 #include "common.h"
 #include "parse.h"
 
 #define VALIDATE_WRITES
-
-int _logfd = -1;
 
 /* UEFI Definitions */
 typedef uint64_t EFI_STATUS;
@@ -92,14 +90,14 @@ static size_t set_u64(void *mem, uint64_t value)
     return 8;
 }
 
-size_t set_data(void *mem, void *data, size_t datalen)
+static size_t set_data(void *mem, void *data, size_t datalen)
 {
     memcpy(mem, data, datalen);
 
     return datalen;
 }
 
-size_t set_guid(void *shared_page, size_t initial_offset, uint8_t guid[16])
+static size_t set_guid(void *shared_page, size_t initial_offset, uint8_t guid[16])
 {
     size_t off = initial_offset;
     int i;
@@ -120,7 +118,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     uint32_t test_attrs;
     size_t test_datalen;
 
-    ret = db_get(variable_name, len, &test_data, &test_datalen, &test_attrs);
+    ret = filedb_get(variable_name, len, &test_data, &test_datalen, &test_attrs);
     if ( ret < 0 )
     {
         ERROR("Failed to validate variable!\n");
@@ -160,7 +158,7 @@ static void get_variable(void *comm_buff)
         INFO("UEFI Error: variable name len is 0\n");
         off = 0;
         off += set_u64(comm_buff + off, EFI_INVALID_PARAMETER);
-        return;
+        goto err;
     }
 
     if ( isnull(variable_name, len) )
@@ -168,19 +166,19 @@ static void get_variable(void *comm_buff)
         INFO("UEFI Error: variable name is NULL\n");
         off = 0;
         off += set_u64(comm_buff + off, EFI_INVALID_PARAMETER);
-        return;
+        goto err;
     }
 
     DEBUG("cmd:GET_VARIABLE\n");
     dprint_vname(variable_name, len);
 
-    ret = db_get(variable_name, len, &data, &datalen, &attrs);
+    ret = filedb_get(variable_name, len, &data, &datalen, &attrs);
     if ( ret < 0 )
     {
         off = 0;
         off += set_u64(comm_buff + off, EFI_NOT_FOUND);
         ERROR("Failed to get variable\n");
-        return;
+        goto err;
     }
 
     buflen = parse_datalen(comm_buff);
@@ -199,9 +197,12 @@ static void get_variable(void *comm_buff)
         off += set_data(comm_buff + off, data, datalen);
     }
 
-    /* Free up any used memory */
-    free(variable_name);
     free(data);
+
+err:
+    /* Free up any used memory */
+    if ( variable_name )
+        free(variable_name);
 }
 
 static void set_variable(void *comm_buff)
@@ -228,7 +229,7 @@ static void set_variable(void *comm_buff)
     DEBUG("cmd:SET_VARIABLE\n");
     dprint_vname(variable_name, len);
 
-    ret = db_set(variable_name, len, data, datalen, attrs);
+    ret = filedb_set(variable_name, len, data, datalen, attrs);
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
@@ -259,19 +260,19 @@ static void get_next_variable(void *comm_buff)
 
     DEBUG("cmd:GET_NEXT_VARIABLE\n");
 
-    if ( !db_iter_is_initialized() )
+    if ( !filedb_iter_is_initialized() )
     {
-        db_iter_init();
+        filedb_iter_init();
     }
 
-    ret = db_iter_next(buffer, 128);
+    ret = filedb_iter_next(buffer, 128);
     if ( ret < 0 )
     {
-        ERROR("db_iter_next() error\n");
+        ERROR("filedb_iter_next() error\n");
     }
     else if ( ret == 0 )
     {
-        DEBUG("db_iter_next() done!\n");
+        DEBUG("filedb_iter_next() done!\n");
     }
     else
     {
@@ -288,8 +289,8 @@ static void get_next_variable(void *comm_buff)
     dprint_vname(variable_name, len);
     if ( isnull(variable_name, len) && len == 0 )
     {
-        //db_iter_init();
-        //db_iter_next(variable_name, 
+        //filedb_iter_init();
+        //filedb_iter_next(variable_name, 
         off = 0;
         off += set_u64(comm_buff + off, EFI_SUCCESS);
     }

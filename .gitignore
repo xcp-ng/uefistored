@@ -6,3 +6,4 @@ varserviced
 tests/test
 test.log
 valgrind-out.txt
+tests/*.db

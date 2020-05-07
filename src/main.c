@@ -24,7 +24,7 @@
 #include <xen/hvm/params.h>
 #include <xen/memory.h>
 
-#include "backends/mem.h"
+#include "backends/filedb.h"
 #include "xenvariable.h"
 #include "common.h"
 #include "parse.h"
@@ -93,7 +93,7 @@ static int xen_map_ioreq_server(
 
     *fresp = fres;
     *buffered_iopage = addr;
-    *shared_iopage = addr + TARGET_PAGE_SIZE;
+    *shared_iopage = addr + PAGE_SIZE;
 
     DEBUG("fresp=%p, buffered_iopage=%p, shared_iopage=%p\n",
             fresp,
@@ -814,7 +814,7 @@ int main(int argc, char **argv)
     /* TODO: Containerize varstored */
 
     /* Initialize UEFI variables */
-    ret = db_init();
+    ret = filedb_init(NULL, NULL, NULL);
     if ( ret < 0 )
     {
         DEBUG("Failed to initialize db\n");
