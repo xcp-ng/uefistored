@@ -145,20 +145,32 @@ void *parse_guid(void *message, uint8_t guid[16])
 
 uint64_t parse_datalen(void *message)
 {
-    size_t len;
-    void *p;
+    size_t off;
+    size_t namelen;
+    size_t datalen;
+    void *p = message;
 
-    /* Advance pointer passed Name Length */
-    p = get_len(message, &len);
+    /* Proceed passed the VERSION field and the COMMAND field */
+    p += VERSION_LEN;
+    p += COMMAND_LEN;
 
-    /* Advance pointer to GUID field */
-    p += len;
+    /* Stop at the "Name Length" field and copy that into "len" */
+    memcpy(&namelen, p, sizeof(namelen));
 
-    /* Advance pointer to Data len field */
+    /* Proceed passed the "Name Length" field */
+    p += sizeof(namelen);
+
+    /* Proceed passed the "Name" field */
+    p += namelen;
+
+    /* Proceed passed the "GUID" field */
     p += 16;
 
-    memcpy(&len, p, DATA_LEN_LEN);
-    return len;
+    off = COMMAND_LEN + VERSION_LEN + sizeof(namelen) + namelen + 16;
+    memcpy(&datalen, p, sizeof(datalen));
+    printf("parse_datalen: off %lu\n", off);
+    printf("datalen: val %lu\n", datalen);
+    return datalen;
 }
 
 void *parse_data(void *message, void **data, size_t *outl)
@@ -196,6 +208,7 @@ void *parse_data(void *message, void **data, size_t *outl)
 
 uint32_t parse_attrs(void *message)
 {
+    uint32_t ret;
     void *p;
     size_t len;
 
@@ -217,7 +230,8 @@ uint32_t parse_attrs(void *message)
     /* Advance passed Data field to Attr field */
     p += len;
 
-    return *((uint32_t*)p);
+    memcpy(&ret, p, sizeof(ret));
+    return ret;
 }
 
 uint8_t parse_efiruntime(void *message)

@@ -36,13 +36,14 @@ static KISSDB db;
 static KISSDB db_var_len;
 static KISSDB db_var_attrs;
 
+static char dbpath_copy[PATH_MAX];
+static char varlenpath_copy[PATH_MAX];
+static char attrspath_copy[PATH_MAX];
+
 int filedb_init(const char *dbpath,
             const char *varlenpath,
             const char *attrspath)
 {
-    char dbpath_copy[PATH_MAX];
-    char varlenpath_copy[PATH_MAX];
-    char attrspath_copy[PATH_MAX];
     int ret;
 
     strncpy(dbpath_copy, dbpath ? dbpath : DEFAULT_DBPATH, PATH_MAX);
@@ -50,17 +51,17 @@ int filedb_init(const char *dbpath,
     strncpy(attrspath_copy, attrspath ? attrspath : DEFAULT_DBPATH_VAR_ATTRS, PATH_MAX);
 
     ret = KISSDB_open(&db, dbpath, KISSDB_OPEN_MODE_RWCREAT, 1024, KISSDB_KEY_SIZE, KISSDB_VAL_SIZE);
-    if ( ret < 0 )
+    if ( ret != 0 )
         return -1;
 
     ret = KISSDB_open(&db_var_len, varlenpath, KISSDB_OPEN_MODE_RWCREAT,
                       1024, KISSDB_KEY_SIZE, sizeof(size_t));
-    if ( ret < 0 )
+    if ( ret != 0 )
         goto close1;
 
     ret = KISSDB_open(&db_var_attrs, attrspath, KISSDB_OPEN_MODE_RWCREAT,
                       1024, KISSDB_KEY_SIZE, KISSDB_VAR_ATTRS_VAL_SIZE);
-    if ( ret < 0 )
+    if ( ret != 0 )
         goto close2;
 
     initialized = true;
@@ -71,7 +72,7 @@ close2:
 
 close1:
     KISSDB_close(&db);
-    return ret;
+    return -1;
 }
 
 
@@ -83,6 +84,17 @@ void filedb_deinit(void)
     KISSDB_close(&db);
     KISSDB_close(&db_var_len);
     KISSDB_close(&db_var_attrs);
+    initialized = false;
+}
+
+void filedb_destroy(void)
+{
+    if ( initialized )
+        filedb_deinit();
+
+    remove(dbpath_copy);
+    remove(varlenpath_copy);
+    remove(attrspath_copy);
 }
 
 int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t *attrs)
@@ -105,26 +117,26 @@ int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint
 
     /* Get the variable's value */
     ret = KISSDB_get(&db, key, &val);
-    if ( ret < 0 )
+    if ( ret != 0 )
     {
         ERROR("Missing in var db\n");
-        return ret;
+        return -1;
     }
 
     /* Get the variable's value's length */
     ret = KISSDB_get(&db_var_len, key, &tmp);
-    if ( ret < 0 )
+    if ( ret != 0 )
     {
         ERROR("Missing in var len db\n");
-        return ret;
+        return -1;
     }
 
     /* Get the variable's attrs */
     ret = KISSDB_get(&db_var_attrs, key, &attrs);
-    if ( ret < 0 )
+    if ( ret != 0 )
     {
         ERROR("Missing in var attrs db\n");
-        return ret;
+        return -1;
     }
 
     /* Copy only the correct length (from db_var_len) */
@@ -138,7 +150,6 @@ int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint
     memcpy(*dest, val, tmp);
     *len = tmp;
 
-    TRACE();
     return 0;
 }
 
@@ -173,16 +184,16 @@ int filedb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t att
     memcpy(&padval, val, len);
 
     ret = KISSDB_put(&db, key, padval);
-    if ( ret < 0 )
-        return ret;
+    if ( ret != 0 )
+        return -1;
 
     ret = KISSDB_put(&db_var_len, key, &len);
-    if ( ret < 0 )
-        return ret;
+    if ( ret != 0 )
+        return -1;
 
     ret = KISSDB_put(&db_var_attrs, key, &attrs);
-    if ( ret < 0 )
-        return ret;
+    if ( ret != 0 )
+        return -1;
 
     return 0;
 }

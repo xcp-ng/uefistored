@@ -3,28 +3,14 @@
 #include <stdbool.h>
 
 #include "backends/filedb.h"
+#include "xenvariable.h"
 #include "common.h"
 #include "parse.h"
 
 #define VALIDATE_WRITES
-
-/* UEFI Definitions */
-typedef uint64_t EFI_STATUS;
-#define EFI_SUCCESS 0
-#define EFI_INVALID_PARAMETER 2
-#define EFI_BUFFER_TOO_SMALL 5
-#define EFI_NOT_FOUND 14
-#define EFI_SECURITY_VIOLATION 26
-
+#define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
 static char strbuf[512];
 //static bool get_next_initialized = false;
-
-typedef struct {
-    uint32_t  data1;
-    uint16_t  data2;
-    uint16_t  data3;
-    uint8_t   data4[8];
-} efi_guid_t;
 
 static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
 {
@@ -68,26 +54,20 @@ static bool isnull(void *mem, size_t len)
 
 static size_t set_u8(void *mem, uint8_t value)
 {
-    uint8_t *p = mem;
-    *p = value;
-
-    return 1;
+    memcpy(mem, &value, sizeof(value));
+    return sizeof(value);
 }
 
 static size_t set_u32(void *mem, uint32_t value)
 {
-    uint32_t *p = mem;
-    *p = value;
-
-    return 4;
+    memcpy(mem, &value, sizeof(value));
+    return sizeof(value);
 }
 
 static size_t set_u64(void *mem, uint64_t value)
 {
-    uint64_t *p = mem;
-    *p = value;
-
-    return 8;
+    memcpy(mem, &value, sizeof(value));
+    return sizeof(value);
 }
 
 static size_t set_data(void *mem, void *data, size_t datalen)
@@ -110,12 +90,27 @@ static size_t set_guid(void *shared_page, size_t initial_offset, uint8_t guid[16
     return 16;
 }
 
+static void dprint_data(void *data, size_t datalen)
+{
+    uint8_t *p = data;
+    size_t i;
+
+    DPRINTF("DATA: ");
+    for (i=0; i<datalen; i++)
+    {
+        if (i % 8 == 0)
+            DPRINTF("\n");
+        DPRINTF("0x%x ", p[i]);
+    }
+    DPRINTF("\n");
+}
+
 #ifdef VALIDATE_WRITES
 static void validate(void *variable_name, size_t len, void *data, size_t datalen, uint32_t attrs)
 {
     int ret;
     void *test_data;
-    uint32_t test_attrs;
+    uint32_t test_attrs = 0;
     size_t test_datalen;
 
     ret = filedb_get(variable_name, len, &test_data, &test_datalen, &test_attrs);
@@ -130,10 +125,18 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     else
         INFO("Variables match!\n");
 
-    if ( attrs == test_attrs )
+    if ( attrs != test_attrs )
         ERROR("Attrs does not match!\n");
     else
         INFO("Attrs match!\n");
+
+    DEBUG("******* Validate ********\n");
+    dprint_vname(variable_name, len);
+    DPRINTF("FROM DB: ");
+    dprint_data(test_data, test_datalen);
+    DPRINTF("FROM OVMF: ");
+    dprint_data(data, datalen);
+    DEBUG("*************************\n");
 
     free(test_data);
 }
@@ -153,6 +156,7 @@ static void get_variable(void *comm_buff)
 
     parse_variable_name(comm_buff, &variable_name, &len);
 
+    DEBUG("len=%lu\n", len);
     if ( len == 0 )
     {
         INFO("UEFI Error: variable name len is 0\n");
@@ -169,9 +173,6 @@ static void get_variable(void *comm_buff)
         goto err;
     }
 
-    DEBUG("cmd:GET_VARIABLE\n");
-    dprint_vname(variable_name, len);
-
     ret = filedb_get(variable_name, len, &data, &datalen, &attrs);
     if ( ret < 0 )
     {
@@ -181,9 +182,14 @@ static void get_variable(void *comm_buff)
         goto err;
     }
 
+    DEBUG("cmd:GET_VARIABLE\n");
+    dprint_vname(variable_name, len);
+    dprint_data(data, datalen);
+
     buflen = parse_datalen(comm_buff);
     if ( buflen < datalen )
     {
+        WARNING("Buffer too small: 0x%x < 0x%x\n", buflen, datalen);
         off = 0;
         off += set_u64(comm_buff + off, EFI_BUFFER_TOO_SMALL);
         off += set_u64(comm_buff + off, datalen);
@@ -194,7 +200,20 @@ static void get_variable(void *comm_buff)
         off += set_u64(comm_buff + off, EFI_SUCCESS);
         off += set_u32(comm_buff + off, attrs);
         off += set_u64(comm_buff + off, datalen);
-        off += set_data(comm_buff + off, data, datalen);
+        if ( datalen + off > MAX_BUF )
+        {
+            ERROR("EFI_DEVICE_ERROR: datalen=0x%x, off=0x%x\n", datalen, off);
+
+            /* Reset previously written to zeroes */
+            memset(comm_buff, 0, off);
+
+            /* Send back EFI_DEVICE_ERROR */
+            off += set_u64(comm_buff, EFI_DEVICE_ERROR);
+        }
+        else
+        {
+            off += set_data(comm_buff + off, data, datalen);
+        }
     }
 
     free(data);
@@ -238,7 +257,6 @@ static void set_variable(void *comm_buff)
 
     validate(variable_name, len, data, datalen, attrs);
     set_u64(comm_buff, EFI_SUCCESS);
-
 
     free(variable_name);
     free(data);
@@ -304,16 +322,21 @@ static void get_next_variable(void *comm_buff)
 void xenvariable_handle_request(void *comm_buff)
 {
 
+    int i;
+    uint8_t val;
     DEBUG("version=%u\n", parse_version(comm_buff));
 
 #if 1
-    int i;
-    DPRINTF("MESSAGE: ");
-    for (i=0; i<128; i++)
+    if ( comm_buff )
     {
-        DPRINTF("0x%x ", *((uint8_t*)(comm_buff + i)));
+        DPRINTF("MESSAGE: ");
+        for (i=0; i<128; i++)
+        {
+            uint8_t val = ((uint8_t*)comm_buff)[i];
+            DPRINTF("0x%.2x ", (uint64_t)val);
+        }
+        DPRINTF("\n");
     }
-    DPRINTF("\n");
 #endif
 
     switch ( parse_command(comm_buff) )

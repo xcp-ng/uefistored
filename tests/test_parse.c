@@ -51,6 +51,7 @@ void test_set_rtc(void)
     void *message;
     void *variable_name;
     void *data;
+    size_t sp;
     
     /* SET_VARIABLE "RTC" tests */
     message = (void*) SET_RTC;
@@ -73,8 +74,9 @@ void test_set_rtc(void)
     test(datalen == 0x04);
     test(datalen == parse_datalen(message));
 
-    size_t *sp = (size_t*)&SET_RTC[38];
-    test(*sp == 0x04);
+
+    memcpy(&sp, (size_t*)&SET_RTC[38], sizeof(sp));
+    test(sp == 0x04);
     test(memcmp(data, &SET_RTC[38 + 4], 0x04) == 0);
 
     test(parse_attrs(message) == 7);

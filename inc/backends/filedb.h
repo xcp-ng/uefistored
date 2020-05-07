@@ -9,5 +9,6 @@ int filedb_init(const char *dbpath,
 void filedb_deinit(void);
 int filedb_get(void *, size_t, void** , size_t *, uint32_t*);
 int filedb_set(void *, size_t, void *, size_t, uint32_t);
+void filedb_destroy(void);
 
 #endif

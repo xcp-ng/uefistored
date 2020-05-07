@@ -7,15 +7,17 @@
 #include "XenVariable.h"
 
 #define DEBUG 1
+
 #if DEBUG
 #include <stdio.h>
-#endif
-
 #define DPRINTF(...)                 \
     do {                             \
-        if (DEBUG)                   \
-            printf(__VA_ARGS__);     \
+        printf(__VA_ARGS__);     \
     } while ( 0 )
+#else
+#define DPRINTF(...)  do { } while ( 0 )
+#endif
+
 
 #define exec_command(...) do { } while ( 0 )
 #define AcquireSpinLock(...) do { } while( 0 )
@@ -130,7 +132,6 @@ serialize_guid(uint8_t **ptr, EFI_GUID *Guid)
   *ptr += 16;
 }
 
-#if 0
 static inline void
 unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize)
 {
@@ -190,8 +191,6 @@ unserialize_result(uint8_t **ptr)
 
   return status;
 }
-#endif
-
 
 static inline int EfiAtRuntime(void)
 {
@@ -225,9 +224,9 @@ XenGetVariableLocked (
   serialize_uintn(&ptr, *DataSize);
   serialize_boolean(&ptr, EfiAtRuntime());
 
-#if 0
-  exec_command(comm_buf_phys);
+  exec_command(comm_buf);
   ptr = comm_buf;
+
   status = unserialize_result(&ptr);
   switch (status) {
   case EFI_SUCCESS:
@@ -246,9 +245,6 @@ XenGetVariableLocked (
   }
 
   return status;
-#else
-  return 0;
-#endif
 }
   
 EFI_STATUS
@@ -298,7 +294,7 @@ XenGetNextVariableNameLocked (
   serialize_boolean(&ptr, EfiAtRuntime());
 
 #if 0
-  exec_command(comm_buf_phys);
+  exec_command(comm_buf);
 
   ptr = comm_buf;
   status = unserialize_result(&ptr);
@@ -351,16 +347,26 @@ XenSetVariableLocked (
 {
   uint8_t *ptr;
 
+  DPRINTF("DataSize: 0x%x\n", DataSize);
+
+  uint64_t diff;
   ptr = comm_buf;
   serialize_uint32(&ptr, 1); /* version */
+  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
+  DPRINTF("command offset: %lu\n", diff); 
   serialize_command(&ptr, COMMAND_SET_VARIABLE);
+  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
+  DPRINTF("VariableName offset: %lu\n", diff); 
   serialize_name(&ptr, VariableName);
+  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
+  DPRINTF("GUID offset: %lu\n", diff); 
   serialize_guid(&ptr, VendorGuid);
+  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
+  DPRINTF("Data offset: %lu\n", diff); 
+  DPRINTF("Data val: %lu\n", Data); 
   serialize_data(&ptr, Data, DataSize);
   serialize_uint32(&ptr, Attributes);
   serialize_boolean(&ptr, EfiAtRuntime());
-
-  exec_command(comm_buf_phys);
 
 #if 0
   ptr = comm_buf;
@@ -410,7 +416,7 @@ XenQueryVariableInfoLocked (
   serialize_uint32(&ptr, Attributes);
 
 #if 0
-  exec_command(comm_buf_phys);
+  exec_command(comm_buf);
 
   ptr = comm_buf;
   status = unserialize_result(&ptr);
