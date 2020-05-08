@@ -346,24 +346,11 @@ XenSetVariableLocked (
   )
 {
   uint8_t *ptr;
-
-  DPRINTF("DataSize: 0x%x\n", DataSize);
-
-  uint64_t diff;
   ptr = comm_buf;
   serialize_uint32(&ptr, 1); /* version */
-  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
-  DPRINTF("command offset: %lu\n", diff); 
   serialize_command(&ptr, COMMAND_SET_VARIABLE);
-  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
-  DPRINTF("VariableName offset: %lu\n", diff); 
   serialize_name(&ptr, VariableName);
-  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
-  DPRINTF("GUID offset: %lu\n", diff); 
   serialize_guid(&ptr, VendorGuid);
-  diff =  ((uint64_t)ptr) - ((uint64_t)comm_buf);
-  DPRINTF("Data offset: %lu\n", diff); 
-  DPRINTF("Data val: %lu\n", Data); 
   serialize_data(&ptr, Data, DataSize);
   serialize_uint32(&ptr, Attributes);
   serialize_boolean(&ptr, EfiAtRuntime());

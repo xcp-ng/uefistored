@@ -49,10 +49,6 @@ static inline uint64_t getstatus(void *p)
     return *((uint64_t*) p);
 }
 
-static void deinit(void)
-{
-}
-
 static void test_nonexistent_variable_returns_not_found(void)
 {
     EFI_STATUS status;
@@ -149,49 +145,53 @@ unserialize_result(uint8_t **ptr)
   return status;
 }
 
-
-static EFI_STATUS XenGetVariableEnd(
-        void *name,
+static EFI_STATUS deserialize_xen_get_var_response(
+        void *buf,
         uint32_t *Attributes,
         void *Data,
         size_t *DataSize)
 {
     uint32_t attr;
-    uint8_t *ptr = comm_buf;
+    uint8_t *ptr = buf;
     EFI_STATUS status;
 
     status = unserialize_result(&ptr);
-    printf("%s:%d: status=%d\n", __func__, __LINE__, status);
     switch ( status )
     {
     case EFI_SUCCESS:
         if (!Data)
             return EFI_INVALID_PARAMETER;
-        printf("%s:%d\n", __func__, __LINE__);
         attr = unserialize_uint32(&ptr);
-        printf("%s:%d\n", __func__, __LINE__);
         if (Attributes)
             *Attributes = attr;
-        printf("%s:%d\n", __func__, __LINE__);
         unserialize_data(&ptr, Data, DataSize);
         break;
     case EFI_BUFFER_TOO_SMALL:
-        printf("%s:%d\n", __func__, __LINE__);
         *DataSize = unserialize_uintn(&ptr);
         break;
     default:
         break;
     }
 
-    printf("%s:%d\n", __func__, __LINE__);
     return status;
 }
 
-static EFI_STATUS XenSetVariableEnd(void)
+/**
+ * SetVariable() deserializes to the status field.
+ *
+ * Returns the status code on the buffer.
+ */
+static EFI_STATUS deserialize_set_variable_response(void *buf)
 {
-    return getstatus(comm_buf);
+    return getstatus(buf);
 }
 
+/**
+ * Test that using SetVariable() to save a variable
+ * and subsequently calling GetVariable() to retrieve
+ * that same variable results in the saved and
+ * restored variable vlaues being equivalent.
+ */
 static void test_set_and_get(void)
 {
     uint64_t status;
@@ -202,49 +202,81 @@ static void test_set_and_get(void)
     uint32_t indata = 0xdeadbeef;
     uint32_t outdata;
     size_t outsz = sizeof(outdata);
-    void *vnp;
-    size_t len;
-
-    memset(guid, 0xab, 16);
 
     mock_xenvariable_set_buffer(comm_buf);
 
-    /* Preset status byte to not success */
-    *((uint64_t*)comm_buf) =  ~EFI_SUCCESS;
-    assert(getstatus(comm_buf) != EFI_SUCCESS);
-
-    /* Perform GetVariable() command */
-    status = XenSetVariable(rtcname, &guid, &attr, sizeof(indata), (void*)&indata);
+    /* Perform SetVariable() and then GetVariable() */
+    XenSetVariable(rtcname, &guid, &attr, sizeof(indata), (void*)&indata);
     xenvariable_handle_request(comm_buf);
-    status = XenSetVariableEnd();
-
-    test(status == EFI_SUCCESS);
-
-    /* Perform GetVariable() command */
     XenGetVariable(rtcname, &guid, &attr, &outsz, (void*)&outdata);
     xenvariable_handle_request(comm_buf);
-    status = XenGetVariableEnd(rtcname, &attr, &outdata, &outsz);
 
-    /* Assert that in/out values are equal */
+    /*
+     * Assert that status is EFI_SUCCESS, and that saved and retreived
+     * variables are equal
+     */
+    status = deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
     test(status == EFI_SUCCESS);
     test(outdata == indata);
-
-    printf("outdata=0x%lx, indata=0x%lx\n", outdata, indata);
 }
 
-
-static void test_good_commands(void)
+/**
+ * Test that SetVariable requests of size that
+ * exceed the shared memory area fails with
+ * EFI_OUT_OF_RESOURCES.
+ */
+static void test_big_set(void)
 {
+    char16_t *rtcname = (char16_t*)rtcnamebytes;
+    uint8_t guid[16] = {0};
+    uint32_t attr = 0;
+    void *indata;
+    void *tempbuf;
+
+    /* One byte beyond than the shared memory area */
+    size_t insz = (SHMEM_PAGES * PAGE_SIZE) + 1;
+
+    /* Setup */
+    indata = malloc(insz);
+    tempbuf = malloc(insz * 16);
+    mock_xenvariable_set_buffer(tempbuf);
+
+    /* Issue and process SetVariable() */
+    XenSetVariable(rtcname, &guid, &attr, insz, indata);
+    xenvariable_handle_request(tempbuf);
+
+    /* Perform test assertion */
+    test(getstatus(tempbuf) == EFI_OUT_OF_RESOURCES);
+
+    /* Cleanup */
+    free(indata);
+    free(tempbuf);
 }
 
-static void test_bad_commands(void)
+/**
+ * Test that a zero-length before passed to SetVariable()
+ * yields a EFI_SECURITY_VIOLATION.
+ */
+static void test_zero_set(void)
 {
-    /* TODO: test large values, fuzz, etc... */
-    test(0);
+    char16_t *rtcname = (char16_t*)rtcnamebytes;
+    uint8_t guid[16] = {0};
+    uint32_t attr = 0;
+    size_t insz = 0;
+    uint8_t indata; 
+
+    mock_xenvariable_set_buffer(comm_buf);
+
+    XenSetVariable(rtcname, &guid, &attr, insz, &indata);
+    xenvariable_handle_request(comm_buf);
+
+    test(getstatus(comm_buf) == EFI_SECURITY_VIOLATION);
 }
 
 void test_xenvariable(void)
 {
     DO_TEST(test_nonexistent_variable_returns_not_found);
     DO_TEST(test_set_and_get);
+    DO_TEST(test_big_set);
+    DO_TEST(test_zero_set);
 }
