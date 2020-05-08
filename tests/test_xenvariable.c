@@ -186,6 +186,20 @@ static EFI_STATUS deserialize_set_variable_response(void *buf)
     return getstatus(buf);
 }
 
+static void set_rtc_variable(void *buf)
+{
+    char16_t *rtcname = (char16_t*)rtcnamebytes;
+    uint8_t guid[16] = {0};
+    uint32_t attr = 0;
+    uint32_t indata = 0xdeadbeef;
+
+    mock_xenvariable_set_buffer(buf);
+
+    /* Perform SetVariable() and then GetVariable() */
+    XenSetVariable(rtcname, &guid, &attr, sizeof(indata), (void*)&indata);
+    xenvariable_handle_request(buf);
+}
+
 /**
  * Test that using SetVariable() to save a variable
  * and subsequently calling GetVariable() to retrieve
@@ -195,7 +209,6 @@ static EFI_STATUS deserialize_set_variable_response(void *buf)
 static void test_set_and_get(void)
 {
     uint64_t status;
-
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
     uint32_t attr = 0;
@@ -274,10 +287,62 @@ static void test_zero_set(void)
     test(getstatus(comm_buf) == EFI_SECURITY_VIOLATION);
 }
 
+/**
+ * Test that empty variable store returns EFI_NOT_FOUND
+ * for GetNextVariableName().
+ */
+static void test_empty_get_next_var(void)
+{
+    size_t varname_sz;
+    char16_t *varname;
+    uint8_t guid[16];
+
+    /* Setup */
+    mock_xenvariable_set_buffer(comm_buf);
+    varname_sz = sizeof(char16_t) * 128;
+    varname = malloc(varname_sz);
+
+    /* Call GetNextVariableName() */
+    XenGetNextVariableName(&varname_sz, varname, &guid);
+    xenvariable_handle_request(comm_buf);
+    test(getstatus(comm_buf) == EFI_NOT_FOUND);
+
+    /* Cleanup */
+    free(varname);
+}
+
+/**
+ * Test that variable store returns EFI_SUCCESS upon GetNextVariableName()
+ * being called after setting one variable.
+ */
+static void test_success_get_next_var(void)
+{
+    const size_t varname_sz = sizeof(char16_t) * 128;
+    char16_t *varname;
+    uint8_t guid[16];
+
+    /* Setup */
+    set_rtc_variable(comm_buf);
+    mock_xenvariable_set_buffer(comm_buf);
+
+    varname = malloc(varname_sz);
+    memset(varname, 0, varname_sz);
+
+    /* Call GetNextVariableName() */
+    XenGetNextVariableName(&varname_sz, varname, &guid);
+    xenvariable_handle_request(comm_buf);
+    test(getstatus(comm_buf) == EFI_SUCCESS);
+
+    /* Cleanup */
+    free(varname);
+}
+
 void test_xenvariable(void)
 {
     DO_TEST(test_nonexistent_variable_returns_not_found);
     DO_TEST(test_set_and_get);
     DO_TEST(test_big_set);
     DO_TEST(test_zero_set);
+    DO_TEST(test_empty_get_next_var);
+    DO_TEST(test_success_get_next_var);
 }

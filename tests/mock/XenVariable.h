@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <uchar.h>
 
-#include "xenvar.h"
+#include "serializer.h"
+#include "uefitypes.h"
 
 #define PORT_ADDRESS 0x0100
 #define SHMEM_PAGES  16
@@ -17,19 +18,6 @@ static inline void *AllocateRuntimePages(size_t pages)
 {
     return malloc(pages * PAGE_SIZE);
 }
-
-typedef struct {
-    uint8_t guid[16];
-} EFI_GUID;
-
-typedef enum {
-    EFI_SUCCESS = 0,
-    EFI_INVALID_PARAMETER = 2,
-    EFI_BUFFER_TOO_SMALL = 5,
-    EFI_OUT_OF_RESOURCES = 9,
-} efi_status_t;
-
-typedef uint64_t EFI_STATUS;
 
 EFI_STATUS
 XenGetVariable (

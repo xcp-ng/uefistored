@@ -4,6 +4,7 @@
 #include <string.h>
 #include <uchar.h>
 
+#include "serializer.h"
 #include "XenVariable.h"
 
 #define DEBUG 1
@@ -79,119 +80,6 @@ XenNotifySecureBootFailure (
 }
 #endif
 
-static inline void
-serialize_name(uint8_t **ptr, char16_t *VariableName)
-{
-  uint64_t VarNameSize = StrLen(VariableName) * sizeof(*VariableName);
-  memcpy (*ptr, &VarNameSize, sizeof VarNameSize);
-  *ptr += sizeof VarNameSize;
-  memcpy (*ptr, VariableName, VarNameSize);
-  *ptr += VarNameSize;
-}
-
-static inline void
-serialize_data(uint8_t **ptr, void *Data, uint64_t DataSize)
-{
-  memcpy (*ptr, &DataSize, sizeof DataSize);
-  *ptr += sizeof DataSize;
-  memcpy (*ptr, Data, DataSize);
-  *ptr += DataSize;
-}
-
-static inline void
-serialize_uintn(uint8_t **ptr, uint64_t var)
-{
-  memcpy (*ptr, &var, sizeof var);
-  *ptr += sizeof var;
-}
-
-static inline void
-serialize_uint32(uint8_t **ptr, uint32_t var)
-{
-  memcpy (*ptr, &var, sizeof var);
-  *ptr += sizeof var;
-}
-
-static inline void
-serialize_boolean(uint8_t **ptr, bool var)
-{
-  memcpy (*ptr, &var, sizeof var);
-  *ptr += sizeof var;
-}
-
-static inline void
-serialize_command(uint8_t **ptr, command_t cmd)
-{
-  serialize_uint32(ptr, (uint32_t)cmd);
-}
-
-static inline void
-serialize_guid(uint8_t **ptr, EFI_GUID *Guid)
-{
-  memcpy (*ptr, Guid, 16);
-  *ptr += 16;
-}
-
-static inline void
-unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize)
-{
-  memcpy(DataSize, *ptr, sizeof(*DataSize));
-  *ptr += sizeof(*DataSize);
-  memcpy(Data, *ptr, *DataSize);
-  *ptr += *DataSize;
-}
-
-static inline uint64_t
-unserialize_uintn(uint8_t **ptr)
-{
-  uint64_t ret;
-
-  memcpy(&ret, *ptr, sizeof ret);
-  *ptr += sizeof ret;
-
-  return ret;
-}
-
-static inline uint32_t
-unserialize_uint32(uint8_t **ptr)
-{
-  uint32_t ret;
-
-  memcpy(&ret, *ptr, sizeof ret);
-  *ptr += sizeof ret;
-
-  return ret;
-}
-
-static inline uint64_t
-unserialize_uint64(uint8_t **ptr)
-{
-  uint64_t ret;
-
-  memcpy(&ret, *ptr, sizeof ret);
-  *ptr += sizeof ret;
-
-  return ret;
-}
-
-static inline void
-unserialize_guid(uint8_t **ptr, EFI_GUID *Guid)
-{
-  memcpy (Guid, *ptr, 16);
-  *ptr += 16;
-}
-
-static inline EFI_STATUS
-unserialize_result(uint8_t **ptr)
-{
-  EFI_STATUS status;
-
-  memcpy(&status, *ptr, sizeof status);
-  *((uint64_t*)ptr) = sizeof(status);
-
-  return status;
-}
-
 static inline int EfiAtRuntime(void)
 {
     return 1;
@@ -199,12 +87,12 @@ static inline int EfiAtRuntime(void)
 
 EFI_STATUS
 XenGetVariableLocked (
-        char16_t            *VariableName,
-        EFI_GUID          *VendorGuid,
-       uint32_t            *Attributes,
-     uint64_t             *DataSize,
-       void              *Data
-  )
+    char16_t            *VariableName,
+    EFI_GUID          *VendorGuid,
+    uint32_t            *Attributes,
+    uint64_t             *DataSize,
+    void              *Data
+    )
 {
   uint8_t *ptr;
   EFI_STATUS status;
@@ -212,9 +100,6 @@ XenGetVariableLocked (
 
   if (!VariableName || !VendorGuid || !DataSize)
       return EFI_INVALID_PARAMETER;
-
-  UNUSED(status);
-  UNUSED(attr);
 
   ptr = comm_buf;
   serialize_uint32(&ptr, 1); /* version */
