@@ -10,27 +10,6 @@
 #include "common.h"
 #include "kissdb/kissdb.h"
 
-/**
- * This is a super simple backend for varstored.  It simply uses
- * a file-backed key-value store to maintain UEFI variables.
- *
- * Two DBs are used.  One maps the variable name to the variable value.
- * The other maps the variable name to the variable value len.
- * This is required because KISSDB only accepts fixed-length keys and values.
- */
-
-#define min(x, y) ((x) < (y) ? (x) : (y))
-
-#define PATH_MAX 512
-#define DEFAULT_DBPATH "/var/run/xen/varstored-db.dat"
-#define DEFAULT_DBPATH_VAR_LEN "/var/run/xen/varstored-db-var-len.dat"
-#define DEFAULT_DBPATH_VAR_ATTRS "/var/run/xen/varstored-db-var-attrs.dat"
-
-#define ENTRY_LEN 1024
-#define KISSDB_KEY_SIZE 128 
-#define KISSDB_VAL_SIZE 1024
-#define KISSDB_VAR_ATTRS_VAL_SIZE (sizeof(uint32_t))
-
 static bool initialized;
 
 static KISSDB db;
@@ -51,17 +30,17 @@ int filedb_init(const char *dbpath,
     strncpy(varlenpath_copy, varlenpath ? varlenpath : DEFAULT_DBPATH_VAR_LEN, PATH_MAX);
     strncpy(attrspath_copy, attrspath ? attrspath : DEFAULT_DBPATH_VAR_ATTRS, PATH_MAX);
 
-    ret = KISSDB_open(&db, dbpath, KISSDB_OPEN_MODE_RWCREAT, 1024, KISSDB_KEY_SIZE, KISSDB_VAL_SIZE);
+    ret = KISSDB_open(&db, dbpath, KISSDB_OPEN_MODE_RWCREAT, 1024, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
     if ( ret != 0 )
         return -1;
 
     ret = KISSDB_open(&db_var_len, varlenpath, KISSDB_OPEN_MODE_RWCREAT,
-                      1024, KISSDB_KEY_SIZE, sizeof(size_t));
+                      1024, FILEDB_KEY_SIZE, sizeof(size_t));
     if ( ret != 0 )
         goto close1;
 
     ret = KISSDB_open(&db_var_attrs, attrspath, KISSDB_OPEN_MODE_RWCREAT,
-                      1024, KISSDB_KEY_SIZE, KISSDB_VAR_ATTRS_VAL_SIZE);
+                      1024, FILEDB_KEY_SIZE, FILEDB_VAR_ATTRS_VAL_SIZE);
     if ( ret != 0 )
         goto close2;
 
@@ -101,8 +80,8 @@ void filedb_destroy(void)
 int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t *attrs)
 {
     int ret;
-    uint8_t key[KISSDB_KEY_SIZE] = {0};
-    uint8_t val[KISSDB_VAL_SIZE] = {0};
+    uint8_t key[FILEDB_KEY_SIZE] = {0};
+    uint8_t val[FILEDB_VAL_SIZE] = {0};
     size_t tmp = 0;
 
     if ( !initialized )
@@ -156,8 +135,8 @@ int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint
 
 int filedb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attrs)
 {
-    uint8_t key[KISSDB_KEY_SIZE] = {0};
-    uint8_t padval[KISSDB_VAL_SIZE] = {0};
+    uint8_t key[FILEDB_KEY_SIZE] = {0};
+    uint8_t padval[FILEDB_VAL_SIZE] = {0};
     int ret;
 
     if ( !initialized )
@@ -169,13 +148,13 @@ int filedb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t att
     if ( !len )
         return -1;
 
-    if ( varlen >=  KISSDB_KEY_SIZE )
+    if ( varlen >=  FILEDB_KEY_SIZE )
     {
         ERROR("Variable name length exceeds db size\n");
         return -ENOMEM;
     }
 
-    if ( len >=  KISSDB_VAL_SIZE )
+    if ( len >=  FILEDB_VAL_SIZE )
     {
         ERROR("Variable data length exceeds db size\n");
         return -ENOMEM;
@@ -197,4 +176,39 @@ int filedb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t att
         return -1;
 
     return 0;
+}
+
+static KISSDB_Iterator key_dbi;
+
+void filedb_name_iter_init(void)
+{
+    KISSDB_Iterator_init(&db, &key_dbi);
+}
+
+int filedb_name_iter_next(filedb_name_iter_t *p)
+{
+
+    int ret;
+    char valdummy[FILEDB_VAL_SIZE];
+
+    if ( !p )
+    {
+        ERROR("Invalid null ptr iterator\n");
+        return -1;
+    }
+
+    ret = KISSDB_Iterator_next(&key_dbi, &p->key, valdummy);
+    if ( ret == 0 )
+    {
+        /* No more entries */
+        memset(p, 0, sizeof(*p));
+        return ret;
+    }
+    else if ( ret < 0 )
+    {
+        ERROR("KISSDB iterator failed\n");
+        return ret;
+    }
+
+    return ret;
 }
