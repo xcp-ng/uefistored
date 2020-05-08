@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -202,13 +203,13 @@ static void get_variable(void *comm_buff)
         off += set_u64(comm_buff + off, datalen);
         if ( datalen + off > MAX_BUF )
         {
-            ERROR("EFI_DEVICE_ERROR: datalen=0x%x, off=0x%x\n", datalen, off);
+            ERROR("EFI_OUT_OF_RESOURCES: datalen=0x%x, off=0x%x\n", datalen, off);
 
             /* Reset previously written to zeroes */
             memset(comm_buff, 0, off);
 
-            /* Send back EFI_DEVICE_ERROR */
-            off += set_u64(comm_buff, EFI_DEVICE_ERROR);
+            /* Send back EFI_OUT_OF_RESOURCES */
+            off += set_u64(comm_buff, EFI_OUT_OF_RESOURCES);
         }
         else
         {
@@ -236,13 +237,15 @@ static void set_variable(void *comm_buff)
     parse_variable_name(comm_buff, &variable_name, &len);
     parse_guid(comm_buff, guid);
     parse_data(comm_buff, &data, &datalen);
+
+    /* TODO: Parse and implement attributes */
     attrs = parse_attrs(comm_buff);
 
     if ( datalen == 0 )
     {
         INFO("UEFI error: datalen == 0\n");
         set_u64(comm_buff, EFI_SECURITY_VIOLATION);
-        return;
+        goto end;
     }
 
     DEBUG("cmd:SET_VARIABLE\n");
@@ -252,12 +255,14 @@ static void set_variable(void *comm_buff)
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
-        return;
+        set_u64(comm_buff, EFI_OUT_OF_RESOURCES);
+        goto end;
     }
 
     validate(variable_name, len, data, datalen, attrs);
     set_u64(comm_buff, EFI_SUCCESS);
 
+end:
     free(variable_name);
     free(data);
 }

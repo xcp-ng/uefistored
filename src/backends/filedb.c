@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #include "backends/filedb.h"
 #include "common.h"
@@ -171,13 +172,13 @@ int filedb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t att
     if ( varlen >=  KISSDB_KEY_SIZE )
     {
         ERROR("Variable name length exceeds db size\n");
-        return -1;
+        return -ENOMEM;
     }
 
     if ( len >=  KISSDB_VAL_SIZE )
     {
-        ERROR("Variable name length exceeds db size\n");
-        return -1;
+        ERROR("Variable data length exceeds db size\n");
+        return -ENOMEM;
     }
 
     memcpy(&key, varname, varlen);
