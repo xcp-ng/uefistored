@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "xenvar.h"
+#include "uefitypes.h"
 
 command_t parse_command(void *comm_buff);
 uint32_t parse_version(void *comm_buff);
