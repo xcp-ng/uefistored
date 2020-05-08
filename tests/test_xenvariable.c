@@ -238,6 +238,7 @@ static void test_big_set(void)
 
     /* Setup */
     indata = malloc(insz);
+    memset(indata, 0, insz);
     tempbuf = malloc(insz * 16);
     mock_xenvariable_set_buffer(tempbuf);
 
