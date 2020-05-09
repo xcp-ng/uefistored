@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -5,13 +6,17 @@
 
 #include "backends/filedb.h"
 #include "xenvariable.h"
+#include "serializer.h"
+#include "uefitypes.h"
 #include "common.h"
 #include "parse.h"
 
 #define VALIDATE_WRITES
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
+#define MAX_VARNAME_SZ (PAGE_SIZE)
+
+static filedb_name_iter_t name_iter;
 static char strbuf[512];
-//static bool get_next_initialized = false;
 
 static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
 {
@@ -53,12 +58,6 @@ static bool isnull(void *mem, size_t len)
     return true;
 }
 
-static size_t set_u8(void *mem, uint8_t value)
-{
-    memcpy(mem, &value, sizeof(value));
-    return sizeof(value);
-}
-
 static size_t set_u32(void *mem, uint32_t value)
 {
     memcpy(mem, &value, sizeof(value));
@@ -76,19 +75,6 @@ static size_t set_data(void *mem, void *data, size_t datalen)
     memcpy(mem, data, datalen);
 
     return datalen;
-}
-
-static size_t set_guid(void *shared_page, size_t initial_offset, uint8_t guid[16])
-{
-    size_t off = initial_offset;
-    int i;
-
-    for (i=0; i<16; i++)
-    {
-        off += set_u8(shared_page + off, guid[i]);
-    }
-
-    return 16;
 }
 
 static void dprint_data(void *data, size_t datalen)
@@ -145,7 +131,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
 #define validate(...) do { } while ( 0 )
 #endif
 
-static void get_variable(void *comm_buff)
+static void get_variable(void *comm_buf)
 {
     int ret;
     size_t len, datalen;
@@ -155,14 +141,14 @@ static void get_variable(void *comm_buff)
     void *variable_name;
     size_t off;
 
-    parse_variable_name(comm_buff, &variable_name, &len);
+    parse_variable_name(comm_buf, &variable_name, &len);
 
     DEBUG("len=%lu\n", len);
     if ( len == 0 )
     {
         INFO("UEFI Error: variable name len is 0\n");
         off = 0;
-        off += set_u64(comm_buff + off, EFI_INVALID_PARAMETER);
+        off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
         goto err;
     }
 
@@ -170,7 +156,7 @@ static void get_variable(void *comm_buff)
     {
         INFO("UEFI Error: variable name is NULL\n");
         off = 0;
-        off += set_u64(comm_buff + off, EFI_INVALID_PARAMETER);
+        off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
         goto err;
     }
 
@@ -178,7 +164,7 @@ static void get_variable(void *comm_buff)
     if ( ret < 0 )
     {
         off = 0;
-        off += set_u64(comm_buff + off, EFI_NOT_FOUND);
+        off += set_u64(comm_buf + off, EFI_NOT_FOUND);
         ERROR("Failed to get variable\n");
         goto err;
     }
@@ -187,33 +173,33 @@ static void get_variable(void *comm_buff)
     dprint_vname(variable_name, len);
     dprint_data(data, datalen);
 
-    buflen = parse_datalen(comm_buff);
+    buflen = parse_datalen(comm_buf);
     if ( buflen < datalen )
     {
-        WARNING("Buffer too small: 0x%x < 0x%x\n", buflen, datalen);
+        WARNING("Buffer too small: 0x%lx < 0x%lx\n", buflen, datalen);
         off = 0;
-        off += set_u64(comm_buff + off, EFI_BUFFER_TOO_SMALL);
-        off += set_u64(comm_buff + off, datalen);
+        off += set_u64(comm_buf + off, EFI_BUFFER_TOO_SMALL);
+        off += set_u64(comm_buf + off, datalen);
     }
     else
     {
         off = 0;
-        off += set_u64(comm_buff + off, EFI_SUCCESS);
-        off += set_u32(comm_buff + off, attrs);
-        off += set_u64(comm_buff + off, datalen);
+        off += set_u64(comm_buf + off, EFI_SUCCESS);
+        off += set_u32(comm_buf + off, attrs);
+        off += set_u64(comm_buf + off, datalen);
         if ( datalen + off > MAX_BUF )
         {
-            ERROR("EFI_OUT_OF_RESOURCES: datalen=0x%x, off=0x%x\n", datalen, off);
+            ERROR("EFI_OUT_OF_RESOURCES: datalen=0x%lx, off=0x%lx\n", datalen, off);
 
             /* Reset previously written to zeroes */
-            memset(comm_buff, 0, off);
+            memset(comm_buf, 0, off);
 
             /* Send back EFI_OUT_OF_RESOURCES */
-            off += set_u64(comm_buff, EFI_OUT_OF_RESOURCES);
+            off += set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
         }
         else
         {
-            off += set_data(comm_buff + off, data, datalen);
+            off += set_data(comm_buf + off, data, datalen);
         }
     }
 
@@ -225,7 +211,7 @@ err:
         free(variable_name);
 }
 
-static void set_variable(void *comm_buff)
+static void set_variable(void *comm_buf)
 {
     uint8_t guid[16];
     size_t len, datalen;
@@ -234,17 +220,17 @@ static void set_variable(void *comm_buff)
     void *data;
     uint32_t attrs;
 
-    parse_variable_name(comm_buff, &variable_name, &len);
-    parse_guid(comm_buff, guid);
-    parse_data(comm_buff, &data, &datalen);
+    parse_variable_name(comm_buf, &variable_name, &len);
+    parse_guid(comm_buf, guid);
+    parse_data(comm_buf, &data, &datalen);
 
     /* TODO: Parse and implement attributes */
-    attrs = parse_attrs(comm_buff);
+    attrs = parse_attrs(comm_buf);
 
     if ( datalen == 0 )
     {
         INFO("UEFI error: datalen == 0\n");
-        set_u64(comm_buff, EFI_SECURITY_VIOLATION);
+        set_u64(comm_buf, EFI_SECURITY_VIOLATION);
         goto end;
     }
 
@@ -255,105 +241,130 @@ static void set_variable(void *comm_buff)
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
-        set_u64(comm_buff, EFI_OUT_OF_RESOURCES);
+        set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
         goto end;
     }
 
     validate(variable_name, len, data, datalen, attrs);
-    set_u64(comm_buff, EFI_SUCCESS);
+    set_u64(comm_buf, EFI_SUCCESS);
 
 end:
     free(variable_name);
     free(data);
 }
 
-static void get_next_variable(void *comm_buff)
+/**
+ * Implement the GetNextVariableName() UEFI service.
+ */
+static void get_next_variable(void *comm_buf)
 {
-    (void) comm_buff;
-#if 0
-    uint8_t guid[16];
-    uint8_t buffer[128] = {0};
-    void *variable_name;
-    size_t bufsize;
-    size_t len, off;
     int ret;
+    uint32_t version, command;
+    EFI_GUID guid;
+    uint8_t varname[MAX_VARNAME_SZ];
+    uint64_t guest_bufsz;
+    size_t off;
+    bool efi_at_runtime;
+    uint8_t *ptr = comm_buf;
 
-    bufsize = parse_variable_name_size(comm_buff);
-    parse_variable_name_next(comm_buff, &variable_name, &len);
+    DEBUG("cmd:GET_NEXT_VARIABLE_NAME: %d\n", filedb_name_iter_initialized());
 
-    DEBUG("cmd:GET_NEXT_VARIABLE\n");
+    /*
+     * If this is the first call to GetNextVariable(), it is required
+     * that the VariableName is the empty string.
+     */
+    if ( !filedb_name_iter_initialized() )
+    {
+        version = unserialize_uint32(&ptr);
 
-    if ( !filedb_iter_is_initialized() )
-    {
-        filedb_iter_init();
-    }
+        if ( version != 1 )
+        {
+            WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
+        }
 
-    ret = filedb_iter_next(buffer, 128);
-    if ( ret < 0 )
-    {
-        ERROR("filedb_iter_next() error\n");
-    }
-    else if ( ret == 0 )
-    {
-        DEBUG("filedb_iter_next() done!\n");
-    }
-    else
-    {
-        len = ret;
-        off = 0;
-        off += set_u64(comm_buff + off, EFI_SUCCESS);
-        off += set_u64(comm_buff + off, len);
-        memcpy(comm_buff, buffer, len);
-        off += len;
-        off += set_guid(comm_buff, off, guid);
-    }
-        
-#if 0
-    dprint_vname(variable_name, len);
-    if ( isnull(variable_name, len) && len == 0 )
-    {
-        //filedb_iter_init();
-        //filedb_iter_next(variable_name, 
-        off = 0;
-        off += set_u64(comm_buff + off, EFI_SUCCESS);
-    }
-#endif
+        command = unserialize_uint32(&ptr);
+        assert(command == COMMAND_GET_NEXT_VARIABLE);
 
-    free(variable_name);
-#endif
+        guest_bufsz = unserialize_uint64(&ptr);
+        unserialize_name(&ptr, varname, MAX_VARNAME_SZ);
+        unserialize_guid(&ptr, &guid);
+
+        /* TODO: use the guid according to spec */
+        (void)guid;
+
+        efi_at_runtime = unserialize_boolean(&ptr);
+
+        if ( efi_at_runtime )
+            INFO("EFI at runtime\n");
+
+        filedb_name_iter_init();
+        ret = filedb_name_iter_next(&name_iter);
+        if ( ret == 0 )
+        {
+            ptr = comm_buf;
+            serialize_result(&ptr, EFI_NOT_FOUND);
+            filedb_name_iter_deinit();
+            memset(&name_iter, 0, sizeof(name_iter));
+        }
+        else if ( ret < 0 )
+        {
+            ERROR("filedb_name_iter_next had an internal error\n");
+        }
+        else
+        {
+            size_t namesz = strlen16((char16_t*)name_iter.name) * 2;
+
+            if ( namesz < guest_bufsz )
+            {
+                dprint_vname(&name_iter.name, namesz);
+
+                ptr = comm_buf;
+                serialize_result(&ptr, EFI_SUCCESS);
+                serialize_data(&ptr, &name_iter.name, namesz);
+                serialize_guid(&ptr, &guid);
+            }
+            else
+            {
+                ERROR("guest_bufsz not large enough\n");
+                /* TODO: return EFI_BUFFER_TOO_SMALL */
+            }
+
+
+        }
+        //DEBUG("%s:%d\n", __func__, __LINE__);
+    }
 }
 
 
-void xenvariable_handle_request(void *comm_buff)
+void xenvariable_handle_request(void *comm_buf)
 {
 
     int i;
-    uint8_t val;
-    DEBUG("version=%u\n", parse_version(comm_buff));
+    DEBUG("version=%u\n", parse_version(comm_buf));
 
 #if 1
-    if ( comm_buff )
+    if ( comm_buf )
     {
         DPRINTF("MESSAGE: ");
         for (i=0; i<128; i++)
         {
-            uint8_t val = ((uint8_t*)comm_buff)[i];
-            DPRINTF("0x%.2x ", (uint64_t)val);
+            uint8_t val = ((uint8_t*)comm_buf)[i];
+            DPRINTF("0x%.2lx ", (uint64_t)val);
         }
         DPRINTF("\n");
     }
 #endif
 
-    switch ( parse_command(comm_buff) )
+    switch ( parse_command(comm_buf) )
     {
         case COMMAND_GET_VARIABLE:
-            get_variable(comm_buff);
+            get_variable(comm_buf);
             break;
         case COMMAND_SET_VARIABLE:
-            set_variable(comm_buff);
+            set_variable(comm_buf);
             break;
         case COMMAND_GET_NEXT_VARIABLE:
-            get_next_variable(comm_buff);
+            get_next_variable(comm_buf);
             break;
         case COMMAND_QUERY_VARIABLE_INFO:
             DEBUG("cmd:QUERY_VARIABLE_VARIABLE\n");

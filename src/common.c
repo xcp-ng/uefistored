@@ -7,3 +7,14 @@ void set_logfd(int logfd)
     _logfd = logfd;
 }
 
+
+uint64_t strlen16(char16_t *str)
+{
+    uint64_t len = 0;
+    char16_t *p = str;
+
+    while ( *p++ != L'\0' )
+        len++;
+
+    return len;
+}

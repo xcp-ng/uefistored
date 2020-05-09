@@ -11,6 +11,7 @@
 #include "kissdb/kissdb.h"
 
 static bool initialized;
+static bool iter_initialized;
 
 static KISSDB db;
 static KISSDB db_var_len;
@@ -183,6 +184,7 @@ static KISSDB_Iterator key_dbi;
 void filedb_name_iter_init(void)
 {
     KISSDB_Iterator_init(&db, &key_dbi);
+    iter_initialized = true;
 }
 
 int filedb_name_iter_next(filedb_name_iter_t *p)
@@ -197,7 +199,7 @@ int filedb_name_iter_next(filedb_name_iter_t *p)
         return -1;
     }
 
-    ret = KISSDB_Iterator_next(&key_dbi, &p->key, valdummy);
+    ret = KISSDB_Iterator_next(&key_dbi, &p->name, valdummy);
     if ( ret == 0 )
     {
         /* No more entries */
@@ -211,4 +213,25 @@ int filedb_name_iter_next(filedb_name_iter_t *p)
     }
 
     return ret;
+}
+
+void filedb_name_iter_deinit(void)
+{
+    int ret;
+    char valdummy[FILEDB_VAL_SIZE];
+    char keydummy[FILEDB_KEY_SIZE];
+
+    /* Run the iterator to the end or until an error */
+    ret = KISSDB_Iterator_next(&key_dbi, NULL, NULL);
+    while ( ret > 0 )
+        ret = KISSDB_Iterator_next(&key_dbi, keydummy, valdummy);
+
+    memset(&key_dbi, 0, sizeof(key_dbi));
+    iter_initialized = false;
+}
+
+
+bool filedb_name_iter_initialized(void)
+{
+    return iter_initialized;
 }

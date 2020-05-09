@@ -7,6 +7,7 @@
 #include "backends/filedb.h"
 #include "mock/XenVariable.h"
 #include "test_common.h"
+#include "uefitypes.h"
 #include "common.h"
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
@@ -57,8 +58,6 @@ static void test_nonexistent_variable_returns_not_found(void)
     uint32_t attr;
     uint64_t data;
     uint64_t datasize = sizeof(data);
-    void *vnp;
-    size_t len;
 
     comm_buf = comm_buf_phys;
     mock_xenvariable_set_buffer(comm_buf);
@@ -311,30 +310,26 @@ static void test_empty_get_next_var(void)
     free(varname);
 }
 
+#define TEST_VARNAME_BUF_SZ 256
+
 /**
  * Test that variable store returns EFI_SUCCESS upon GetNextVariableName()
  * being called after setting one variable.
  */
 static void test_success_get_next_var(void)
 {
-    const size_t varname_sz = sizeof(char16_t) * 128;
-    char16_t *varname;
+    const size_t varname_sz = TEST_VARNAME_BUF_SZ;
+    char16_t varname[TEST_VARNAME_BUF_SZ] = {0};
     uint8_t guid[16];
 
     /* Setup */
     set_rtc_variable(comm_buf);
     mock_xenvariable_set_buffer(comm_buf);
 
-    varname = malloc(varname_sz);
-    memset(varname, 0, varname_sz);
-
     /* Call GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, varname, &guid);
     xenvariable_handle_request(comm_buf);
     test(getstatus(comm_buf) == EFI_SUCCESS);
-
-    /* Cleanup */
-    free(varname);
 }
 
 void test_xenvariable(void)

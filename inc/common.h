@@ -4,8 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uchar.h>
 
 #define USE_STREAM 1
+
+uint64_t strlen16(char16_t *str);
 
 extern int _logfd;
 

@@ -2,6 +2,7 @@
 #define __H_VARSTOREDMEM_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * This is a super simple backend for varstored.  It simply uses
@@ -25,7 +26,7 @@
 #define FILEDB_VAR_ATTRS_VAL_SIZE (sizeof(uint32_t))
 
 typedef struct {
-    char key[FILEDB_KEY_SIZE];
+    char name[FILEDB_KEY_SIZE];
 } filedb_name_iter_t;
 
 int filedb_init(const char *dbpath,
@@ -38,5 +39,7 @@ void filedb_destroy(void);
 
 void filedb_name_iter_init(void);
 int filedb_name_iter_next(filedb_name_iter_t *p);
+bool filedb_name_iter_initialized(void);
+void filedb_name_iter_deinit(void);
 
 #endif
