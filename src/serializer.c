@@ -3,6 +3,7 @@
 #include <uchar.h>
 #include <string.h>
 
+#include "common.h"
 #include "serializer.h"
 #include "uefitypes.h"
 
@@ -63,6 +64,13 @@ void serialize_guid(uint8_t **ptr, EFI_GUID *Guid)
     *ptr += 16;
 }
 
+void serialize_result(uint8_t **ptr, EFI_STATUS status)
+{
+    memcpy(*ptr, &status, sizeof(status));
+    *ptr += sizeof(status);
+}
+
+
 void unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize)
 {
     memcpy(DataSize, *ptr, sizeof(*DataSize));
@@ -112,7 +120,7 @@ bool unserialize_boolean(uint8_t **ptr)
     bool val;
 
     memcpy(&val, *ptr, sizeof val);
-    *((uint64_t*)ptr) = sizeof(val);
+    *ptr += sizeof(val);
 
     return val;
 }
@@ -140,7 +148,7 @@ EFI_STATUS unserialize_result(uint8_t **ptr)
     EFI_STATUS status;
 
     memcpy(&status, *ptr, sizeof status);
-    *((uint64_t*)ptr) = sizeof(status);
+    *ptr += sizeof(status);
 
     return status;
 }
