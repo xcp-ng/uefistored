@@ -316,7 +316,7 @@ static void test_empty_get_next_var(void)
  * Test that variable store returns EFI_SUCCESS upon GetNextVariableName()
  * being called after setting one variable.
  */
-static void test_success_get_next_var(void)
+static void test_success_get_next_var_one(void)
 {
     const size_t varname_sz = TEST_VARNAME_BUF_SZ;
     char16_t varname[TEST_VARNAME_BUF_SZ] = {0};
@@ -339,5 +339,5 @@ void test_xenvariable(void)
     DO_TEST(test_big_set);
     DO_TEST(test_zero_set);
     DO_TEST(test_empty_get_next_var);
-    DO_TEST(test_success_get_next_var);
+    DO_TEST(test_success_get_next_var_one);
 }
