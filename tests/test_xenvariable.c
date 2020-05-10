@@ -8,6 +8,7 @@
 #include "mock/XenVariable.h"
 #include "test_common.h"
 #include "uefitypes.h"
+#include "serializer.h"
 #include "common.h"
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
@@ -15,10 +16,7 @@ static void *comm_buf = comm_buf_phys;
 
 static void pre_test(void)
 {
-    int ret;
-
-    ret = filedb_init("./test.db", "./test_var_len.db", "./test_var_attrs.db");
-    test(ret == 0);
+    filedb_init("./test.db", "./test_var_len.db", "./test_var_attrs.db");
 }
 
 static void post_test(void)
@@ -30,7 +28,7 @@ static void post_test(void)
 
 #define DO_TEST(test)                                   \
     do  {                                               \
-        pre_test();                                         \
+        pre_test();                                     \
         test();                                         \
         post_test();                                    \
     }  while ( 0 )
@@ -52,7 +50,6 @@ static inline uint64_t getstatus(void *p)
 
 static void test_nonexistent_variable_returns_not_found(void)
 {
-    EFI_STATUS status;
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
     uint32_t attr;
@@ -65,83 +62,13 @@ static void test_nonexistent_variable_returns_not_found(void)
     guid[0] = 0xde;
 
     /* Build a GetVariable() command */
-    status = XenGetVariable(rtcname, &guid, &attr, &datasize, (void*)&data);
+    XenGetVariable(rtcname, &guid, &attr, &datasize, (void*)&data);
 
     /* Handle the command */
     xenvariable_handle_request(comm_buf);
 
    // xenvariable_handle_request(comm_buf);
     test(getstatus(comm_buf) == EFI_NOT_FOUND);
-}
-
-static inline void
-unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize)
-{
-  memcpy(DataSize, *ptr, sizeof(*DataSize));
-  *ptr += sizeof(*DataSize);
-  memcpy(Data, *ptr, *DataSize);
-  *ptr += *DataSize;
-}
-
-static inline uint64_t
-unserialize_uintn(uint8_t **ptr)
-{
-  uint64_t ret;
-
-  memcpy(&ret, *ptr, sizeof ret);
-  *ptr += sizeof ret;
-
-  return ret;
-}
-
-static inline uint32_t
-unserialize_uint32(uint8_t **ptr)
-{
-    uint32_t ret;
-
-    printf("%s:%d\n", __func__, __LINE__);
-    memcpy(&ret, *ptr, sizeof ret);
-    printf("%s:%d\n", __func__, __LINE__);
-    *ptr += sizeof ret;
-    printf("%s:%d\n", __func__, __LINE__);
-
-    return ret;
-}
-
-static inline uint64_t
-unserialize_uint64(uint8_t **ptr)
-{
-  uint64_t ret;
-
-  memcpy(&ret, *ptr, sizeof ret);
-  *ptr += sizeof ret;
-
-  return ret;
-}
-
-static inline void
-unserialize_guid(uint8_t **ptr, uint8_t *Guid)
-{
-  memcpy (Guid, *ptr, 16);
-  *ptr += 16;
-}
-
-static inline EFI_STATUS
-unserialize_result(uint8_t **ptr)
-{
-  EFI_STATUS status;
-  uint8_t *p = *ptr;
-
-  if ( !p )
-  {
-      fprintf(stderr, "%s: %d: ERROR: null pointer\n", __func__, __LINE__);
-      return -1;
-  }
-
-  memcpy(&status, *ptr, sizeof status);
-  *((uint64_t*)ptr) += sizeof(status);
-
-  return status;
 }
 
 static EFI_STATUS deserialize_xen_get_var_response(
@@ -174,6 +101,34 @@ static EFI_STATUS deserialize_xen_get_var_response(
 
     return status;
 }
+
+static EFI_STATUS deserialize_xen_get_next_var_response(
+     uint64_t             *VariableNameSize,
+     char16_t            *VariableName,
+     EFI_GUID          *VendorGuid
+  )
+{
+  uint8_t *ptr;
+  EFI_STATUS status;
+
+  ptr = comm_buf;
+  status = unserialize_result(&ptr);
+  switch (status) {
+  case EFI_SUCCESS:
+    unserialize_data(&ptr, VariableName, VariableNameSize);
+    VariableName[*VariableNameSize / 2] = '\0';
+    *VariableNameSize = sizeof(*VariableName);
+    unserialize_guid(&ptr, VendorGuid);
+    break;
+  case EFI_BUFFER_TOO_SMALL:
+    *VariableNameSize = unserialize_uintn(&ptr);
+    break;
+  default:
+    break;
+  }
+  return status;
+}
+
 
 /**
  * SetVariable() deserializes to the status field.
@@ -312,15 +267,44 @@ static void test_empty_get_next_var(void)
 
 #define TEST_VARNAME_BUF_SZ 256
 
+
+static void print_bytes(void *buf, size_t len, size_t width)
+{
+    uint8_t *p = buf;
+    size_t i;
+
+    for (i=0; i<len; i++)
+    {
+        if ( i % width == 0 )
+        {
+            DPRINTF("\n");
+        }
+        DPRINTF("0x%02x ", p[i]);
+    }
+    DPRINTF("\n");
+}
+
+static void show_buf(void *comm_buf)
+{
+    uint8_t *p = (uint8_t*)comm_buf;
+    int i;
+
+    DPRINTF("comm_buf:\n");
+    print_bytes(p, 64, 8);
+}
+
 /**
  * Test that variable store returns EFI_SUCCESS upon GetNextVariableName()
  * being called after setting one variable.
  */
 static void test_success_get_next_var_one(void)
 {
+    EFI_STATUS status;
     const size_t varname_sz = TEST_VARNAME_BUF_SZ;
     char16_t varname[TEST_VARNAME_BUF_SZ] = {0};
+    char16_t buf[TEST_VARNAME_BUF_SZ] = {0};
     uint8_t guid[16];
+    uint8_t *ptr;
 
     /* Setup */
     set_rtc_variable(comm_buf);
@@ -329,7 +313,15 @@ static void test_success_get_next_var_one(void)
     /* Call GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, varname, &guid);
     xenvariable_handle_request(comm_buf);
-    test(getstatus(comm_buf) == EFI_SUCCESS);
+
+    /* Deserialize response */
+    ptr = comm_buf;
+    status = unserialize_result(&ptr);
+    unserialize_data(&ptr, buf, &varname_sz);
+
+    /* Assertions */
+    test(status == EFI_SUCCESS);
+    test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 }
 
 void test_xenvariable(void)

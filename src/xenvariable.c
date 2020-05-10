@@ -312,16 +312,20 @@ static void get_next_variable(void *comm_buf)
         }
         else
         {
+            DEBUG("%s:%d\n", __func__, __LINE__);
             size_t namesz = strlen16((char16_t*)name_iter.name) * 2;
 
             if ( namesz < guest_bufsz )
             {
+                DEBUG("%s:%d\n", __func__, __LINE__);
                 dprint_vname(&name_iter.name, namesz);
 
+                DEBUG("%s:%d\n", __func__, __LINE__);
                 ptr = comm_buf;
                 serialize_result(&ptr, EFI_SUCCESS);
                 serialize_data(&ptr, &name_iter.name, namesz);
                 serialize_guid(&ptr, &guid);
+                DEBUG("%s:%d\n", __func__, __LINE__);
             }
             else
             {
