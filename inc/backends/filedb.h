@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <limits.h>
 
 /**
  * This is a super simple backend for varstored.  It simply uses
@@ -15,7 +16,6 @@
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
-#define PATH_MAX 512
 #define DEFAULT_DBPATH "/var/run/xen/varstored-db.dat"
 #define DEFAULT_DBPATH_VAR_LEN "/var/run/xen/varstored-db-var-len.dat"
 #define DEFAULT_DBPATH_VAR_ATTRS "/var/run/xen/varstored-db-var-attrs.dat"
