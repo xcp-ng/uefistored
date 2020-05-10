@@ -7,17 +7,6 @@
 #include "serializer.h"
 #include "uefitypes.h"
 
-uint64_t strlen16(char16_t *str)
-{
-    uint64_t len = 0;
-    char16_t *p = str;
-
-    while ( *p++ != L'\0' )
-        len++;
-
-    return len;
-}
-
 void serialize_name(uint8_t **ptr, char16_t *VariableName)
 {
     uint64_t VarNameSize = strlen16(VariableName) * sizeof(*VariableName);

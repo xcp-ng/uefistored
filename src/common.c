@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "common.h"
 
 int _logfd = -1;
