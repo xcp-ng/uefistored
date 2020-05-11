@@ -11,7 +11,8 @@
 #include "common.h"
 #include "parse.h"
 
-#define VALIDATE_WRITES
+//#define VALIDATE_WRITES
+
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
 #define MAX_VARNAME_SZ (FILEDB_KEY_SIZE)
 
