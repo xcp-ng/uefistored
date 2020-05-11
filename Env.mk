@@ -18,7 +18,7 @@ print-%:
 	@:$(info $($*))
 
 xcp-ng-build-env/.cloned: GIT_REPO := https://github.com/beshleman/xcp-ng-build-env.git
-libs/kissdb/.cloned: GIT_REPO := git@github.com:adamierymenko/kissdb.git libs/kissdb
+libs/kissdb/.cloned: GIT_REPO := https://github.com/adamierymenko/kissdb.git libs/kissdb
 
 %/.cloned:
 	git clone $(GIT_REPO)
