@@ -428,6 +428,7 @@ static void test_get_next_var_buf_too_small(void)
     char16_t varname[2] = {0};
     uint8_t guid[16] = {0};
     uint8_t *ptr;
+    size_t newsz;
 
     /* Setup */
     set_rtc_variable(comm_buf);
@@ -441,9 +442,11 @@ static void test_get_next_var_buf_too_small(void)
     /* Deserialize response */
     ptr = comm_buf;
     status = unserialize_result(&ptr);
+    newsz = unserialize_uintn(&ptr);
 
     /* Assertions */
     test(status == EFI_BUFFER_TOO_SMALL);
+    test(newsz == 6);
 }
 
 void test_xenvariable(void)
