@@ -9,7 +9,7 @@
 
 void serialize_name(uint8_t **ptr, char16_t *VariableName)
 {
-    uint64_t VarNameSize = strlen16(VariableName) * sizeof(*VariableName);
+    uint64_t VarNameSize = strsize16(VariableName);
     memcpy (*ptr, &VarNameSize, sizeof VarNameSize);
     *ptr += sizeof VarNameSize;
     memcpy (*ptr, VariableName, VarNameSize);
@@ -63,7 +63,6 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status)
 void unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize)
 {
     memcpy(DataSize, *ptr, sizeof(*DataSize));
-    DEBUG("*DataSize=%lu\n", *DataSize);
     *ptr += sizeof(*DataSize);
     memcpy(Data, *ptr, *DataSize);
     *ptr += *DataSize;
