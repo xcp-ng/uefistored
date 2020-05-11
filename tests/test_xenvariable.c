@@ -376,6 +376,7 @@ static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], const char *val, size
  */
 static void test_success_get_next_var_two(void)
 {
+    EFI_STATUS status;
     size_t varname_sz = TEST_VARNAME_BUF_SZ;
     char16_t buf[TEST_VARNAME_BUF_SZ] = {0};
     char16_t copies[2][TEST_VARNAME_BUF_SZ] = {0};
@@ -399,6 +400,7 @@ static void test_success_get_next_var_two(void)
     memcpy(buf, &copies[0], varname_sz);
 
     memset(comm_buf, 0, 4096);
+
     /* Store the second variable from GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, buf, &guid);
     xenvariable_handle_request(comm_buf);
@@ -409,6 +411,14 @@ static void test_success_get_next_var_two(void)
 
     test(contains(copies, rtcnamebytes, sizeof(rtcnamebytes)));
     test(contains(copies, mtcnamebytes, sizeof(mtcnamebytes)));
+
+    /* Store the second variable from GetNextVariableName() */
+    XenGetNextVariableName(&varname_sz, buf, &guid);
+    xenvariable_handle_request(comm_buf);
+
+    ptr = comm_buf;
+    status = unserialize_result(&ptr);
+    test(status == EFI_NOT_FOUND);
 }
 
 static void test_get_next_var_buf_too_small(void)
