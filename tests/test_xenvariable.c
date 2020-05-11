@@ -403,6 +403,31 @@ static void test_success_get_next_var_two(void)
     test(contains(copies, mtcnamebytes, sizeof(mtcnamebytes)));
 }
 
+static void test_get_next_var_buf_too_small(void)
+{
+    EFI_STATUS status;
+    size_t varname_sz = 2;
+    char16_t varname[2] = {0};
+    uint8_t guid[16] = {0};
+    uint8_t *ptr;
+
+    /* Setup */
+    set_rtc_variable(comm_buf);
+    mock_xenvariable_set_buffer(comm_buf);
+    memset(comm_buf, 0, 4096);
+
+    /* Call GetNextVariableName() */
+    XenGetNextVariableName(&varname_sz, varname, &guid);
+    xenvariable_handle_request(comm_buf);
+
+    /* Deserialize response */
+    ptr = comm_buf;
+    status = unserialize_result(&ptr);
+
+    /* Assertions */
+    test(status == EFI_BUFFER_TOO_SMALL);
+}
+
 void test_xenvariable(void)
 {
     DO_TEST(test_nonexistent_variable_returns_not_found);
@@ -412,4 +437,5 @@ void test_xenvariable(void)
     DO_TEST(test_empty_get_next_var);
     DO_TEST(test_success_get_next_var_one);
     DO_TEST(test_success_get_next_var_two);
+    DO_TEST(test_get_next_var_buf_too_small);
 }
