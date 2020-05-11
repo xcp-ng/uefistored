@@ -17,6 +17,7 @@ static void *comm_buf = comm_buf_phys;
 static void pre_test(void)
 {
     filedb_init("./test.db", "./test_var_len.db", "./test_var_attrs.db");
+    memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 static void post_test(void)
@@ -55,11 +56,13 @@ static inline uint64_t getstatus(void *p)
 
 static void test_nonexistent_variable_returns_not_found(void)
 {
+    uint8_t *ptr;
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
     uint32_t attr;
     uint64_t data;
     uint64_t datasize = sizeof(data);
+    EFI_STATUS status;
 
     comm_buf = comm_buf_phys;
     mock_xenvariable_set_buffer(comm_buf);
@@ -68,6 +71,8 @@ static void test_nonexistent_variable_returns_not_found(void)
 
     /* Build a GetVariable() command */
     XenGetVariable(rtcname, &guid, &attr, &datasize, (void*)&data);
+    ptr = comm_buf;
+    status = unserialize_result(&ptr);
 
     /* Handle the command */
     xenvariable_handle_request(comm_buf);
@@ -346,7 +351,6 @@ static void test_success_get_next_var_one(void)
     test(status == EFI_SUCCESS);
     test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 
-    /* Store the second variable from GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, buf, &guid);
     xenvariable_handle_request(comm_buf);
 
@@ -413,7 +417,7 @@ static void test_success_get_next_var_two(void)
     test(contains(copies, mtcnamebytes, sizeof(mtcnamebytes)));
 
     /* Store the second variable from GetNextVariableName() */
-    XenGetNextVariableName(&varname_sz, buf, &guid);
+    XenGetNextVariableName(&varname_sz, &copies[1], &guid);
     xenvariable_handle_request(comm_buf);
 
     ptr = comm_buf;
