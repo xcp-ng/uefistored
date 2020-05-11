@@ -288,7 +288,6 @@ static void test_empty_get_next_var(void)
 
 #define TEST_VARNAME_BUF_SZ 256
 
-
 static void print_bytes(void *buf, size_t len, size_t width)
 {
     uint8_t *p = buf;
@@ -315,8 +314,9 @@ static void show_buf(void *comm_buf)
 }
 
 /**
- * Test that variable store returns EFI_SUCCESS upon GetNextVariableName()
- * being called after setting one variable.
+ * Test that variable store returns EFI_SUCCESS and returns the correct
+ * variable name upon GetNextVariableName() being called after setting one
+ * variable.
  */
 static void test_success_get_next_var_one(void)
 {
@@ -345,6 +345,61 @@ static void test_success_get_next_var_one(void)
     test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 }
 
+static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], char16_t *val, size_t len)
+{
+    bool ret = false;
+    int i;
+
+    for (i=0; i<2; i++)
+    {
+        if ( memcmp(&buf[i], val, len) == 0 )
+        {
+            ret = true;
+        }
+    }
+
+    return ret;
+}
+
+/**
+ * Test that variable store returns EFI_SUCCESS and returns the correct
+ * variable names upon GetNextVariableName() being called after setting two
+ * variables.
+ */
+static void test_success_get_next_var_two(void)
+{
+    EFI_STATUS status;
+    const size_t varname_sz = TEST_VARNAME_BUF_SZ;
+    char16_t varname[2][TEST_VARNAME_BUF_SZ] = {0};
+    char16_t buf[2][TEST_VARNAME_BUF_SZ] = {0};
+    uint8_t guid[16];
+    uint8_t *ptr;
+
+    /* Setup */
+    set_rtc_variable(comm_buf);
+    set_mtc_variable(comm_buf);
+    mock_xenvariable_set_buffer(comm_buf);
+
+    /* Store the first variable from GetNextVariableName() */
+    XenGetNextVariableName(&varname_sz, &varname[0], &guid);
+    xenvariable_handle_request(comm_buf);
+
+    ptr = comm_buf;
+    status = unserialize_result(&ptr);
+    unserialize_data(&ptr, &buf[0], &varname_sz);
+
+    /* Store the second variable from GetNextVariableName() */
+    XenGetNextVariableName(&varname_sz, &varname[1], &guid);
+    xenvariable_handle_request(comm_buf);
+
+    ptr = comm_buf;
+    status = unserialize_result(&ptr);
+    unserialize_data(&ptr, &buf[1], &varname_sz);
+
+    test(contains(buf, rtcnamebytes, sizeof(rtcnamebytes)));
+    test(contains(buf, mtcnamebytes, sizeof(mtcnamebytes)));
+}
+
 void test_xenvariable(void)
 {
     DO_TEST(test_nonexistent_variable_returns_not_found);
@@ -353,4 +408,5 @@ void test_xenvariable(void)
     DO_TEST(test_zero_set);
     DO_TEST(test_empty_get_next_var);
     DO_TEST(test_success_get_next_var_one);
+    DO_TEST(test_success_get_next_var_two);
 }
