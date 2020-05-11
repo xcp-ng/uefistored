@@ -34,14 +34,14 @@ static void post_test(void)
     }  while ( 0 )
 
 /* Test Data */
-const char rtcnamebytes[] = {
+char rtcnamebytes[] = {
     0, 'R',
     0, 'T',
     0, 'C',
     0,  0,
 };
 
-const char mtcnamebytes[] = {
+char mtcnamebytes[] = {
     0, 'M',
     0, 'T',
     0, 'C',
@@ -274,8 +274,10 @@ static void test_empty_get_next_var(void)
 
     /* Setup */
     mock_xenvariable_set_buffer(comm_buf);
+    memset(comm_buf, 0, 4096);
     varname_sz = sizeof(char16_t) * 128;
     varname = malloc(varname_sz);
+    memset(varname, 0, varname_sz);
 
     /* Call GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, varname, &guid);
@@ -307,7 +309,6 @@ static void print_bytes(void *buf, size_t len, size_t width)
 static void show_buf(void *comm_buf)
 {
     uint8_t *p = (uint8_t*)comm_buf;
-    int i;
 
     DPRINTF("comm_buf:\n");
     print_bytes(p, 64, 8);
@@ -321,7 +322,7 @@ static void show_buf(void *comm_buf)
 static void test_success_get_next_var_one(void)
 {
     EFI_STATUS status;
-    const size_t varname_sz = TEST_VARNAME_BUF_SZ;
+    size_t varname_sz = TEST_VARNAME_BUF_SZ;
     char16_t varname[TEST_VARNAME_BUF_SZ] = {0};
     char16_t buf[TEST_VARNAME_BUF_SZ] = {0};
     uint8_t guid[16];
@@ -330,6 +331,7 @@ static void test_success_get_next_var_one(void)
     /* Setup */
     set_rtc_variable(comm_buf);
     mock_xenvariable_set_buffer(comm_buf);
+    memset(comm_buf, 0, 4096);
 
     /* Call GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, varname, &guid);
@@ -345,7 +347,7 @@ static void test_success_get_next_var_one(void)
     test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 }
 
-static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], char16_t *val, size_t len)
+static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], const char *val, size_t len)
 {
     bool ret = false;
     int i;
@@ -353,9 +355,7 @@ static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], char16_t *val, size_t
     for (i=0; i<2; i++)
     {
         if ( memcmp(&buf[i], val, len) == 0 )
-        {
             ret = true;
-        }
     }
 
     return ret;
@@ -368,36 +368,39 @@ static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], char16_t *val, size_t
  */
 static void test_success_get_next_var_two(void)
 {
-    EFI_STATUS status;
-    const size_t varname_sz = TEST_VARNAME_BUF_SZ;
-    char16_t varname[2][TEST_VARNAME_BUF_SZ] = {0};
-    char16_t buf[2][TEST_VARNAME_BUF_SZ] = {0};
+    size_t varname_sz = TEST_VARNAME_BUF_SZ;
+    char16_t buf[TEST_VARNAME_BUF_SZ] = {0};
+    char16_t copies[2][TEST_VARNAME_BUF_SZ] = {0};
     uint8_t guid[16];
     uint8_t *ptr;
+    char* p;
 
     /* Setup */
     set_rtc_variable(comm_buf);
     set_mtc_variable(comm_buf);
     mock_xenvariable_set_buffer(comm_buf);
+    memset(comm_buf, 0, 4096);
 
     /* Store the first variable from GetNextVariableName() */
-    XenGetNextVariableName(&varname_sz, &varname[0], &guid);
+    XenGetNextVariableName(&varname_sz, buf, &guid);
     xenvariable_handle_request(comm_buf);
 
     ptr = comm_buf;
-    status = unserialize_result(&ptr);
-    unserialize_data(&ptr, &buf[0], &varname_sz);
+    unserialize_result(&ptr);
+    unserialize_data(&ptr, &copies[0], &varname_sz);
+    memcpy(buf, &copies[0], varname_sz);
 
+    memset(comm_buf, 0, 4096);
     /* Store the second variable from GetNextVariableName() */
-    XenGetNextVariableName(&varname_sz, &varname[1], &guid);
+    XenGetNextVariableName(&varname_sz, buf, &guid);
     xenvariable_handle_request(comm_buf);
 
     ptr = comm_buf;
-    status = unserialize_result(&ptr);
-    unserialize_data(&ptr, &buf[1], &varname_sz);
+    unserialize_result(&ptr);
+    unserialize_data(&ptr, &copies[1], &varname_sz);
 
-    test(contains(buf, rtcnamebytes, sizeof(rtcnamebytes)));
-    test(contains(buf, mtcnamebytes, sizeof(mtcnamebytes)));
+    test(contains(copies, rtcnamebytes, sizeof(rtcnamebytes)));
+    test(contains(copies, mtcnamebytes, sizeof(mtcnamebytes)));
 }
 
 void test_xenvariable(void)

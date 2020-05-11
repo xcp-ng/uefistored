@@ -13,9 +13,8 @@
 
 #define VALIDATE_WRITES
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
-#define MAX_VARNAME_SZ (PAGE_SIZE)
+#define MAX_VARNAME_SZ (FILEDB_KEY_SIZE)
 
-static filedb_name_iter_t name_iter;
 static char strbuf[512];
 
 static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
@@ -255,25 +254,22 @@ end:
 
 static void next_var_not_found(void *comm_buf)
 {
-    void *ptr;
+    uint8_t *ptr;
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_NOT_FOUND);
-    filedb_name_iter_deinit();
-    memset(&name_iter, 0, sizeof(name_iter));
 }
 
 static void device_error(void *comm_buf)
 {
-    void *ptr = comm_buf;
+    uint8_t *ptr = comm_buf;
 
-    ERROR("filedb_name_iter_next had an internal error\n");
     serialize_result(&ptr, EFI_DEVICE_ERROR);
 }
 
 static void buffer_too_small(void *comm_buf, size_t namesz)
 {
-    void *ptr = comm_buf;
+    uint8_t *ptr = comm_buf;
 
     WARNING("GetNextVariableName() buffer too small, return EFI_BUFFER_TOO_SMALL\n");
     serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
@@ -291,6 +287,7 @@ static void buffer_too_small(void *comm_buf, size_t namesz)
 static void get_next_variable(void *comm_buf)
 {
     uint32_t command;
+    variable_t current, next;
     bool efi_at_runtime;
     uint64_t guest_bufsz;
     EFI_GUID guid;
@@ -298,70 +295,56 @@ static void get_next_variable(void *comm_buf)
     size_t off;
     uint8_t *ptr = comm_buf;
     int ret;
-    uint8_t varname[MAX_VARNAME_SZ];
     uint32_t version;
 
     DEBUG("cmd:GET_NEXT_VARIABLE_NAME\n");
 
-    /*
-     * If this is the first call to GetNextVariable(), it is required
-     * that the VariableName is the empty string.
-     */
-    if ( !filedb_name_iter_initialized() )
+    version = unserialize_uint32(&ptr);
+
+    if ( version != 1 )
+        WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
+
+    command = unserialize_uint32(&ptr);
+    assert(command == COMMAND_GET_NEXT_VARIABLE);
+
+    guest_bufsz = unserialize_uintn(&ptr);
+    unserialize_name(&ptr, &current.name[0], MAX_VARNAME_SZ);
+    current.namesz = strsize16((char16_t*)current.name);
+    unserialize_guid(&ptr, &guid);
+
+    /* TODO: use the guid according to spec */
+    (void)guid;
+
+    efi_at_runtime = unserialize_boolean(&ptr);
+
+    if ( efi_at_runtime )
+        INFO("EFI at runtime\n");
+
+    ret = filedb_variable_next(&current, &next);
+    if ( ret == 0 )
     {
-        version = unserialize_uint32(&ptr);
-
-        if ( version != 1 )
-        {
-            WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
-        }
-
-        command = unserialize_uint32(&ptr);
-        assert(command == COMMAND_GET_NEXT_VARIABLE);
-
-        guest_bufsz = unserialize_uint64(&ptr);
-        unserialize_name(&ptr, varname, MAX_VARNAME_SZ);
-        unserialize_guid(&ptr, &guid);
-
-        /* TODO: use the guid according to spec */
-        (void)guid;
-
-        efi_at_runtime = unserialize_boolean(&ptr);
-
-        if ( efi_at_runtime )
-            INFO("EFI at runtime\n");
-
-        filedb_name_iter_init();
-        ret = filedb_name_iter_next(&name_iter);
-        if ( ret == 0 )
-        {
-            next_var_not_found(comm_buf);
-            return;
-        }
-
-        if ( ret < 0 )
-        {
-            device_error(comm_buf);
-            return;
-        }
-
-        namesz = strlen16((char16_t*)name_iter.name) * 2;
-        if ( namesz > guest_bufsz )
-        {
-            buffer_too_small(comm_buf, namesz);
-            return;
-        }
-
-        DEBUG("%s:%d\n", __func__, __LINE__);
-        dprint_vname(&name_iter.name, namesz);
-
-        DEBUG("%s:%d\n", __func__, __LINE__);
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_SUCCESS);
-        serialize_data(&ptr, &name_iter.name, namesz);
-        serialize_guid(&ptr, &guid);
-        DEBUG("%s:%d\n", __func__, __LINE__);
+        next_var_not_found(comm_buf);
+        return;
     }
+
+    if ( ret < 0 )
+    {
+        device_error(comm_buf);
+        return;
+    }
+
+    if ( next.namesz > guest_bufsz )
+    {
+        buffer_too_small(comm_buf, next.namesz);
+        return;
+    }
+
+    dprint_vname(&next.name, next.namesz);
+
+    ptr = comm_buf;
+    serialize_result(&ptr, EFI_SUCCESS);
+    serialize_data(&ptr, &next.name, next.namesz);
+    serialize_guid(&ptr, &guid);
 }
 
 
