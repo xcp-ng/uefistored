@@ -253,6 +253,33 @@ end:
     free(data);
 }
 
+static void next_var_not_found(void *comm_buf)
+{
+    void *ptr;
+
+    ptr = comm_buf;
+    serialize_result(&ptr, EFI_NOT_FOUND);
+    filedb_name_iter_deinit();
+    memset(&name_iter, 0, sizeof(name_iter));
+}
+
+static void device_error(void *comm_buf)
+{
+    void *ptr = comm_buf;
+
+    ERROR("filedb_name_iter_next had an internal error\n");
+    serialize_result(&ptr, EFI_DEVICE_ERROR);
+}
+
+static void buffer_too_small(void *comm_buf, size_t namesz)
+{
+    void *ptr = comm_buf;
+
+    WARNING("GetNextVariableName() buffer too small, return EFI_BUFFER_TOO_SMALL\n");
+    serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
+    serialize_uintn(&ptr, (uint64_t)namesz);
+}
+
 /**
  * Return the names of current UEFI variables, one-by-one.
  *
@@ -263,16 +290,18 @@ end:
  */
 static void get_next_variable(void *comm_buf)
 {
-    int ret;
-    uint32_t version, command;
-    EFI_GUID guid;
-    uint8_t varname[MAX_VARNAME_SZ];
-    uint64_t guest_bufsz;
-    size_t off;
+    uint32_t command;
     bool efi_at_runtime;
+    uint64_t guest_bufsz;
+    EFI_GUID guid;
+    size_t namesz ;
+    size_t off;
     uint8_t *ptr = comm_buf;
+    int ret;
+    uint8_t varname[MAX_VARNAME_SZ];
+    uint32_t version;
 
-    DEBUG("cmd:GET_NEXT_VARIABLE_NAME: %d\n", filedb_name_iter_initialized());
+    DEBUG("cmd:GET_NEXT_VARIABLE_NAME\n");
 
     /*
      * If this is the first call to GetNextVariable(), it is required
@@ -306,41 +335,32 @@ static void get_next_variable(void *comm_buf)
         ret = filedb_name_iter_next(&name_iter);
         if ( ret == 0 )
         {
-            ptr = comm_buf;
-            serialize_result(&ptr, EFI_NOT_FOUND);
-            filedb_name_iter_deinit();
-            memset(&name_iter, 0, sizeof(name_iter));
+            next_var_not_found(comm_buf);
+            return;
         }
-        else if ( ret < 0 )
+
+        if ( ret < 0 )
         {
-            ERROR("filedb_name_iter_next had an internal error\n");
+            device_error(comm_buf);
+            return;
         }
-        else
+
+        namesz = strlen16((char16_t*)name_iter.name) * 2;
+        if ( namesz > guest_bufsz )
         {
-            DEBUG("%s:%d\n", __func__, __LINE__);
-            size_t namesz = strlen16((char16_t*)name_iter.name) * 2;
-
-            if ( namesz < guest_bufsz )
-            {
-                DEBUG("%s:%d\n", __func__, __LINE__);
-                dprint_vname(&name_iter.name, namesz);
-
-                DEBUG("%s:%d\n", __func__, __LINE__);
-                ptr = comm_buf;
-                serialize_result(&ptr, EFI_SUCCESS);
-                serialize_data(&ptr, &name_iter.name, namesz);
-                serialize_guid(&ptr, &guid);
-                DEBUG("%s:%d\n", __func__, __LINE__);
-            }
-            else
-            {
-                ERROR("guest_bufsz not large enough\n");
-                /* TODO: return EFI_BUFFER_TOO_SMALL */
-            }
-
-
+            buffer_too_small(comm_buf, namesz);
+            return;
         }
-        //DEBUG("%s:%d\n", __func__, __LINE__);
+
+        DEBUG("%s:%d\n", __func__, __LINE__);
+        dprint_vname(&name_iter.name, namesz);
+
+        DEBUG("%s:%d\n", __func__, __LINE__);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_SUCCESS);
+        serialize_data(&ptr, &name_iter.name, namesz);
+        serialize_guid(&ptr, &guid);
+        DEBUG("%s:%d\n", __func__, __LINE__);
     }
 }
 
