@@ -345,6 +345,14 @@ static void test_success_get_next_var_one(void)
     /* Assertions */
     test(status == EFI_SUCCESS);
     test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
+
+    /* Store the second variable from GetNextVariableName() */
+    XenGetNextVariableName(&varname_sz, buf, &guid);
+    xenvariable_handle_request(comm_buf);
+
+    ptr = comm_buf;
+    status = unserialize_result(&ptr);
+    test(status == EFI_NOT_FOUND);
 }
 
 static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], const char *val, size_t len)
