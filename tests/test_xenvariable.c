@@ -41,6 +41,13 @@ const char rtcnamebytes[] = {
     0,  0,
 };
 
+const char mtcnamebytes[] = {
+    0, 'M',
+    0, 'T',
+    0, 'C',
+    0,  0,
+};
+
 static inline uint64_t getstatus(void *p)
 {
     return *((uint64_t*) p);
@@ -138,6 +145,7 @@ static EFI_STATUS deserialize_set_variable_response(void *buf)
     return getstatus(buf);
 }
 
+/* Helpers */
 static void set_rtc_variable(void *buf)
 {
     char16_t *rtcname = (char16_t*)rtcnamebytes;
@@ -151,6 +159,21 @@ static void set_rtc_variable(void *buf)
     XenSetVariable(rtcname, &guid, &attr, sizeof(indata), (void*)&indata);
     xenvariable_handle_request(buf);
 }
+
+static void set_mtc_variable(void *buf)
+{
+    char16_t *mtcname = (char16_t*)mtcnamebytes;
+    uint8_t guid[16] = {0};
+    uint32_t attr = 0;
+    uint32_t indata = 0xdeadbeef;
+
+    mock_xenvariable_set_buffer(buf);
+
+    /* Perform SetVariable() and then GetVariable() */
+    XenSetVariable(mtcname, &guid, &attr, sizeof(indata), (void*)&indata);
+    xenvariable_handle_request(buf);
+}
+
 
 /**
  * Test that using SetVariable() to save a variable
