@@ -19,3 +19,8 @@ uint64_t strlen16(char16_t *str)
 
     return len;
 }
+
+uint64_t strsize16(char16_t *str)
+{
+    return strlen16(str) * 2;
+}

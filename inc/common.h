@@ -9,6 +9,7 @@
 #define USE_STREAM 1
 
 uint64_t strlen16(char16_t *str);
+uint64_t strsize16(char16_t *str);
 
 extern int _logfd;
 
