@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <limits.h>
 
+#include "common.h"
+
 /**
  * This is a super simple backend for varstored.  It simply uses
  * a file-backed key-value store to maintain UEFI variables.
@@ -24,6 +26,11 @@
 #define FILEDB_KEY_SIZE 128 
 #define FILEDB_VAL_SIZE 1024
 #define FILEDB_VAR_ATTRS_VAL_SIZE (sizeof(uint32_t))
+
+typedef struct {
+    uint8_t name[FILEDB_KEY_SIZE];
+    size_t namesz;
+} variable_t;
 
 typedef struct {
     char name[FILEDB_KEY_SIZE];
