@@ -254,7 +254,12 @@ end:
 }
 
 /**
- * Implement the GetNextVariableName() UEFI service.
+ * Return the names of current UEFI variables, one-by-one.
+ *
+ * This implements the UEFI Variable service GetNextVariableName()
+ * function.
+ *
+ * @comm_buf:  The shared memory page with the OVMF XenVariable module.
  */
 static void get_next_variable(void *comm_buf)
 {
