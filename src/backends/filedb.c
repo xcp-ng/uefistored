@@ -10,12 +10,17 @@
 #include "common.h"
 #include "kissdb/kissdb.h"
 
+#define FILEDB_DB_SIZE 1024
+
 static bool initialized;
 static bool iter_initialized;
+static bool in_progress;
 
 static KISSDB db;
 static KISSDB db_var_len;
 static KISSDB db_var_attrs;
+
+static variable_t cache[FILEDB_DB_SIZE];
 
 static char dbpath_copy[PATH_MAX];
 static char varlenpath_copy[PATH_MAX];
@@ -31,7 +36,7 @@ int filedb_init(const char *dbpath,
     strncpy(varlenpath_copy, varlenpath ? varlenpath : DEFAULT_DBPATH_VAR_LEN, PATH_MAX);
     strncpy(attrspath_copy, attrspath ? attrspath : DEFAULT_DBPATH_VAR_ATTRS, PATH_MAX);
 
-    ret = KISSDB_open(&db, dbpath, KISSDB_OPEN_MODE_RWCREAT, 1024, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
+    ret = KISSDB_open(&db, dbpath, KISSDB_OPEN_MODE_RWCREAT, FILEDB_DB_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
     if ( ret != 0 )
         return -1;
 
@@ -234,4 +239,131 @@ void filedb_name_iter_deinit(void)
 bool filedb_name_iter_initialized(void)
 {
     return iter_initialized;
+}
+
+static bool variable_is_empty(variable_t *v1)
+{
+    if ( !v1 )
+    {
+        ERROR("%s: null ptr, reporting it as empty...\n", __func__);
+        return true;
+    }
+
+    return v1->name[0] == 0 && v1->name[1] == 0;
+}
+
+/**
+ * Returns the cache entry that matches current.
+ *
+ * Returns a pointer to the next entry in the cache, or NULL if not found.
+ *
+ * @cache: The cache to search
+ * @current: The variable to match against.
+ */
+static variable_t *find_cache_next_entry(variable_t cache[FILEDB_DB_SIZE], variable_t *current)
+{
+    int i;
+
+    /* Empty variables are never found, return NULL for not found */
+    if ( variable_is_empty(current) )
+        return NULL;
+
+    for ( i=0; i<FILEDB_DB_SIZE; i++ )
+    {
+        if (memcmp(&cache[i].name, current->name, cache[i].namesz) == 0)
+            break;
+    }
+
+    /*
+     * If we've searched the whole cache and haven't found it,
+     * return NULL for not found.
+     */
+    if ( i >= FILEDB_DB_SIZE )
+        return NULL;
+
+    /* If this is the last variable, the return NULL (there is no next one) */
+    if ( i == FILEDB_DB_SIZE - 1 )
+        return NULL;
+
+    i += 1;
+
+    return &cache[i];
+}
+
+static void __populate_cache(void)
+{
+    variable_t *p;
+    static KISSDB_Iterator dbi;
+    int ret;
+    char valdummy[FILEDB_VAL_SIZE];
+
+    KISSDB_Iterator_init(&db, &dbi);
+
+    /* Run the iterator to the end or until an error */
+    p = cache;
+    ret = KISSDB_Iterator_next(&dbi, &p->name, valdummy);
+    while ( ret > 0 )
+    {
+        p->namesz = strsize16((char16_t*)&p->name);
+        p++;
+        ret = KISSDB_Iterator_next(&dbi, &p->name, valdummy);
+    }
+    p->namesz = strsize16((char16_t*)&p->name);
+}
+
+int filedb_variable_next(variable_t *current, variable_t *next)
+{
+    variable_t *p;
+
+    if ( !current || !next )
+        return -1;
+
+    if ( !in_progress )
+    {
+        if ( !variable_is_empty(current) )
+            WARNING("OVMF is beginning a GetNextVariableName sequence with non-empty var\n");
+
+        __populate_cache();
+        in_progress = true;
+    }
+    else
+    {
+        /*
+         * If a search is in progress and the user provides the empty string again,
+         * we simply restart the iteration from the beginning.
+         */
+        if ( variable_is_empty(current) )
+        {
+            memset(cache, 0, sizeof(cache));
+            __populate_cache();
+        }
+    }
+
+    /*
+     * If current is the empty string, then the user is asking for the first
+     * variable.  If there is no first variable, return not found.
+     * Otherwise, return the first variable as next.
+     */
+    if ( variable_is_empty(current) )
+    {
+        if ( variable_is_empty(&cache[0]) )
+            goto end_iteration;
+
+        memcpy(next, &cache[0], sizeof(*next));
+        return 1;
+    }
+
+    p = find_cache_next_entry(cache, current);
+
+    /* If not found, we've reached the end */
+    if ( !p )
+        goto end_iteration;
+
+    memcpy(next, p, sizeof(*p));
+    return 1;
+
+end_iteration:
+    in_progress = false;
+    memset(cache, 0, sizeof(cache));
+    return  0;
 }
