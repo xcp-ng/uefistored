@@ -33,8 +33,6 @@ static void post_test(void)
         post_test();                                    \
     }  while ( 0 )
 
-int _logfd = -1;
-
 /* Test Data */
 const char rtcnamebytes[] = {
     0, 'R',
