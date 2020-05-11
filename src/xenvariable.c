@@ -143,10 +143,9 @@ static void get_variable(void *comm_buf)
 
     parse_variable_name(comm_buf, &variable_name, &len);
 
-    DEBUG("len=%lu\n", len);
     if ( len == 0 )
     {
-        INFO("UEFI Error: variable name len is 0\n");
+        ERROR("UEFI Error: variable name len is 0\n");
         off = 0;
         off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
         goto err;
@@ -292,8 +291,6 @@ static void get_next_variable(void *comm_buf)
     bool efi_at_runtime;
     uint64_t guest_bufsz;
     EFI_GUID guid;
-    size_t namesz ;
-    size_t off;
     uint8_t *ptr = comm_buf;
     int ret;
     uint32_t version;
@@ -319,7 +316,9 @@ static void get_next_variable(void *comm_buf)
     efi_at_runtime = unserialize_boolean(&ptr);
 
     if ( efi_at_runtime )
-        INFO("EFI at runtime\n");
+    {
+        /* TODO: does this information get used? */
+    }
 
     ret = filedb_variable_next(&current, &next);
     if ( ret == 0 )
@@ -351,22 +350,11 @@ static void get_next_variable(void *comm_buf)
 
 void xenvariable_handle_request(void *comm_buf)
 {
-
-    int i;
-    DEBUG("version=%u\n", parse_version(comm_buf));
-
-#if 1
-    if ( comm_buf )
+    if ( !comm_buf )
     {
-        DPRINTF("MESSAGE: ");
-        for (i=0; i<128; i++)
-        {
-            uint8_t val = ((uint8_t*)comm_buf)[i];
-            DPRINTF("0x%.2lx ", (uint64_t)val);
-        }
-        DPRINTF("\n");
+        ERROR("comm buffer is null!\n");
+        return;
     }
-#endif
 
     switch ( parse_command(comm_buf) )
     {
