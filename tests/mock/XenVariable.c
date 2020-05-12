@@ -112,6 +112,7 @@ XenGetVariableLocked (
   exec_command(comm_buf);
   ptr = comm_buf;
 
+#if 0
   status = unserialize_result(&ptr);
   switch (status) {
   case EFI_SUCCESS:
@@ -130,6 +131,8 @@ XenGetVariableLocked (
   }
 
   return status;
+#endif
+    return 0;
 }
   
 EFI_STATUS
