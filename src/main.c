@@ -817,7 +817,7 @@ int main(int argc, char **argv)
     ret = filedb_init(NULL, NULL, NULL);
     if ( ret < 0 )
     {
-        DEBUG("Failed to initialize db\n");
+        DEBUG("Failed to initialize db: %d\n", ret);
         goto unmap_resource;
     }
 
