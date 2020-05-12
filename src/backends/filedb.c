@@ -123,7 +123,7 @@ int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint
     ret = KISSDB_get(&db, key, &val);
     if ( ret != 0 )
     {
-        ERROR("Missing in var db\n");
+        ERROR("Not found var db\n");
         return -1;
     }
 
@@ -131,7 +131,7 @@ int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint
     ret = KISSDB_get(&db_var_len, key, &tmp);
     if ( ret != 0 )
     {
-        ERROR("Missing in var len db\n");
+        ERROR("Not found in var len db\n");
         return -1;
     }
 
