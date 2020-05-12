@@ -286,7 +286,7 @@ static variable_t *find_cache_next_entry(variable_t cache[FILEDB_DB_SIZE], varia
     if ( variable_is_empty(current) )
         return NULL;
 
-    for ( i=0; i<FILEDB_DB_SIZE; i++ )
+    for ( i=0; i<cache_len; i++ )
     {
         if (memcmp(&cache[i].name, current->name, cache[i].namesz) == 0)
             break;
@@ -296,16 +296,14 @@ static variable_t *find_cache_next_entry(variable_t cache[FILEDB_DB_SIZE], varia
      * If we've searched the whole cache and haven't found it,
      * return NULL for not found.
      */
-    if ( i >= FILEDB_DB_SIZE )
+    if ( i >= cache_len )
         return NULL;
 
     /* If this is the last variable, the return NULL (there is no next one) */
-    if ( i == FILEDB_DB_SIZE - 1 )
+    if ( i == cache_len - 1 )
         return NULL;
 
-    i += 1;
-
-    return &cache[i];
+    return &cache[i + 1];
 }
 
 static void __populate_cache(void)
@@ -322,6 +320,7 @@ static void __populate_cache(void)
     ret = KISSDB_Iterator_next(&dbi, &p->name, valdummy);
     while ( ret > 0 )
     {
+        cache_len++;
         p->namesz = strsize16((char16_t*)&p->name);
         p++;
         ret = KISSDB_Iterator_next(&dbi, &p->name, valdummy);
@@ -383,5 +382,6 @@ int filedb_variable_next(variable_t *current, variable_t *next)
 end_iteration:
     in_progress = false;
     memset(cache, 0, sizeof(cache));
+    cache_len = 0;
     return  0;
 }
