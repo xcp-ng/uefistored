@@ -18,10 +18,6 @@
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
-#define DEFAULT_DBPATH "/var/run/xen/varstored-db.dat"
-#define DEFAULT_DBPATH_VAR_LEN "/var/run/xen/varstored-db-var-len.dat"
-#define DEFAULT_DBPATH_VAR_ATTRS "/var/run/xen/varstored-db-var-attrs.dat"
-
 #define ENTRY_LEN 1024
 #define FILEDB_KEY_SIZE 128 
 #define FILEDB_VAL_SIZE 1024

@@ -12,6 +12,10 @@
 
 #define FILEDB_DB_SIZE 1024
 
+#define DEFAULT_DBPATH "/var/run/xen/varstored-db.dat"
+#define DEFAULT_DBPATH_VAR_LEN "/var/run/xen/varstored-db-var-len.dat"
+#define DEFAULT_DBPATH_VAR_ATTRS "/var/run/xen/varstored-db-var-attrs.dat"
+
 static bool initialized;
 static bool iter_initialized;
 static bool in_progress;
@@ -20,11 +24,13 @@ static KISSDB db;
 static KISSDB db_var_len;
 static KISSDB db_var_attrs;
 
-static variable_t cache[FILEDB_DB_SIZE];
+#define CACHE_SIZE (FILEDB_DB_SIZE)
+static variable_t cache[CACHE_SIZE];
+static int cache_len;
 
-static char dbpath_copy[PATH_MAX];
-static char varlenpath_copy[PATH_MAX];
-static char attrspath_copy[PATH_MAX];
+static char *_dbpath;
+static char *_varlenpath;
+static char *_attrspath;
 
 int filedb_init(const char *dbpath,
             const char *varlenpath,
@@ -32,20 +38,27 @@ int filedb_init(const char *dbpath,
 {
     int ret;
 
-    strncpy(dbpath_copy, dbpath ? dbpath : DEFAULT_DBPATH, PATH_MAX);
-    strncpy(varlenpath_copy, varlenpath ? varlenpath : DEFAULT_DBPATH_VAR_LEN, PATH_MAX);
-    strncpy(attrspath_copy, attrspath ? attrspath : DEFAULT_DBPATH_VAR_ATTRS, PATH_MAX);
+    _dbpath = dbpath ? dbpath : DEFAULT_DBPATH;
+    _varlenpath = varlenpath ? varlenpath : DEFAULT_DBPATH_VAR_LEN;
+    _attrspath = attrspath ? attrspath : DEFAULT_DBPATH_VAR_ATTRS;
 
-    ret = KISSDB_open(&db, dbpath, KISSDB_OPEN_MODE_RWCREAT, FILEDB_DB_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
+    INFO("DB: %s\n", _dbpath);
+    INFO("VARLEN DB: %s\n", _varlenpath);
+    INFO("ATTRS DB: %s\n", _attrspath);
+
+    ret = KISSDB_open(&db, _dbpath, KISSDB_OPEN_MODE_RWCREAT, FILEDB_DB_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
     if ( ret != 0 )
+    {
+        DEBUG("KISSDB_open(): err=%d\n", ret);
         return -1;
+    }
 
-    ret = KISSDB_open(&db_var_len, varlenpath, KISSDB_OPEN_MODE_RWCREAT,
+    ret = KISSDB_open(&db_var_len, _varlenpath, KISSDB_OPEN_MODE_RWCREAT,
                       1024, FILEDB_KEY_SIZE, sizeof(size_t));
     if ( ret != 0 )
         goto close1;
 
-    ret = KISSDB_open(&db_var_attrs, attrspath, KISSDB_OPEN_MODE_RWCREAT,
+    ret = KISSDB_open(&db_var_attrs, _attrspath, KISSDB_OPEN_MODE_RWCREAT,
                       1024, FILEDB_KEY_SIZE, FILEDB_VAR_ATTRS_VAL_SIZE);
     if ( ret != 0 )
         goto close2;
@@ -78,9 +91,14 @@ void filedb_destroy(void)
     if ( initialized )
         filedb_deinit();
 
-    remove(dbpath_copy);
-    remove(varlenpath_copy);
-    remove(attrspath_copy);
+    remove(_dbpath);
+    remove(_varlenpath);
+    remove(_attrspath);
+
+    _dbpath = NULL;
+    _varlenpath = NULL;
+    _attrspath = NULL;
+
 }
 
 int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t *attrs)
