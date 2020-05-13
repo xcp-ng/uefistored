@@ -399,7 +399,8 @@ static void buffer_too_small(void *comm_buf, size_t namesz)
 static void get_next_variable(void *comm_buf)
 {
     uint32_t command;
-    variable_t current, next;
+    variable_t current = {{0}};
+    variable_t next = {{0}};
     bool efi_at_runtime;
     uint64_t guest_bufsz;
     EFI_GUID guid;
@@ -416,8 +417,7 @@ static void get_next_variable(void *comm_buf)
     assert(command == COMMAND_GET_NEXT_VARIABLE);
 
     guest_bufsz = unserialize_uintn(&ptr);
-    unserialize_name(&ptr, &current.name[0], MAX_VARNAME_SZ);
-    current.namesz = strsize16((char16_t*)current.name);
+    current.namesz = unserialize_name(&ptr, current.name, MAX_VARNAME_SZ);
     unserialize_guid(&ptr, &guid);
 
     /* TODO: use the guid according to spec */
