@@ -18,7 +18,7 @@
 
 static char strbuf[512];
 
-static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
+static void uc2_ascii_safe(void *uc2, size_t uc2_len, char *ascii, size_t len)
 {
     int i;
     int j = 0;
@@ -33,6 +33,22 @@ static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
     ascii[j++] = '\0';
 }
 
+static void uc2_ascii(void *uc2, char *ascii, size_t len)
+{
+    int i,j;
+
+    for ( i=0; i<512; i++ )
+    {
+        j = i + 1;
+        
+        if ( ((char*)uc2)[i] == 0 && ((char*)uc2)[j] == 0 )
+            break;
+    }
+
+    uc2_ascii_safe(uc2, (size_t)i, ascii, len);
+}
+
+
 /**
  * dprint_vname -  Debug print a variable name
  *
@@ -41,9 +57,26 @@ static void uc2_ascii(void *uc2, size_t uc2_len, char *ascii, size_t len)
  */
 void dprint_vname(void *vn, size_t vnlen)
 {
-    uc2_ascii(vn, vnlen, strbuf, 512);
+#if 1
+    uc2_ascii_safe(vn, vnlen, strbuf, 512);
     DEBUG("name (%lu): %s\n", vnlen, strbuf);
     memset(strbuf, '\0', 512);
+#endif
+}
+
+void print_uc2(const char *TAG, void *vn)
+{
+#if 1
+    uc2_ascii(vn, strbuf, 512);
+    DEBUG("%s:%s\n", TAG, strbuf);
+    memset(strbuf, '\0', 512);
+#endif
+}
+
+static bool name_eq(void *vn, size_t vnlen, const char *comp)
+{
+    uc2_ascii_safe(vn, vnlen, strbuf, 512);
+    return memcmp(strbuf, comp, vnlen / 2) == 0;
 }
 
 
@@ -143,6 +176,8 @@ static void get_variable(void *comm_buf)
 
     parse_variable_name(comm_buf, &variable_name, &len);
 
+    TRACE();
+
     if ( len == 0 )
     {
         ERROR("UEFI Error: variable name len is 0\n");
@@ -159,6 +194,9 @@ static void get_variable(void *comm_buf)
         goto err;
     }
 
+    DEBUG("cmd:GET_VARIABLE\n");
+    dprint_vname(variable_name, len);
+
     ret = filedb_get(variable_name, len, &data, &datalen, &attrs);
     if ( ret < 0 )
     {
@@ -168,8 +206,6 @@ static void get_variable(void *comm_buf)
         goto err;
     }
 
-    DEBUG("cmd:GET_VARIABLE\n");
-    dprint_vname(variable_name, len);
     dprint_data(data, datalen);
 
     buflen = parse_datalen(comm_buf);
@@ -234,6 +270,34 @@ static void set_variable(void *comm_buf)
     }
 
     DEBUG("cmd:SET_VARIABLE\n");
+
+#if 1
+    if (name_eq(variable_name, len, "XV_DEBUG_UINTN"))
+    {
+        DEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
+        goto end;
+    }
+    else if (name_eq(variable_name, len, "XV_DEBUG_UINT32"))
+    {
+        DEBUG("XV_DEBUG_UINT32: 0x%x\n",  *((uint32_t*)data));
+        goto end;
+    }
+    else if (name_eq(variable_name, len, "XV_DEBUG_UINT64"))
+    {
+        DEBUG("XV_DEBUG_UINT64: 0x%lx\n",  *((uint64_t*)data));
+        goto end;
+    }
+    else if (name_eq(variable_name, len, "XV_DEBUG_UINT8"))
+    {
+        DEBUG("XV_DEBUG_UINT8: 0x%x\n",  *((uint8_t*)data));
+        goto end;
+    }
+    else if (name_eq(variable_name, len, "XV_DEBUG_STR"))
+    {
+        print_uc2("XV_DEBUG_STR:", data);
+        goto end;
+    }
+#endif
     dprint_vname(variable_name, len);
 
     ret = filedb_set(variable_name, len, data, datalen, attrs);
@@ -270,8 +334,8 @@ static void device_error(void *comm_buf)
 static void buffer_too_small(void *comm_buf, size_t namesz)
 {
     uint8_t *ptr = comm_buf;
+    WARNING("EFI_BUFFER_TOO_SMALL, requires bufsz: %lu\n", namesz);
 
-    WARNING("GetNextVariableName() buffer too small, return EFI_BUFFER_TOO_SMALL\n");
     serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
     serialize_uintn(&ptr, (uint64_t)namesz);
 }
@@ -310,6 +374,8 @@ static void get_next_variable(void *comm_buf)
     current.namesz = strsize16((char16_t*)current.name);
     unserialize_guid(&ptr, &guid);
 
+    dprint_vname(&next.name, next.namesz);
+
     /* TODO: use the guid according to spec */
     (void)guid;
 
@@ -335,11 +401,10 @@ static void get_next_variable(void *comm_buf)
 
     if ( next.namesz > guest_bufsz )
     {
+        WARNING("GetNextVariableName() buffer too small: namesz: %lu, guest_bufsz: %lu\n", next.namesz, guest_bufsz);
         buffer_too_small(comm_buf, next.namesz);
         return;
     }
-
-    dprint_vname(&next.name, next.namesz);
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
