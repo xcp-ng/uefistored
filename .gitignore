@@ -8,3 +8,4 @@ tests/test-nosan
 test.log
 valgrind-out.txt
 tests/*.db
+tests/test_logfile.txt

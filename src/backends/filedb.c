@@ -286,12 +286,13 @@ static variable_t *find_cache_next_entry(variable_t cache[FILEDB_DB_SIZE], varia
     /*
      * If we've searched the whole cache and haven't found it,
      * return NULL for not found.
+     *
+     * If this is the last variable, then return NULL
+     * (there is no next one).
      */
-    if ( i >= cache_len )
-        return NULL;
-
-    /* If this is the last variable, the return NULL (there is no next one) */
-    if ( i == cache_len - 1 )
+     
+     DEBUG("cache.i=%d\n", i);
+    if ( i >= cache_len - 1 )
         return NULL;
 
     return &cache[i + 1];
@@ -305,6 +306,8 @@ static void __populate_cache(void)
     char valdummy[FILEDB_VAL_SIZE];
 
     KISSDB_Iterator_init(&db, &dbi);
+    
+    cache_len = 0;
 
     /* Run the iterator to the end or until an error */
     p = cache;
@@ -317,6 +320,7 @@ static void __populate_cache(void)
         ret = KISSDB_Iterator_next(&dbi, &p->name, valdummy);
     }
     p->namesz = strsize16((char16_t*)&p->name);
+    DEBUG("cache_len=%d\n", cache_len);
 }
 
 int filedb_variable_next(variable_t *current, variable_t *next)

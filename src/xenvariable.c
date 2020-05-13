@@ -90,6 +90,25 @@ do { \
     memset(strbuf, '\0', 512); \
 } while( 0 )
 
+static void dprint_next_var(variable_t *curr, variable_t *next)
+{
+    DPRINTF("DEBUG: cmd:GET_NEXT_VARIABLE: curr=");
+
+    if ( curr && curr->namesz > 0 )
+    {
+        uc2_ascii_safe(curr->name, curr->namesz, strbuf, 512);
+        DPRINTF("%s", strbuf);
+    }
+
+    DPRINTF(", next=");
+    if ( next && next->namesz > 0 )
+    {
+        uc2_ascii_safe(next->name, next->namesz, strbuf, 512);
+        DPRINTF("%s", strbuf);
+    }
+    DPRINTF("\n");
+}
+
 void print_uc2(const char *TAG, void *vn)
 {
 #if 1
@@ -211,7 +230,7 @@ static void get_variable(void *comm_buf)
 
     if ( isnull(variable_name, len) )
     {
-        INFO("cmd:GET_VARIABLE: UEFI Error, variable name is NULL\n");
+        DEBUG("cmd:GET_VARIABLE: UEFI Error, variable name is NULL\n");
         off = 0;
         off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
         goto err;
@@ -274,6 +293,12 @@ err:
     free(variable_name);
 }
 
+static void print_set_var(char *variable_name, size_t len, uint32_t attrs)
+{
+    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", variable_name, len);
+    dprint_attrs(attrs);
+    DPRINTF("\n");
+}
 
 static void set_variable(void *comm_buf)
 {
@@ -315,7 +340,8 @@ static void set_variable(void *comm_buf)
 
     if ( datalen == 0 )
     {
-        INFO("UEFI error: datalen == 0\n");
+        ERROR("UEFI error: datalen == 0\n");
+        print_set_var(variable_name, len, attrs);
         set_u64(comm_buf, EFI_SECURITY_VIOLATION);
         return;
     }
@@ -347,9 +373,7 @@ static void set_variable(void *comm_buf)
         return;
     }
 #endif
-    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", variable_name, len);
-    dprint_attrs(attrs);
-    DPRINTF("\n");
+    print_set_var(variable_name, len, attrs);
 
     ret = filedb_set(variable_name, len, dp, datalen, attrs);
     if ( ret < 0 )
@@ -445,12 +469,13 @@ static void get_next_variable(void *comm_buf)
 
     if ( next.namesz > guest_bufsz )
     {
-        WARNING("GetNextVariableName() buffer too small: namesz: %lu, guest_bufsz: %lu\n", next.namesz, guest_bufsz);
+        WARNING("GetNextVariableName(), %s, buffer too small: namesz: %lu, guest_bufsz: %lu\n",
+                next.name, next.namesz, guest_bufsz);
         buffer_too_small(comm_buf, next.namesz);
         return;
     }
 
-    dprint_vname("cmd:GET_NEXT_VARIABLE: %s\n", &next.name, next.namesz);
+    //dprint_next_var(&current, &next);
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
