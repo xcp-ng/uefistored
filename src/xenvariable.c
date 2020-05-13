@@ -55,13 +55,12 @@ static void uc2_ascii(void *uc2, char *ascii, size_t len)
  * WARNING: this only prints ASCII characters correctly.
  * Any char code above 255 will be displayed incorrectly.
  */
-void dprint_vname(void *vn, size_t vnlen)
-{
-#if 1
-    uc2_ascii_safe(vn, vnlen, strbuf, 512);
-    DEBUG("name (%lu): %s\n", vnlen, strbuf);
-    memset(strbuf, '\0', 512);
-#endif
+//void dprint_vname(const char *format, void *vn, size_t vnlen)
+#define dprint_vname(format, vn, vnlen) \
+{ \
+    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
+    DEBUG(format, strbuf); \
+    memset(strbuf, '\0', 512); \
 }
 
 void print_uc2(const char *TAG, void *vn)
@@ -150,8 +149,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     else
         INFO("Attrs match!\n");
 
-    DEBUG("******* Validate ********\n");
-    dprint_vname(variable_name, len);
+    dprint_vname("Validate: %s\n", variable_name, len);
     DPRINTF("FROM DB: ");
     dprint_data(test_data, test_datalen);
     DPRINTF("FROM OVMF: ");
@@ -194,8 +192,7 @@ static void get_variable(void *comm_buf)
         goto err;
     }
 
-    DEBUG("cmd:GET_VARIABLE\n");
-    dprint_vname(variable_name, len);
+    dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
 
     ret = filedb_get(variable_name, len, &data, &datalen, &attrs);
     if ( ret < 0 )
@@ -269,8 +266,6 @@ static void set_variable(void *comm_buf)
         goto end;
     }
 
-    DEBUG("cmd:SET_VARIABLE\n");
-
 #if 1
     if (name_eq(variable_name, len, "XV_DEBUG_UINTN"))
     {
@@ -298,7 +293,7 @@ static void set_variable(void *comm_buf)
         goto end;
     }
 #endif
-    dprint_vname(variable_name, len);
+    dprint_vname("cmd:SET_VARIABLE: %s\n", variable_name, len);
 
     ret = filedb_set(variable_name, len, data, datalen, attrs);
     if ( ret < 0 )
@@ -320,6 +315,7 @@ static void next_var_not_found(void *comm_buf)
 {
     uint8_t *ptr;
 
+    DEBUG("GetNextVariableName(): next var not found\n");
     ptr = comm_buf;
     serialize_result(&ptr, EFI_NOT_FOUND);
 }
@@ -359,8 +355,6 @@ static void get_next_variable(void *comm_buf)
     int ret;
     uint32_t version;
 
-    DEBUG("cmd:GET_NEXT_VARIABLE_NAME\n");
-
     version = unserialize_uint32(&ptr);
 
     if ( version != 1 )
@@ -373,8 +367,6 @@ static void get_next_variable(void *comm_buf)
     unserialize_name(&ptr, &current.name[0], MAX_VARNAME_SZ);
     current.namesz = strsize16((char16_t*)current.name);
     unserialize_guid(&ptr, &guid);
-
-    dprint_vname(&next.name, next.namesz);
 
     /* TODO: use the guid according to spec */
     (void)guid;
@@ -405,6 +397,8 @@ static void get_next_variable(void *comm_buf)
         buffer_too_small(comm_buf, next.namesz);
         return;
     }
+
+    dprint_vname("cmd:GET_NEXT_VARIABLE: %s\n", &next.name, next.namesz);
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
