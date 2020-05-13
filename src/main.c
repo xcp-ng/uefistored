@@ -202,10 +202,12 @@ void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
 
     assert( ioreq->state < 16 );
 
+#if 0
     DEBUG("ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
             ioreq->addr, ioreq->data, ioreq->count, ioreq->size,
             ioreq->vp_eport, ioreq->state, ioreq->data_is_ptr, ioreq->dir, ioreq->type);
 
+#endif
     if ( ioreq->state != STATE_IOREQ_READY )
     {
         ERROR("IO request not ready\n");
