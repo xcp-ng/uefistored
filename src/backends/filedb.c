@@ -32,9 +32,9 @@ static char *_dbpath;
 static char *_varlenpath;
 static char *_attrspath;
 
-int filedb_init(const char *dbpath,
-            const char *varlenpath,
-            const char *attrspath)
+int filedb_init(char *dbpath,
+            char *varlenpath,
+            char *attrspath)
 {
     int ret;
 
