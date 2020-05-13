@@ -51,7 +51,11 @@ char mtcnamebytes[] = {
 
 static inline uint64_t getstatus(void *p)
 {
-    return *((uint64_t*) p);
+    uint64_t ret;
+
+    memcpy(&ret, p, sizeof(ret));
+
+    return ret;
 }
 
 static void test_nonexistent_variable_returns_not_found(void)
