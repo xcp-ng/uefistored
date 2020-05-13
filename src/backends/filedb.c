@@ -122,26 +122,17 @@ int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint
     /* Get the variable's value */
     ret = KISSDB_get(&db, key, &val);
     if ( ret != 0 )
-    {
-        ERROR("Not found var db\n");
-        return -1;
-    }
+        return ret;
 
     /* Get the variable's value's length */
     ret = KISSDB_get(&db_var_len, key, &tmp);
     if ( ret != 0 )
-    {
-        ERROR("Not found in var len db\n");
-        return -1;
-    }
+        return ret;
 
     /* Get the variable's attrs */
     ret = KISSDB_get(&db_var_attrs, key, &attrs);
     if ( ret != 0 )
-    {
-        ERROR("Missing in var attrs db\n");
-        return -1;
-    }
+        return ret;
 
     /* Copy only the correct length (from db_var_len) */
     if ( tmp == 0 )
