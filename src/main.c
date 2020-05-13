@@ -126,7 +126,6 @@ void *map_guest_memory(xen_pfn_t start)
         shmem[i] = start + i;
     }
 
-    DEBUG("Attempting to map in: 0x%02lx-0x%02lx\n", start, start + i);
     return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE, 16, shmem, NULL);
 }
 
@@ -149,10 +148,12 @@ void handle_ioreq(struct ioreq *ioreq)
     /* This is just the size of the port write.  We only use it to require XenVariable to use 32bit port IO writes. */
     uint32_t size = ioreq->size;
 
+#if 0
     DEBUG("%s, ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
             __func__,
             ioreq->addr, ioreq->data, ioreq->count, ioreq->size,
             ioreq->vp_eport, ioreq->state, ioreq->data_is_ptr, ioreq->dir, ioreq->type);
+#endif
 
     if ( !io_port_enabled )
     {
