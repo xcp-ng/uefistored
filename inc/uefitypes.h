@@ -3,18 +3,21 @@
 
 #include <stdint.h>
 
+#define EFI_MAX_BIT       0x8000000000000000UL
+#define EFIERR(a)         (EFI_MAX_BIT | (a))
+
 typedef struct {
     uint8_t guid[16];
 } EFI_GUID;
 
 typedef uint64_t EFI_STATUS;
 #define EFI_SUCCESS 0
-#define EFI_INVALID_PARAMETER 2
-#define EFI_BUFFER_TOO_SMALL 5
-#define EFI_DEVICE_ERROR 7
-#define EFI_OUT_OF_RESOURCES 9
-#define EFI_NOT_FOUND 14
-#define EFI_SECURITY_VIOLATION 26
+#define EFI_INVALID_PARAMETER EFIERR(2)
+#define EFI_BUFFER_TOO_SMALL EFIERR(5)
+#define EFI_DEVICE_ERROR EFIERR(7)
+#define EFI_OUT_OF_RESOURCES EFIERR(9)
+#define EFI_NOT_FOUND EFIERR(14)
+#define EFI_SECURITY_VIOLATION EFIERR(26)
 
 typedef struct {
     uint32_t  data1;
