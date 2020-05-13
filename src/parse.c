@@ -145,7 +145,6 @@ void *parse_guid(void *message, uint8_t guid[16])
 
 uint64_t parse_datalen(void *message)
 {
-    size_t off;
     size_t namelen;
     size_t datalen;
     void *p = message;
@@ -166,7 +165,6 @@ uint64_t parse_datalen(void *message)
     /* Proceed passed the "GUID" field */
     p += 16;
 
-    off = COMMAND_LEN + VERSION_LEN + sizeof(namelen) + namelen + 16;
     memcpy(&datalen, p, sizeof(datalen));
     return datalen;
 }
