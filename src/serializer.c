@@ -59,7 +59,6 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status)
     *ptr += sizeof(status);
 }
 
-
 void unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize)
 {
     memcpy(DataSize, *ptr, sizeof(*DataSize));
