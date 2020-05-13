@@ -168,8 +168,6 @@ uint64_t parse_datalen(void *message)
 
     off = COMMAND_LEN + VERSION_LEN + sizeof(namelen) + namelen + 16;
     memcpy(&datalen, p, sizeof(datalen));
-    printf("parse_datalen: off %lu\n", off);
-    printf("datalen: val %lu\n", datalen);
     return datalen;
 }
 
