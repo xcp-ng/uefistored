@@ -14,7 +14,7 @@ void serialize_boolean(uint8_t **ptr, bool var);
 void serialize_command(uint8_t **ptr, command_t cmd);
 void serialize_guid(uint8_t **ptr, EFI_GUID *Guid);
 void serialize_result(uint8_t **ptr, EFI_STATUS status);
-void unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize);
+int unserialize_data(uint8_t **ptr, void *data, size_t max);
 uint64_t unserialize_uintn(uint8_t **ptr);
 uint32_t unserialize_uint32(uint8_t **ptr);
 uint64_t unserialize_uint64(uint8_t **ptr);

@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <uchar.h>
 #include <string.h>
+#include <limits.h>
 
 #include "common.h"
 #include "serializer.h"
@@ -59,12 +60,20 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status)
     *ptr += sizeof(status);
 }
 
-void unserialize_data(uint8_t **ptr, void *Data, uint64_t *DataSize)
+int unserialize_data(uint8_t **ptr, void *data, size_t max)
 {
-    memcpy(DataSize, *ptr, sizeof(*DataSize));
-    *ptr += sizeof(*DataSize);
-    memcpy(Data, *ptr, *DataSize);
-    *ptr += *DataSize;
+    uint64_t ret;
+
+    memcpy(&ret, *ptr, sizeof(ret));
+    *ptr += sizeof(ret);
+
+    if ( ret > max || ret > INT_MAX )
+        return -1;
+
+    memcpy(data, *ptr, ret);
+    *ptr += ret;
+
+    return (int)ret;
 }
 
 uint64_t unserialize_uintn(uint8_t **ptr)
@@ -113,6 +122,11 @@ bool unserialize_boolean(uint8_t **ptr)
     return val;
 }
 
+/**
+ * Unserialize the name field.
+ * 
+ * Returns -1 if error, otherwise the length of the name.
+ */
 int unserialize_name(uint8_t **ptr, void *buf, size_t buflen)
 {
     size_t len;
@@ -125,10 +139,9 @@ int unserialize_name(uint8_t **ptr, void *buf, size_t buflen)
         return -1;
     }
 
-    memset(buf, 0, buflen);
     memcpy(buf, *ptr, len);
     *ptr += len;
-    return 0;
+    return len;
 }
 
 EFI_STATUS unserialize_result(uint8_t **ptr)
