@@ -32,9 +32,9 @@ typedef struct {
     char name[FILEDB_KEY_SIZE];
 } filedb_name_iter_t;
 
-int filedb_init(const char *dbpath,
-                const char *varlenpath,
-                const char *attrspath);
+int filedb_init(char *dbpath,
+                char *varlenpath,
+                char *attrspath);
 void filedb_deinit(void);
 int filedb_get(void *, size_t, void** , size_t *, uint32_t*);
 int filedb_set(void *, size_t, void *, size_t, uint32_t);
@@ -44,5 +44,7 @@ void filedb_name_iter_init(void);
 int filedb_name_iter_next(filedb_name_iter_t *p);
 bool filedb_name_iter_initialized(void);
 void filedb_name_iter_deinit(void);
+
+int filedb_variable_next(variable_t *current, variable_t *next);
 
 #endif
