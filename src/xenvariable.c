@@ -7,6 +7,7 @@
 #include "backends/filedb.h"
 #include "xenvariable.h"
 #include "serializer.h"
+#include "UefiMultiPhase.h"
 #include "uefitypes.h"
 #include "common.h"
 #include "parse.h"
@@ -15,6 +16,26 @@
 
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
 #define MAX_VARNAME_SZ (FILEDB_KEY_SIZE)
+#define MAX_DATA_SZ (FILEDB_VAL_SIZE)
+
+static void dprint_attrs(uint32_t attr)
+{
+    DPRINTF("0x%x:", attr);
+    if ( attr & EFI_VARIABLE_NON_VOLATILE )
+        DPRINTF("EFI_VARIABLE_NON_VOLATILE,");
+    if ( attr & EFI_VARIABLE_BOOTSERVICE_ACCESS )
+        DPRINTF("EFI_VARIABLE_BOOTSERVICE_ACCESS,");
+    if ( attr & EFI_VARIABLE_RUNTIME_ACCESS )
+        DPRINTF("EFI_VARIABLE_RUNTIME_ACCESS,");
+    if ( attr & EFI_VARIABLE_HARDWARE_ERROR_RECORD )
+        DPRINTF("EFI_VARIABLE_HARDWARE_ERROR_RECORD,");
+    if ( attr & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS )
+        DPRINTF("EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS,");
+    if ( attr & EFI_VARIABLE_APPEND_WRITE )
+        DPRINTF("EFI_VARIABLE_APPEND_WRITE,");
+    if ( attr & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
+        DPRINTF("EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS,");
+}
 
 static char strbuf[512];
 
@@ -55,17 +76,17 @@ static void uc2_ascii(void *uc2, char *ascii, size_t len)
  * WARNING: this only prints ASCII characters correctly.
  * Any char code above 255 will be displayed incorrectly.
  */
-#define dprint_vname(format, vn, vnlen) \
+#define dprint_vname(format, vn, vnlen, ...) \
 do { \
     uc2_ascii_safe(vn, vnlen, strbuf, 512); \
-    DEBUG(format, strbuf); \
+    DEBUG(format, strbuf __VA_ARGS__); \
     memset(strbuf, '\0', 512); \
 } while ( 0 )
 
-#define eprint_vname(format, vn, vnlen) \
+#define eprint_vname(format, vn, vnlen, ...) \
 do { \
     uc2_ascii_safe(vn, vnlen, strbuf, 512); \
-    ERROR(format, strbuf); \
+    ERROR(format, strbuf __VA_ARGS__); \
     memset(strbuf, '\0', 512); \
 } while( 0 )
 
@@ -253,72 +274,93 @@ err:
     free(variable_name);
 }
 
+
 static void set_variable(void *comm_buf)
 {
-    uint8_t guid[16];
+    uint8_t *ptr;
+    EFI_GUID guid;
     size_t len, datalen;
     int ret;
-    void *variable_name;
-    void *data;
-    uint32_t attrs;
+    char variable_name[MAX_VARNAME_SZ];
+    uint8_t data[MAX_DATA_SZ];
+    void *dp = data;
+    uint32_t attrs, command, version;
 
-    parse_variable_name(comm_buf, &variable_name, &len);
-    parse_guid(comm_buf, guid);
-    parse_data(comm_buf, &data, &datalen);
+    ptr = comm_buf;
+    version = unserialize_uint32(&ptr);
 
-    /* TODO: Parse and implement attributes */
-    attrs = parse_attrs(comm_buf);
+    if ( version != 1 )
+    {
+        ERROR("Invalid XenVariable OVMF module version number: %d, only supports version 1\n",
+              version);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        return;
+    }
+
+    command = unserialize_uint32(&ptr);
+    if ( command != COMMAND_SET_VARIABLE )
+    {
+        ERROR("BUG: varstored accidentally passed a non SET_VARIABLE buffer to the"
+              "%s function!, returning EFI_DEVICE_ERROR\n", __func__);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        return;
+    }
+
+    len = unserialize_name(&ptr, variable_name, MAX_VARNAME_SZ);
+    unserialize_guid(&ptr, &guid);
+    datalen = unserialize_data(&ptr, dp, MAX_DATA_SZ);
+    attrs = unserialize_uint32(&ptr);
 
     if ( datalen == 0 )
     {
         INFO("UEFI error: datalen == 0\n");
         set_u64(comm_buf, EFI_SECURITY_VIOLATION);
-        goto end;
+        return;
     }
 
 #if 1
     if (name_eq(variable_name, len, "XV_DEBUG_UINTN"))
     {
         DEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
-        goto end;
+        return;
     }
     else if (name_eq(variable_name, len, "XV_DEBUG_UINT32"))
     {
         DEBUG("XV_DEBUG_UINT32: 0x%x\n",  *((uint32_t*)data));
-        goto end;
+        return;
     }
     else if (name_eq(variable_name, len, "XV_DEBUG_UINT64"))
     {
         DEBUG("XV_DEBUG_UINT64: 0x%lx\n",  *((uint64_t*)data));
-        goto end;
+        return;
     }
     else if (name_eq(variable_name, len, "XV_DEBUG_UINT8"))
     {
         DEBUG("XV_DEBUG_UINT8: 0x%x\n",  *((uint8_t*)data));
-        goto end;
+        return;
     }
     else if (name_eq(variable_name, len, "XV_DEBUG_STR"))
     {
         print_uc2("XV_DEBUG_STR:", data);
-        goto end;
+        return;
     }
 #endif
-    dprint_vname("cmd:SET_VARIABLE: %s\n", variable_name, len);
+    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", variable_name, len);
+    dprint_attrs(attrs);
+    DPRINTF("\n");
 
-    ret = filedb_set(variable_name, len, data, datalen, attrs);
+    ret = filedb_set(variable_name, len, dp, datalen, attrs);
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
         set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
-        goto end;
+        return;
     }
 
-    validate(variable_name, len, data, datalen, attrs);
+    validate(variable_name, len, dp, datalen, attrs);
     set_u64(comm_buf, EFI_SUCCESS);
-
-end:
-    free(variable_name);
-    free(data);
 }
 
 static void next_var_not_found(void *comm_buf)
