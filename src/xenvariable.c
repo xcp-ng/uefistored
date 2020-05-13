@@ -55,13 +55,19 @@ static void uc2_ascii(void *uc2, char *ascii, size_t len)
  * WARNING: this only prints ASCII characters correctly.
  * Any char code above 255 will be displayed incorrectly.
  */
-//void dprint_vname(const char *format, void *vn, size_t vnlen)
 #define dprint_vname(format, vn, vnlen) \
-{ \
+do { \
     uc2_ascii_safe(vn, vnlen, strbuf, 512); \
     DEBUG(format, strbuf); \
     memset(strbuf, '\0', 512); \
-}
+} while ( 0 )
+
+#define eprint_vname(format, vn, vnlen) \
+do { \
+    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
+    ERROR(format, strbuf); \
+    memset(strbuf, '\0', 512); \
+} while( 0 )
 
 void print_uc2(const char *TAG, void *vn)
 {
@@ -133,7 +139,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     size_t test_datalen;
 
     ret = filedb_get(variable_name, len, &test_data, &test_datalen, &test_attrs);
-    if ( ret < 0 )
+    if ( ret != 0 )
     {
         ERROR("Failed to validate variable!\n");
         return;
@@ -174,11 +180,9 @@ static void get_variable(void *comm_buf)
 
     parse_variable_name(comm_buf, &variable_name, &len);
 
-    TRACE();
-
     if ( len == 0 )
     {
-        ERROR("UEFI Error: variable name len is 0\n");
+        ERROR("cmd:GET_VARIABLE: UEFI Error: variable name len is 0\n");
         off = 0;
         off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
         goto err;
@@ -186,61 +190,67 @@ static void get_variable(void *comm_buf)
 
     if ( isnull(variable_name, len) )
     {
-        INFO("UEFI Error: variable name is NULL\n");
+        INFO("cmd:GET_VARIABLE: UEFI Error, variable name is NULL\n");
         off = 0;
         off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
         goto err;
     }
 
-    dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
-
     ret = filedb_get(variable_name, len, &data, &datalen, &attrs);
-    if ( ret < 0 )
+    if ( ret == 1 )
     {
         off = 0;
         off += set_u64(comm_buf + off, EFI_NOT_FOUND);
-        ERROR("Failed to get variable\n");
+        dprint_vname("cmd:GET_VARIABLE: %s, not in DB\n", variable_name, len);
         goto err;
     }
 
-    dprint_data(data, datalen);
+    if ( ret < 0 )
+    {
+        off = 0;
+        off += set_u64(comm_buf + off, EFI_DEVICE_ERROR);
+        dprint_vname("cmd:GET_VARIABLE: %s, varstored error\n", variable_name, len);
+        goto err;
+    }
 
     buflen = parse_datalen(comm_buf);
     if ( buflen < datalen )
     {
-        WARNING("Buffer too small: 0x%lx < 0x%lx\n", buflen, datalen);
+        dprint_vname("cmd:GET_VARIABLE: %s, buffer too small\n", variable_name, len);
         off = 0;
         off += set_u64(comm_buf + off, EFI_BUFFER_TOO_SMALL);
         off += set_u64(comm_buf + off, datalen);
+        goto err2;
     }
-    else
+
+    /* This should NEVER happen.  Indicates a varstored bug */
+    if ( datalen > MAX_BUF )
     {
         off = 0;
-        off += set_u64(comm_buf + off, EFI_SUCCESS);
-        off += set_u32(comm_buf + off, attrs);
-        off += set_u64(comm_buf + off, datalen);
-        if ( datalen + off > MAX_BUF )
-        {
-            ERROR("EFI_OUT_OF_RESOURCES: datalen=0x%lx, off=0x%lx\n", datalen, off);
+        eprint_vname("BUG:cmd:GET_VARIABLE: %s, EFI_OUT_OF_RESOURCES\n", variable_name, len);
 
-            /* Reset previously written to zeroes */
-            memset(comm_buf, 0, off);
+        /* Reset previously written to zeroes */
+        memset(comm_buf, 0, off);
 
-            /* Send back EFI_OUT_OF_RESOURCES */
-            off += set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
-        }
-        else
-        {
-            off += set_data(comm_buf + off, data, datalen);
-        }
+        /* Send back EFI_OUT_OF_RESOURCES */
+        off += set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
+        goto err2;
     }
 
+    off = 0;
+    off += set_u64(comm_buf + off, EFI_SUCCESS);
+    off += set_u32(comm_buf + off, attrs);
+    off += set_u64(comm_buf + off, datalen);
+    off += set_data(comm_buf + off, data, datalen);
+
+    dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
+    dprint_data(data, datalen);
+
+err2:
     free(data);
 
 err:
-    /* Free up any used memory */
-    if ( variable_name )
-        free(variable_name);
+    free(variable_name);
 }
 
 static void set_variable(void *comm_buf)
