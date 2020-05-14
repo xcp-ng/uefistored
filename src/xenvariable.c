@@ -15,7 +15,6 @@
 //#define VALIDATE_WRITES
 
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
-#define MAX_VARNAME_SZ (FILEDB_KEY_SIZE)
 #define MAX_DATA_SZ (FILEDB_VAL_SIZE)
 
 static void dprint_attrs(uint32_t attr)
@@ -38,36 +37,6 @@ static void dprint_attrs(uint32_t attr)
 }
 
 static char strbuf[512];
-
-static void uc2_ascii_safe(void *uc2, size_t uc2_len, char *ascii, size_t len)
-{
-    int i;
-    int j = 0;
-
-    for (i=0; i<uc2_len && j<(len-1); i++)
-    {
-        char c = *((char*)(uc2+i));
-        if ( c != '\0' )
-            ascii[j++] = c;
-    }
-
-    ascii[j++] = '\0';
-}
-
-static void uc2_ascii(void *uc2, char *ascii, size_t len)
-{
-    int i,j;
-
-    for ( i=0; i<512; i++ )
-    {
-        j = i + 1;
-        
-        if ( ((char*)uc2)[i] == 0 && ((char*)uc2)[j] == 0 )
-            break;
-    }
-
-    uc2_ascii_safe(uc2, (size_t)i, ascii, len);
-}
 
 
 /**
@@ -475,7 +444,7 @@ static void get_next_variable(void *comm_buf)
         return;
     }
 
-    //dprint_next_var(&current, &next);
+    dprint_next_var(&current, &next);
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);

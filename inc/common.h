@@ -7,6 +7,15 @@
 #include <string.h>
 #include <uchar.h>
 
+#define MAX_VARNAME_SZ 128 
+
+typedef struct {
+    uint8_t name[MAX_VARNAME_SZ];
+    size_t namesz;
+} variable_t;
+
+void dprint_variable(variable_t *var);
+
 #define USE_STREAM 1
 
 uint64_t strlen16(char16_t *str);
@@ -79,4 +88,6 @@ void set_logfd(int logfd);
 #define TRACE() do { } while ( 0 )
 #endif
 
+void uc2_ascii_safe(void *uc2, size_t uc2_len, char *ascii, size_t len);
+void uc2_ascii(void *uc2, char *ascii, size_t len);
 #endif

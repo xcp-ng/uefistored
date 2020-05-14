@@ -19,14 +19,9 @@
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
 #define ENTRY_LEN 1024
-#define FILEDB_KEY_SIZE 128 
+#define FILEDB_KEY_SIZE (MAX_VARNAME_SZ)
 #define FILEDB_VAL_SIZE 1024
 #define FILEDB_VAR_ATTRS_VAL_SIZE (sizeof(uint32_t))
-
-typedef struct {
-    uint8_t name[FILEDB_KEY_SIZE];
-    size_t namesz;
-} variable_t;
 
 typedef struct {
     char name[FILEDB_KEY_SIZE];

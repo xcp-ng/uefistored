@@ -279,8 +279,19 @@ static variable_t *find_cache_next_entry(variable_t cache[FILEDB_DB_SIZE], varia
 
     for ( i=0; i<cache_len; i++ )
     {
-        if (memcmp(&cache[i].name, current->name, cache[i].namesz) == 0)
+        if ( cache[i].namesz != current->namesz )
+            continue;
+
+        DEBUG("current->namesz=%lu, cache[%d].namesz=%lu\n",
+              current->namesz, i, cache[i].namesz);
+        DEBUG("Comparing:\n");
+        dprint_variable(current);
+        dprint_variable(&cache[i]);
+        if (memcmp(&cache[i].name, current->name, current->namesz) == 0)
+        {
+            DEBUG("MATCH\n");
             break;
+        }
     }
 
     /*
@@ -309,17 +320,17 @@ static void __populate_cache(void)
     
     cache_len = 0;
 
+    DEBUG("%s\n", __func__);
     /* Run the iterator to the end or until an error */
     p = cache;
-    ret = KISSDB_Iterator_next(&dbi, &p->name, valdummy);
-    while ( ret > 0 )
+    while ( KISSDB_Iterator_next(&dbi, &p->name, valdummy) > 0 )
     {
-        cache_len++;
         p->namesz = strsize16((char16_t*)&p->name);
+        DEBUG("p->namesz=%lu\n", p->namesz);
+        cache_len++;
+        dprint_variable(p);
         p++;
-        ret = KISSDB_Iterator_next(&dbi, &p->name, valdummy);
     }
-    p->namesz = strsize16((char16_t*)&p->name);
     DEBUG("cache_len=%d\n", cache_len);
 }
 
