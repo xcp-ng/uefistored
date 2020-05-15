@@ -143,11 +143,11 @@ static void dprint_data(void *data, size_t datalen)
 static void validate(void *variable_name, size_t len, void *data, size_t datalen, uint32_t attrs)
 {
     int ret;
-    void *test_data;
+    uint8_t test_data[MAX_DATA_SZ];
     uint32_t test_attrs = 0;
     size_t test_datalen;
 
-    ret = filedb_get(variable_name, len, &test_data, &test_datalen, &test_attrs);
+    ret = filedb_get(variable_name, len, test_data, MAX_DATA_SZ, &test_datalen, &test_attrs);
     if ( ret != 0 )
     {
         ERROR("Failed to validate variable!\n");
@@ -181,9 +181,10 @@ static void get_variable(void *comm_buf)
 {
     int ret;
     size_t len, datalen;
+    EFI_GUID guid;
     uint32_t attrs, version;
     uint64_t buflen;
-    void *data;
+    uint8_t data[MAX_DATA_SZ];
     char variable_name[MAX_VARNAME_SZ];
     size_t off;
 
@@ -220,7 +221,7 @@ static void get_variable(void *comm_buf)
         return;
     }
 
-    ret = filedb_get(variable_name, len, &data, &datalen, &attrs);
+    ret = filedb_get(variable_name, len, data, MAX_DATA_SZ, &datalen, &attrs);
     if ( ret == 1 )
     {
         off = 0;
@@ -237,14 +238,16 @@ static void get_variable(void *comm_buf)
         return;
     }
 
-    buflen = parse_datalen(comm_buf);
+    unserialize_guid(&ptr, &guid);
+
+    buflen = unserialize_uint64(&ptr);
     if ( buflen < datalen )
     {
         dprint_vname("cmd:GET_VARIABLE: %s, buffer too small\n", variable_name, len);
         off = 0;
         off += set_u64(comm_buf + off, EFI_BUFFER_TOO_SMALL);
         off += set_u64(comm_buf + off, datalen);
-        goto err2;
+        return;
     }
 
     /* This should NEVER happen.  Indicates a varstored bug */
@@ -258,7 +261,7 @@ static void get_variable(void *comm_buf)
 
         /* Send back EFI_OUT_OF_RESOURCES */
         off += set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
-        goto err2;
+        return;
     }
 
     off = 0;
@@ -269,9 +272,6 @@ static void get_variable(void *comm_buf)
 
     dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
     dprint_data(data, datalen);
-
-err2:
-    free(data);
 }
 
 static void print_set_var(char *variable_name, size_t len, uint32_t attrs)

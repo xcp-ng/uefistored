@@ -101,7 +101,7 @@ void filedb_destroy(void)
 
 }
 
-int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint32_t *attrs)
+int filedb_get(void *varname, size_t varname_len, void* dest, size_t dest_len, size_t *len, uint32_t *attrs)
 {
     int ret;
     uint8_t key[FILEDB_KEY_SIZE] = {0};
@@ -141,8 +141,13 @@ int filedb_get(void *varname, size_t varname_len, void** dest, size_t *len, uint
         return -1;
     }
 
-    *dest = malloc(tmp);
-    memcpy(*dest, val, tmp);
+    if ( dest_len < tmp )
+    {
+        ERROR("The dest_len (%lu) passed to %s was too small\n", dest_len, __func__);
+        return -1;
+    }
+
+    memcpy(dest, val, tmp);
     *len = tmp;
 
     return 0;
