@@ -60,17 +60,28 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status)
     *ptr += sizeof(status);
 }
 
-int unserialize_data(uint8_t **ptr, void *data, size_t max)
+/**
+ * Unserialize a XenVariable RPC data field
+ *
+ * Parameters:
+ *  @ptr: The start of the data field
+ *  @buf: The target buffer to copy the data into
+ *  @buflen: The size of the target buffer
+ *
+ * Returns:
+ *    The size of the data field.
+ */
+int unserialize_data(uint8_t **ptr, void *buf, size_t buflen)
 {
     uint64_t ret;
 
     memcpy(&ret, *ptr, sizeof(ret));
     *ptr += sizeof(ret);
 
-    if ( ret > max || ret > INT_MAX )
+    if ( ret > buflen || ret > INT_MAX )
         return -1;
 
-    memcpy(data, *ptr, ret);
+    memcpy(buf, *ptr, ret);
     *ptr += ret;
 
     return (int)ret;
