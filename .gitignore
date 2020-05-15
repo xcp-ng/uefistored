@@ -9,3 +9,5 @@ test.log
 valgrind-out.txt
 tests/*.db
 tests/test_logfile.txt
+*.db
+test_logfile.txt
