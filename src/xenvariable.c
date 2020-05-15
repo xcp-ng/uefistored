@@ -181,20 +181,35 @@ static void get_variable(void *comm_buf)
 {
     int ret;
     size_t len, datalen;
-    uint32_t attrs;
+    uint32_t attrs, version;
     uint64_t buflen;
     void *data;
-    void *variable_name;
+    char variable_name[MAX_VARNAME_SZ];
     size_t off;
 
-    parse_variable_name(comm_buf, &variable_name, &len);
+    uint8_t *ptr;
 
+    ptr = comm_buf;
+    version = unserialize_uint32(&ptr);
+    if ( version != 1 )
+    {
+        ERROR("Unsupported version of XenVariable RPC protocol\n");
+        return;
+    }
+
+    if ( unserialize_uint32(&ptr) != COMMAND_GET_VARIABLE )
+    {
+        ERROR("BUG in varstored, wrong command\n");
+        return;
+    }
+
+    len = unserialize_name(&ptr, variable_name, MAX_VARNAME_SZ);
     if ( len == 0 )
     {
         ERROR("cmd:GET_VARIABLE: UEFI Error: variable name len is 0\n");
         off = 0;
         off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
-        goto err;
+        return;
     }
 
     if ( isnull(variable_name, len) )
@@ -202,7 +217,7 @@ static void get_variable(void *comm_buf)
         DEBUG("cmd:GET_VARIABLE: UEFI Error, variable name is NULL\n");
         off = 0;
         off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
-        goto err;
+        return;
     }
 
     ret = filedb_get(variable_name, len, &data, &datalen, &attrs);
@@ -211,7 +226,7 @@ static void get_variable(void *comm_buf)
         off = 0;
         off += set_u64(comm_buf + off, EFI_NOT_FOUND);
         dprint_vname("cmd:GET_VARIABLE: %s, not in DB\n", variable_name, len);
-        goto err;
+        return;
     }
 
     if ( ret < 0 )
@@ -219,7 +234,7 @@ static void get_variable(void *comm_buf)
         off = 0;
         off += set_u64(comm_buf + off, EFI_DEVICE_ERROR);
         dprint_vname("cmd:GET_VARIABLE: %s, varstored error\n", variable_name, len);
-        goto err;
+        return;
     }
 
     buflen = parse_datalen(comm_buf);
@@ -257,9 +272,6 @@ static void get_variable(void *comm_buf)
 
 err2:
     free(data);
-
-err:
-    free(variable_name);
 }
 
 static void print_set_var(char *variable_name, size_t len, uint32_t attrs)
