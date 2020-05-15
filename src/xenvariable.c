@@ -467,13 +467,20 @@ static void get_next_variable(void *comm_buf)
 
 void xenvariable_handle_request(void *comm_buf)
 {
+    uint8_t *ptr;
+
     if ( !comm_buf )
     {
         ERROR("comm buffer is null!\n");
         return;
     }
 
-    switch ( parse_command(comm_buf) )
+    ptr = comm_buf;
+
+    /* advance the pointer passed the version field */
+    unserialize_uint32(&ptr);
+
+    switch ( unserialize_uint32(&ptr) )
     {
         case COMMAND_GET_VARIABLE:
             get_variable(comm_buf);
