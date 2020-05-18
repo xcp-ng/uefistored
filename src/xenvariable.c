@@ -185,7 +185,6 @@ static void get_variable(void *comm_buf)
     uint64_t buflen;
     uint8_t data[MAX_DATA_SZ];
     char variable_name[MAX_VARNAME_SZ];
-    size_t off;
 
     uint8_t *ptr;
 
@@ -193,12 +192,16 @@ static void get_variable(void *comm_buf)
     version = unserialize_uint32(&ptr);
     if ( version != 1 )
     {
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         ERROR("Unsupported version of XenVariable RPC protocol\n");
         return;
     }
 
     if ( unserialize_uint32(&ptr) != COMMAND_GET_VARIABLE )
     {
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         ERROR("BUG in varstored, wrong command\n");
         return;
     }
@@ -207,33 +210,37 @@ static void get_variable(void *comm_buf)
     if ( len == 0 )
     {
         ERROR("cmd:GET_VARIABLE: UEFI Error: variable name len is 0\n");
-        off = 0;
-        off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
 
     if ( isnull(variable_name, len) )
     {
+        /*
+         * This case is not in the UEFI specification.  It seems that this
+         * would not be allowed, so we disallow it. 
+         */
         DEBUG("cmd:GET_VARIABLE: UEFI Error, variable name is NULL\n");
-        off = 0;
-        off += set_u64(comm_buf + off, EFI_INVALID_PARAMETER);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
 
     ret = filedb_get(variable_name, len, data, MAX_DATA_SZ, &datalen, &attrs);
     if ( ret == 1 )
     {
-        off = 0;
-        off += set_u64(comm_buf + off, EFI_NOT_FOUND);
         dprint_vname("cmd:GET_VARIABLE: %s, not in DB\n", variable_name, len);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_NOT_FOUND);
         return;
     }
 
     if ( ret < 0 )
     {
-        off = 0;
-        off += set_u64(comm_buf + off, EFI_DEVICE_ERROR);
         dprint_vname("cmd:GET_VARIABLE: %s, varstored error\n", variable_name, len);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
@@ -243,34 +250,35 @@ static void get_variable(void *comm_buf)
     if ( buflen < datalen )
     {
         dprint_vname("cmd:GET_VARIABLE: %s, buffer too small\n", variable_name, len);
-        off = 0;
-        off += set_u64(comm_buf + off, EFI_BUFFER_TOO_SMALL);
-        off += set_u64(comm_buf + off, datalen);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
+        serialize_uintn(&ptr, datalen);
         return;
     }
 
-    /* This should NEVER happen.  Indicates a varstored bug */
+    /*
+     * This should NEVER happen.  Indicates a varstored bug.
+     * This means we saved a value into our variables database
+     * that is actually larger than the shared memory between
+     * varstored and OVMF XenVariable.  SetVariable() should prevent this!
+     */
     if ( datalen > MAX_BUF )
     {
-        off = 0;
-        eprint_vname("BUG:cmd:GET_VARIABLE: %s, EFI_OUT_OF_RESOURCES\n", variable_name, len);
-
-        /* Reset previously written to zeroes */
-        memset(comm_buf, 0, off);
+        eprint_vname("BUG:cmd:GET_VARIABLE: %s, EFI_DEVICE_ERROR\n", variable_name, len);
 
         /* Send back EFI_OUT_OF_RESOURCES */
-        off += set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
-
-    off = 0;
-    off += set_u64(comm_buf + off, EFI_SUCCESS);
-    off += set_u32(comm_buf + off, attrs);
-    off += set_u64(comm_buf + off, datalen);
-    off += set_data(comm_buf + off, data, datalen);
 
     dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
     dprint_data(data, datalen);
+
+    ptr = comm_buf;
+    serialize_result(&ptr, EFI_SUCCESS);
+    serialize_uint32(&ptr, attrs);
+    serialize_data(&ptr, data, datalen);
 }
 
 static void print_set_var(char *variable_name, size_t len, uint32_t attrs)
