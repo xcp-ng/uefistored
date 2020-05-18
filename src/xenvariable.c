@@ -10,7 +10,6 @@
 #include "UefiMultiPhase.h"
 #include "uefitypes.h"
 #include "common.h"
-#include "parse.h"
 
 //#define VALIDATE_WRITES
 

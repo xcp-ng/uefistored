@@ -11,3 +11,4 @@ tests/*.db
 tests/test_logfile.txt
 *.db
 test_logfile.txt
+libs/kissdb
