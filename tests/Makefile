@@ -4,7 +4,7 @@ OBJ := mock/XenVariable.o ../src/xenvariable.o \
        ../src/backends/filedb.o ../libs/kissdb/kissdb.o ../src/serializer.o \
        ../src/common.o
 
-OBJ += src/test_xenvariable.o 
+OBJ += src/test_xenvariable.o src/test_xapi_nvram.o
 
 .PHONY: all
 all: test test-nosan
