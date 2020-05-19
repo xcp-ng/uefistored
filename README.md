@@ -2,53 +2,37 @@
 
 This project aims to support UEFI Secure Boot in guest VMs on XCP-ng.
 
-## Message Specification
+## Overview
 
-#### Header
+varstored-ng is a service that runs in dom0 userspace for servicing port IO RPC
+requests from the OVMF XenVariable module, thus providing a protected UEFI
+Variables Service implementation.
 
-```
-   0                   1                   2                   3
-   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                          Version  (u32)                     |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                          Command  (u32)                     |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
+varstored-ng (the executable is simply `varstored`) is started by the XAPI
+stack upon running a VM.  One running varstored-ng process exists per HVM
+domain start via XAPI.
 
-### Set Variable
+varstored-ng uses Xen's libxen to register itself as a device emulator for the
+HVM domU that XAPI has started.  XenVariable, found in OVMF, knows how to
+communicate with varstored-ng using the device emulation protocol.  See [OVMF
+and varstored-ng] for more details.
 
-Variable Name Length : u64 (8 bytes)
-Variable Name        : size equal to the value of "Variable Name Length" Field
-GUID                 : 16 bytes
-Data Length          : u64 (8 bytes)
-Data:                : size equal to the value of "Data Length" field
+## OVMF and varstored-ng
 
-###
+OVMF's XenVariable module implements the UEFI Variables service (see the UEFI
+v2 spec).  When a call is made to the UEFI Variables service, XenVariable
+passes the call to varstored-ng via a mechanism of port IO and shared memory.
 
+For example, when OVMF makes a GetVariable call, XenVariable packages a call ID
+indicating "GetVariable" and the arguments of the call onto a memory page that
+is shared with varstored-ng [1].  It writes the address of that shared memory
+to port 0x100, which Xen routes to varstored-ng.  varstored-ng then grabs the
+memory location, maps it in, and handles the request resident in it.  Once it
+has been handled and the response has been loaded into the shared memory, an
+event channel notification is used to indicate to the guest that its
+GetVariable request has been served and the response is ready for processing.
 
-
-## TODO
-
-- [x] Build OVMF from https://github.com/xcp-ng-rpms/edk2.git
-- [x] Create a VM that uses this OVMF (hvmloader)
-- [x] Setup virtual network with QEMU dev machine
-- [x] Install XCP-ng on QEMU dev machine
-- [x] Deploy well-known image with XL
-- [x] Deploy on XCP-ng native host to simplify virtual net
-- [x] Deploy on XCP-ng native host with OVMF
-- [x] Test varstored on xcp-ng with the new VM to see the behavior
-- [x] Create new varstored prototype program that registers an IOREQ server (port
-      address 0x100 to 0x103)
-- [x] Prints out received IO requests
-- [x] Map in IO page (commands from UEFI)
-- [x] Return GetVariable() requests from memory   
-- [x] Save SetVariable() requests in memory   
-- [x] Return GetVariable() requests from simple file-backed db   
-- [x] Save SetVariable() requests  to simple file-backed db  
-- [ ] Start with builtin vars
-- [ ] GetNextVariableName() 
-- [ ] Instead of simple file-backed db, implement using XAPI DB backend.
-- [ ] Implement varstore-get/set/ls and varstore-sb-state
-- [ ] Generate keys and binaries with efitools for guest
-- [ ] Load keys and binaries from efitools into guest OVMF
+[1] varstored-ng uses the `xenforeignmemory_map()` API to map in the
+    OVFM memory page that XenVariable uses.  XenVariable communicates
+    the location of this page to varstored-ng using port IO caught by
+    a IOREQ server initialized by varstored-ng.
