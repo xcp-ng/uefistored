@@ -1,8 +1,10 @@
 CFLAGS := -g -Wall
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc
 OBJ := mock/XenVariable.o ../src/xenvariable.o \
-       ../src/backends/filedb.o ../libs/kissdb/kissdb.o test_xenvariable.o  ../src/serializer.o \
+       ../src/backends/filedb.o ../libs/kissdb/kissdb.o ../src/serializer.o \
        ../src/common.o
+
+OBJ += src/test_xenvariable.o 
 
 .PHONY: all
 all: test test-nosan
@@ -14,10 +16,10 @@ all: test test-nosan
 		--log-file=valgrind-out.txt \
 		./test-nosan
 
-test: main.c $(OBJ)
+test: src/main.c $(OBJ)
 	gcc -o $@ $< $(INC) $(OBJ) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak
 
-test-nosan: main.c $(OBJ)
+test-nosan: src/main.c $(OBJ)
 	gcc -o $@ $< $(INC) $(OBJ) $(CFLAGS)
 
 %.o: %.c
