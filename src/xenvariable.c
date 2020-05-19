@@ -175,8 +175,6 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     DPRINTF("FROM OVMF: ");
     dprint_data(data, datalen);
     DEBUG("*************************\n");
-
-    free(test_data);
 }
 #else
 #define validate(...) do { } while ( 0 )
