@@ -130,7 +130,7 @@ int filedb_get(void *varname, size_t varname_len, void* dest, size_t dest_len, s
         return ret;
 
     /* Get the variable's attrs */
-    ret = KISSDB_get(&db_var_attrs, key, &attrs);
+    ret = KISSDB_get(&db_var_attrs, key, attrs);
     if ( ret != 0 )
         return ret;
 
