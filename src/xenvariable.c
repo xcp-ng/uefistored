@@ -35,6 +35,31 @@ static void dprint_attrs(uint32_t attr)
         DPRINTF("EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS,");
 }
 
+static void next_var_not_found(void *comm_buf)
+{
+    uint8_t *ptr;
+
+    DEBUG("GetNextVariableName(): next var not found\n");
+    ptr = comm_buf;
+    serialize_result(&ptr, EFI_NOT_FOUND);
+}
+
+static void device_error(void *comm_buf)
+{
+    uint8_t *ptr = comm_buf;
+
+    serialize_result(&ptr, EFI_DEVICE_ERROR);
+}
+
+static void buffer_too_small(void *comm_buf, size_t namesz)
+{
+    uint8_t *ptr = comm_buf;
+    WARNING("EFI_BUFFER_TOO_SMALL, requires bufsz: %lu\n", namesz);
+
+    serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
+    serialize_uintn(&ptr, (uint64_t)namesz);
+}
+
 static char strbuf[512];
 
 
@@ -102,25 +127,6 @@ static bool isnull(void *mem, size_t len)
             return false;
 
     return true;
-}
-
-static size_t set_u32(void *mem, uint32_t value)
-{
-    memcpy(mem, &value, sizeof(value));
-    return sizeof(value);
-}
-
-static size_t set_u64(void *mem, uint64_t value)
-{
-    memcpy(mem, &value, sizeof(value));
-    return sizeof(value);
-}
-
-static size_t set_data(void *mem, void *data, size_t datalen)
-{
-    memcpy(mem, data, datalen);
-
-    return datalen;
 }
 
 static void dprint_data(void *data, size_t datalen)
@@ -239,8 +245,7 @@ static void get_variable(void *comm_buf)
     if ( ret < 0 )
     {
         dprint_vname("cmd:GET_VARIABLE: %s, varstored error\n", variable_name, len);
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        device_error(comm_buf);
         return;
     }
 
@@ -249,10 +254,8 @@ static void get_variable(void *comm_buf)
     buflen = unserialize_uint64(&ptr);
     if ( buflen < datalen )
     {
-        dprint_vname("cmd:GET_VARIABLE: %s, buffer too small\n", variable_name, len);
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
-        serialize_uintn(&ptr, datalen);
+        DPRINTF("cmd:GET_VARIABLE\n");
+        buffer_too_small(comm_buf, datalen);
         return;
     }
 
@@ -265,10 +268,7 @@ static void get_variable(void *comm_buf)
     if ( datalen > MAX_BUF )
     {
         eprint_vname("BUG:cmd:GET_VARIABLE: %s, EFI_DEVICE_ERROR\n", variable_name, len);
-
-        /* Send back EFI_OUT_OF_RESOURCES */
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        device_error(comm_buf);
         return;
     }
 
@@ -330,7 +330,8 @@ static void set_variable(void *comm_buf)
     {
         ERROR("UEFI error: datalen == 0\n");
         print_set_var(variable_name, len, attrs);
-        set_u64(comm_buf, EFI_SECURITY_VIOLATION);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_SECURITY_VIOLATION);
         return;
     }
 
@@ -367,37 +368,15 @@ static void set_variable(void *comm_buf)
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
-        set_u64(comm_buf, EFI_OUT_OF_RESOURCES);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
         return;
     }
 
     validate(variable_name, len, dp, datalen, attrs);
-    set_u64(comm_buf, EFI_SUCCESS);
-}
 
-static void next_var_not_found(void *comm_buf)
-{
-    uint8_t *ptr;
-
-    DEBUG("GetNextVariableName(): next var not found\n");
     ptr = comm_buf;
-    serialize_result(&ptr, EFI_NOT_FOUND);
-}
-
-static void device_error(void *comm_buf)
-{
-    uint8_t *ptr = comm_buf;
-
-    serialize_result(&ptr, EFI_DEVICE_ERROR);
-}
-
-static void buffer_too_small(void *comm_buf, size_t namesz)
-{
-    uint8_t *ptr = comm_buf;
-    WARNING("EFI_BUFFER_TOO_SMALL, requires bufsz: %lu\n", namesz);
-
-    serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
-    serialize_uintn(&ptr, (uint64_t)namesz);
+    serialize_result(&ptr, EFI_SUCCESS);
 }
 
 /**
