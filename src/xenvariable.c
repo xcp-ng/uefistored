@@ -273,6 +273,14 @@ static void get_variable(void *comm_buf)
     dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
     dprint_data(data, datalen);
 
+    if ( !(attrs & EFI_VARIABLE_RUNTIME_ACCESS) )
+    {
+        dprint_vname("cmd:GET_VARIABLE: %s, no runtime access!\n", variable_name, len);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_NOT_FOUND);
+        return;
+    }
+
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_uint32(&ptr, attrs);
