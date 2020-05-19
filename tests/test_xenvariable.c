@@ -7,9 +7,12 @@
 #include "backends/filedb.h"
 #include "mock/XenVariable.h"
 #include "test_common.h"
+#include "UefiMultiPhase.h"
 #include "uefitypes.h"
 #include "serializer.h"
 #include "common.h"
+
+#define DEFAULT_ATTR (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS)
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;
@@ -29,6 +32,7 @@ static void post_test(void)
 
 #define DO_TEST(test)                                   \
     do  {                                               \
+        printf("\n++++++++  %s  ++++++++\n", #test);           \
         pre_test();                                     \
         test();                                         \
         post_test();                                    \
@@ -159,13 +163,13 @@ static void set_rtc_variable(void *buf)
 {
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
-    uint32_t attr = 0;
+    uint32_t attr = DEFAULT_ATTR;
     uint32_t indata = 0xdeadbeef;
 
     mock_xenvariable_set_buffer(buf);
 
     /* Perform SetVariable() and then GetVariable() */
-    XenSetVariable(rtcname, &guid, &attr, sizeof(indata), (void*)&indata);
+    XenSetVariable(rtcname, &guid, attr, sizeof(indata), (void*)&indata);
     xenvariable_handle_request(buf);
 }
 
@@ -173,13 +177,13 @@ static void set_mtc_variable(void *buf)
 {
     char16_t *mtcname = (char16_t*)mtcnamebytes;
     uint8_t guid[16] = {0};
-    uint32_t attr = 0;
+    uint32_t attr = DEFAULT_ATTR;
     uint32_t indata = 0xdeadbeef;
 
     mock_xenvariable_set_buffer(buf);
 
     /* Perform SetVariable() and then GetVariable() */
-    XenSetVariable(mtcname, &guid, &attr, sizeof(indata), (void*)&indata);
+    XenSetVariable(mtcname, &guid, attr, sizeof(indata), (void*)&indata);
     xenvariable_handle_request(buf);
 }
 
@@ -195,7 +199,7 @@ static void test_set_and_get(void)
     uint64_t status;
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
-    uint32_t attr = 0;
+    uint32_t attr = DEFAULT_ATTR;
     uint32_t indata = 0xdeadbeef;
     uint32_t outdata;
     size_t outsz = sizeof(outdata);
@@ -203,7 +207,7 @@ static void test_set_and_get(void)
     mock_xenvariable_set_buffer(comm_buf);
 
     /* Perform SetVariable() and then GetVariable() */
-    XenSetVariable(rtcname, &guid, &attr, sizeof(indata), (void*)&indata);
+    XenSetVariable(rtcname, &guid, attr, sizeof(indata), (void*)&indata);
     xenvariable_handle_request(comm_buf);
     XenGetVariable(rtcname, &guid, &attr, &outsz, (void*)&outdata);
     xenvariable_handle_request(comm_buf);
@@ -226,7 +230,7 @@ static void test_big_set(void)
 {
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
-    uint32_t attr = 0;
+    uint32_t attr = DEFAULT_ATTR;
     void *indata;
     void *tempbuf;
 
@@ -240,7 +244,7 @@ static void test_big_set(void)
     mock_xenvariable_set_buffer(tempbuf);
 
     /* Issue and process SetVariable() */
-    XenSetVariable(rtcname, &guid, &attr, insz, indata);
+    XenSetVariable(rtcname, &guid, attr, insz, indata);
     xenvariable_handle_request(tempbuf);
 
     /* Perform test assertion */
@@ -259,13 +263,13 @@ static void test_zero_set(void)
 {
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
-    uint32_t attr = 0;
+    uint32_t attr = DEFAULT_ATTR;
     size_t insz = 0;
     uint8_t indata; 
 
     mock_xenvariable_set_buffer(comm_buf);
 
-    XenSetVariable(rtcname, &guid, &attr, insz, &indata);
+    XenSetVariable(rtcname, &guid, attr, insz, &indata);
     xenvariable_handle_request(comm_buf);
 
     test(getstatus(comm_buf) == EFI_SECURITY_VIOLATION);
@@ -457,6 +461,32 @@ static void test_get_next_var_buf_too_small(void)
     test(newsz == 6);
 }
 
+static void test_runtime_access_attr(void)
+{
+    uint64_t status;
+    char16_t *rtcname = (char16_t*)rtcnamebytes;
+    uint8_t guid[16] = {0};
+    uint32_t attr = EFI_VARIABLE_NON_VOLATILE;
+    uint32_t indata = 0xdeadbeef;
+    uint32_t outdata;
+    size_t outsz = sizeof(outdata);
+
+    mock_xenvariable_set_buffer(comm_buf);
+
+    /* Perform SetVariable() and then GetVariable() */
+    XenSetVariable(rtcname, &guid, attr, sizeof(indata), (void*)&indata);
+    xenvariable_handle_request(comm_buf);
+    XenGetVariable(rtcname, &guid, &attr, &outsz, (void*)&outdata);
+    xenvariable_handle_request(comm_buf);
+
+    /*
+     * Assert that status is EFI_SUCCESS, and that saved and retreived
+     * variables are equal
+     */
+    status = deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
+    test(status == EFI_NOT_FOUND);
+}
+
 void test_xenvariable(void)
 {
     DO_TEST(test_nonexistent_variable_returns_not_found);
@@ -467,4 +497,5 @@ void test_xenvariable(void)
     DO_TEST(test_success_get_next_var_one);
     DO_TEST(test_success_get_next_var_two);
     DO_TEST(test_get_next_var_buf_too_small);
+    DO_TEST(test_runtime_access_attr);
 }
