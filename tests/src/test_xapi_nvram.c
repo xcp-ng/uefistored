@@ -38,7 +38,6 @@ static size_t blocksz;
 
 serializable_var_t vars[2];
 
-
 void test_xapi_nvram_serialize(void)
 {
     size_t size;
@@ -47,7 +46,6 @@ void test_xapi_nvram_serialize(void)
 
     test(size == blocksz);
 }
-
 
 void test_xapi_nvram(void)
 {
