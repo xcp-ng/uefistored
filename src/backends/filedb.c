@@ -208,7 +208,7 @@ static KISSDB_Iterator key_dbi;
  * @cache: The cache to search
  * @current: The variable to match against.
  */
-static variable_t *find_cache_next_entry(variable_t cache[FILEDB_DB_SIZE], variable_t *current)
+static variable_t *find_next_cache_entry(variable_t cache[FILEDB_DB_SIZE], variable_t *current)
 {
     int i;
 
@@ -315,7 +315,7 @@ int filedb_variable_next(variable_t *current, variable_t *next)
         return 1;
     }
 
-    p = find_cache_next_entry(cache, current);
+    p = find_next_cache_entry(cache, current);
 
     /* If not found, we've reached the end */
     if ( !p )
