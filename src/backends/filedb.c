@@ -309,7 +309,7 @@ int filedb_variable_next(variable_t *current, variable_t *next)
     if ( variable_is_empty(current) )
     {
         if ( variable_is_empty(&cache[0]) )
-            goto end_iteration;
+            goto stop_iterator;
 
         memcpy(next, &cache[0], sizeof(*next));
         return 1;
@@ -319,12 +319,12 @@ int filedb_variable_next(variable_t *current, variable_t *next)
 
     /* If not found, we've reached the end */
     if ( !p )
-        goto end_iteration;
+        goto stop_iterator;
 
     memcpy(next, p, sizeof(*p));
     return 1;
 
-end_iteration:
+stop_iterator:
     in_progress = false;
     memset(cache, 0, sizeof(cache));
     cache_len = 0;
