@@ -200,72 +200,6 @@ int filedb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t att
 
 static KISSDB_Iterator key_dbi;
 
-void filedb_name_iter_init(void)
-{
-    KISSDB_Iterator_init(&db, &key_dbi);
-    iter_initialized = true;
-}
-
-int filedb_name_iter_next(filedb_name_iter_t *p)
-{
-
-    int ret;
-    char valdummy[FILEDB_VAL_SIZE];
-
-    if ( !p )
-    {
-        ERROR("Invalid null ptr iterator\n");
-        return -1;
-    }
-
-    ret = KISSDB_Iterator_next(&key_dbi, &p->name, valdummy);
-    if ( ret == 0 )
-    {
-        /* No more entries */
-        memset(p, 0, sizeof(*p));
-        return ret;
-    }
-    else if ( ret < 0 )
-    {
-        ERROR("KISSDB iterator failed\n");
-        return ret;
-    }
-
-    return ret;
-}
-
-void filedb_name_iter_deinit(void)
-{
-    int ret;
-    char valdummy[FILEDB_VAL_SIZE];
-    char keydummy[FILEDB_KEY_SIZE];
-
-    /* Run the iterator to the end or until an error */
-    ret = KISSDB_Iterator_next(&key_dbi, NULL, NULL);
-    while ( ret > 0 )
-        ret = KISSDB_Iterator_next(&key_dbi, keydummy, valdummy);
-
-    memset(&key_dbi, 0, sizeof(key_dbi));
-    iter_initialized = false;
-}
-
-
-bool filedb_name_iter_initialized(void)
-{
-    return iter_initialized;
-}
-
-static bool variable_is_empty(variable_t *v1)
-{
-    if ( !v1 )
-    {
-        ERROR("%s: null ptr, reporting it as empty...\n", __func__);
-        return true;
-    }
-
-    return v1->name[0] == 0 && v1->name[1] == 0;
-}
-
 /**
  * Returns the cache entry that matches current.
  *
@@ -396,3 +330,5 @@ end_iteration:
     cache_len = 0;
     return  0;
 }
+
+int filedb_
