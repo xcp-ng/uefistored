@@ -7,6 +7,15 @@ extern int passcount;
 extern int failcount;
 extern int all_passed;
 
+#define DO_TEST(test)                                   \
+    do  {                                               \
+        printf("\n++++++++  %s  ++++++++\n", #test);           \
+        pre_test();                                     \
+        test();                                         \
+        post_test();                                    \
+    }  while ( 0 )
+
+
 #define test(assertion)                                                 \
     do {                                                                \
         printf("%s:%s:%d: %s: %s\n", __FILE__, __func__, __LINE__, #assertion, (assertion) ? "pass" : "fail");   \

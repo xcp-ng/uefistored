@@ -1,6 +1,6 @@
 CFLAGS := -g -Wall
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc
-OBJ := mock/XenVariable.o ../src/xenvariable.o \
+OBJ := mock/XenVariable.o ../src/xenvariable.o ../src/xapi_nvram.o \
        ../src/backends/filedb.o ../libs/kissdb/kissdb.o ../src/serializer.o \
        ../src/common.o
 

@@ -30,14 +30,6 @@ static void post_test(void)
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
-#define DO_TEST(test)                                   \
-    do  {                                               \
-        printf("\n++++++++  %s  ++++++++\n", #test);           \
-        pre_test();                                     \
-        test();                                         \
-        post_test();                                    \
-    }  while ( 0 )
-
 /* Test Data */
 char rtcnamebytes[] = {
     0, 'R',

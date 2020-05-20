@@ -14,6 +14,20 @@ typedef struct {
     size_t namesz;
 } variable_t;
 
+typedef struct {
+    /* The name of the variable */
+    uint8_t *variable;
+
+    /* The length of the variable name */
+    size_t variable_len;
+
+    /* The value of the variable */
+    uint8_t *data;
+
+    /* The length of the value of the variable */
+    size_t data_len;
+} serializable_var_t;
+
 void dprint_variable(variable_t *var);
 
 #define USE_STREAM 1
