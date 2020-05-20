@@ -38,13 +38,58 @@ static size_t blocksz;
 
 serializable_var_t vars[2];
 
-void test_xapi_nvram_serialize(void)
+static void test_xapi_nvram_serialize_size(void)
 {
     size_t size;
 
     size = xapi_nvram_serialized_size((serializable_var_t*)vars, 2);
 
     test(size == blocksz);
+}
+
+static void test_xapi_nvram_serialize(void)
+{
+    uint8_t *p;
+    void *data;
+    size_t size, tmp;
+
+    size = xapi_nvram_serialized_size((serializable_var_t*)vars, 2);
+    data = malloc(size);
+    xapi_nvram_serialize((serializable_var_t*)vars, 2, data, size);
+
+    p = data;
+
+    /* Test Variable 1 was serialized correctly */
+    memcpy(&tmp, p, sizeof(tmp));
+    test(tmp == v1_len);
+    p += sizeof(tmp);
+
+    test(memcmp(p, v1, tmp) == 0);
+    p += tmp;
+
+    memcpy(&tmp, p, sizeof(tmp));
+    test(tmp == d1_len);
+    p += sizeof(tmp);
+
+    test(memcmp(p, d1, tmp) == 0);
+    p += tmp;
+
+    /* Test Variable 2 was serialized correctly */
+    memcpy(&tmp, p, sizeof(tmp));
+    test(tmp == v2_len);
+    p += sizeof(tmp);
+
+    test(memcmp(p, v2, tmp) == 0);
+    p += tmp;
+
+    memcpy(&tmp, p, sizeof(tmp));
+    test(tmp == d2_len);
+    p += sizeof(tmp);
+
+    test(memcmp(p, d2, tmp) == 0);
+    p += tmp;
+
+    free(data);
 }
 
 void test_xapi_nvram(void)
@@ -69,5 +114,6 @@ void test_xapi_nvram(void)
     vars[1].data = (uint8_t*)d2;
     vars[1].data_len = d2_len;
 
+    DO_TEST(test_xapi_nvram_serialize_size);
     DO_TEST(test_xapi_nvram_serialize);
 }
