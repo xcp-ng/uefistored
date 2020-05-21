@@ -4,14 +4,19 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <uchar.h>
 
+#define MAX_VAR_COUNT 1024
 #define MAX_VARNAME_SZ 128 
+#define MAX_VARDATA_SZ 1024
 
 typedef struct {
     uint8_t name[MAX_VARNAME_SZ];
     size_t namesz;
+    uint8_t data[MAX_VARDATA_SZ];
+    size_t datasz;
 } variable_t;
 
 typedef struct {
@@ -104,4 +109,6 @@ void set_logfd(int logfd);
 
 void uc2_ascii_safe(void *uc2, size_t uc2_len, char *ascii, size_t len);
 void uc2_ascii(void *uc2, char *ascii, size_t len);
+bool variable_is_empty(variable_t *);
+
 #endif

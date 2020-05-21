@@ -20,7 +20,7 @@
 
 #define ENTRY_LEN 1024
 #define FILEDB_KEY_SIZE (MAX_VARNAME_SZ)
-#define FILEDB_VAL_SIZE 1024
+#define FILEDB_VAL_SIZE (MAX_VARDATA_SZ)
 #define FILEDB_VAR_ATTRS_VAL_SIZE (sizeof(uint32_t))
 
 int filedb_init(char *dbpath,

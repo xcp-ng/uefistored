@@ -10,8 +10,6 @@
 #include "common.h"
 #include "kissdb/kissdb.h"
 
-#define FILEDB_DB_SIZE 1024
-
 #define DEFAULT_DBPATH "/var/run/xen/varstored-db.dat"
 #define DEFAULT_DBPATH_VAR_LEN "/var/run/xen/varstored-db-var-len.dat"
 #define DEFAULT_DBPATH_VAR_ATTRS "/var/run/xen/varstored-db-var-attrs.dat"
@@ -24,7 +22,8 @@ static KISSDB db;
 static KISSDB db_var_len;
 static KISSDB db_var_attrs;
 
-#define CACHE_SIZE (FILEDB_DB_SIZE)
+#define CACHE_SIZE (MAX_VAR_COUNT)
+
 static variable_t cache[CACHE_SIZE];
 static int cache_len;
 
@@ -46,7 +45,7 @@ int filedb_init(char *dbpath,
     INFO("VARLEN DB: %s\n", _varlenpath);
     INFO("ATTRS DB: %s\n", _attrspath);
 
-    ret = KISSDB_open(&db, _dbpath, KISSDB_OPEN_MODE_RWCREAT, FILEDB_DB_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
+    ret = KISSDB_open(&db, _dbpath, KISSDB_OPEN_MODE_RWCREAT, CACHE_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
     if ( ret != 0 )
     {
         DEBUG("KISSDB_open(): err=%d\n", ret);
@@ -208,7 +207,7 @@ static KISSDB_Iterator key_dbi;
  * @cache: The cache to search
  * @current: The variable to match against.
  */
-static variable_t *find_next_cache_entry(variable_t cache[FILEDB_DB_SIZE], variable_t *current)
+static variable_t *find_next_cache_entry(variable_t cache[CACHE_SIZE], variable_t *current)
 {
     int i;
 
@@ -251,6 +250,7 @@ static variable_t *find_next_cache_entry(variable_t cache[FILEDB_DB_SIZE], varia
 static void __populate_cache(void)
 {
     variable_t *p;
+    size_t tmp;
     static KISSDB_Iterator dbi;
     int ret;
     char valdummy[FILEDB_VAL_SIZE];
@@ -262,17 +262,29 @@ static void __populate_cache(void)
     DEBUG("%s\n", __func__);
     /* Run the iterator to the end or until an error */
     p = cache;
-    while ( KISSDB_Iterator_next(&dbi, &p->name, valdummy) > 0 )
+    while ( KISSDB_Iterator_next(&dbi, &p->name, &p->data) > 0 )
     {
         p->namesz = strsize16((char16_t*)&p->name);
-        DEBUG("p->namesz=%lu\n", p->namesz);
+
+        /* Get the variable's value's length */
+        ret = KISSDB_get(&db_var_len, &p->name, &tmp);
+        if ( ret != 0 )
+            return ret;
+
+        p->datasz = tmp;
         cache_len++;
-        dprint_variable(p);
         p++;
     }
-    DEBUG("cache_len=%d\n", cache_len);
 }
 
+/**
+ * Get the next variable in the DB
+ *
+ * @current: the current variable (provided by the caller)
+ * @next: the next variable (loaded by this function)
+ *
+ * Returns -1 on error, 0 on end of list, 1 on success
+ */
 int filedb_variable_next(variable_t *current, variable_t *next)
 {
     variable_t *p;
@@ -331,4 +343,3 @@ stop_iterator:
     return  0;
 }
 
-int filedb_

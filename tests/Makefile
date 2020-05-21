@@ -1,4 +1,4 @@
-CFLAGS := -g -Wall
+CFLAGS := -g -Wall -lssl -lcrypto
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc
 OBJ := mock/XenVariable.o ../src/xenvariable.o ../src/xapi_nvram.o \
        ../src/backends/filedb.o ../libs/kissdb/kissdb.o ../src/serializer.o \

@@ -1,6 +1,19 @@
 #include <stdint.h>
 #include "common.h"
 
+bool variable_is_empty(variable_t *v1)
+{
+    if ( !v1 )
+    {
+        ERROR("%s: null ptr, reporting it as empty...\n", __func__);
+       return true;
+    }
+
+    /* tWO ZERO BYTES IS END OF STRING IN ucs-2 /CHAR16 */
+    return v1->name[0] == 0 && v1->name[1] == 0;
+}
+
+
 int _logfd = -1;
 
 void set_logfd(int logfd)

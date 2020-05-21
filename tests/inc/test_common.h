@@ -1,6 +1,7 @@
 #ifndef __H_COMMON_
 #define __H_COMMON_
 
+#include "UefiMultiPhase.h"
 #include <stdio.h>
 
 extern int passcount;
@@ -15,7 +16,6 @@ extern int all_passed;
         post_test();                                    \
     }  while ( 0 )
 
-
 #define test(assertion)                                                 \
     do {                                                                \
         printf("%s:%s:%d: %s: %s\n", __FILE__, __func__, __LINE__, #assertion, (assertion) ? "pass" : "fail");   \
@@ -25,5 +25,6 @@ extern int all_passed;
             passcount++;                                                \
     } while ( 0 )
 
+#define DEFAULT_ATTR (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS)
 
 #endif //  __H_COMMON_
