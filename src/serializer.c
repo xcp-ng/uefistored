@@ -11,6 +11,7 @@
 void serialize_name(uint8_t **ptr, char16_t *VariableName)
 {
     uint64_t VarNameSize = strsize16(VariableName);
+    printf("VarNameSize: %lu\n", VarNameSize);
     memcpy (*ptr, &VarNameSize, sizeof VarNameSize);
     *ptr += sizeof VarNameSize;
     memcpy (*ptr, VariableName, VarNameSize);

@@ -112,9 +112,9 @@ void test_xapi_nvram_set_efi_vars(void)
 
 void test_xapi_nvram(void)
 {
-    v1_len = strlen16((char16_t*)v1) * 2;
+    v1_len = strsize16((char16_t*)v1) + 2;
     d1_len = strlen(D1);
-    v2_len = strlen16((char16_t*)v2) * 2; 
+    v2_len = strsize16((char16_t*)v2) + 2; 
     d2_len = strlen(D2);
 
     blocksz = v1_len + sizeof(v1_len) +
@@ -123,12 +123,14 @@ void test_xapi_nvram(void)
               d2_len + sizeof(d2_len);
 
     vars[0].variable = malloc(v1_len); 
+    memset(vars[0].variable, 0, v1_len);
     memcpy(vars[0].variable, v1, v1_len);
     vars[0].variable_len = v1_len;
     vars[0].data = (uint8_t*)D1;
     vars[0].data_len = d1_len;
 
     vars[1].variable = malloc(v2_len); 
+    memset(vars[1].variable, 0, v2_len);
     memcpy(vars[1].variable, v2, v2_len);
     vars[1].variable_len = v2_len;
     vars[1].data = (uint8_t*)D2;
@@ -137,4 +139,7 @@ void test_xapi_nvram(void)
     DO_TEST(test_xapi_nvram_serialize_size);
     DO_TEST(test_xapi_nvram_serialize);
     DO_TEST(test_xapi_nvram_set_efi_vars);
+
+    free(vars[0].variable); 
+    free(vars[1].variable); 
 }

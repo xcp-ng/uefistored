@@ -8,13 +8,13 @@ OBJ += src/test_xenvariable.o src/test_xapi_nvram.o
 
 .PHONY: all
 all: test test-nosan
-	./$<
 	valgrind --leak-check=full \
 		--show-leak-kinds=all \
 		--track-origins=yes \
 		--verbose \
 		--log-file=valgrind-out.txt \
 		./test-nosan
+	./$<
 
 test: src/main.c $(OBJ)
 	gcc -o $@ $< $(INC) $(OBJ) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak

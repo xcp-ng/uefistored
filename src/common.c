@@ -24,10 +24,27 @@ void set_logfd(int logfd)
 uint64_t strlen16(char16_t *str)
 {
     uint64_t len = 0;
-    char16_t *p = str;
+    uint8_t *p1;
+    uint8_t *p2;
 
-    while ( *p++ != L'\0' )
+    if ( !str )
+        return 0;
+
+    p1 = (uint8_t*)str;
+    p2 = p1 + 1;
+
+    while ( true )
+    {
+        if ( !p1 || !p2 )
+            break;
+
+        if ( !(*p1 || *p2) )
+            break;
+
+        p1 += 2;
+        p2 += 2;
         len++;
+    }
 
     return len;
 }
