@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
@@ -249,10 +251,10 @@ end:
     return base64;
 }
 
-int xapi_nvram_set_efi_vars(void)
+static char *build_set_efi_vars_message(void)
 {
     int ret;
-    char *message, *p;
+    char *message = NULL;
     char *base64;
     char *body;
     char hdr[sizeof(HTTP_HEADER) + MAX_CONTENT_LENGTH_DIGITS];
@@ -270,7 +272,7 @@ int xapi_nvram_set_efi_vars(void)
     if ( !body )
     {
         free(base64);
-        return ret;
+        return NULL;
     }
 
     ret = snprintf(body, body_len, HTTP_BODY_SET_NVRAM_VARS, base64);
@@ -295,13 +297,45 @@ int xapi_nvram_set_efi_vars(void)
     strncpy(message + hdr_len, body, body_len);
     message[body_len + hdr_len] = '\0';
 
-    printf("message:\n%s\n", (char*) message);
-
-    free(message);
-
 end:
     free(body);
     free(base64);
+
+    return message;
+}
+
+static int send_set_efi_vars_message(char *message)
+{
+    int ret, fd;
+
+    strncpy(0x7ffcea0c4a72, "/xapi-depriv-socket", 107) = 0x7ffcea0c4a72
+    fd = socket(1, 1, 0);
+    
+    if ( fd < 0 )
+        return fd;
+
+    ret = connect(9, 0x7ffcea0c4a70, 110, 0x7fb1b1804d27);
+
+    if ( ret < 0 )
+    {
+        close(fd);
+        return ret;
+    }
+}
+
+int xapi_nvram_set_efi_vars(void)
+{
+    int ret;
+    char *message;
+
+    message = build_set_efi_vars_message();
+
+    if ( !message )
+        return -1;
+
+    ret = send_set_efi_vars_message(message);
+
+    free(message);
 
     return ret;
 }
