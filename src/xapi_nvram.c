@@ -63,7 +63,7 @@ char *blob_to_base64(char *buffer, size_t length)
         goto cleanup;
 
     memcpy(b64text, bufferPtr->data, bufferPtr->length);
-    b64text[bufferPtr->length] = '\0';
+    b64text[bufferPtr->length - 1] = '\0';
     BIO_set_close(bio, BIO_NOCLOSE);
 
 cleanup:
@@ -249,21 +249,21 @@ end:
 int xapi_nvram_set_efi_vars(void)
 {
     int ret;
+    char *message, *p;
     char *base64;
     char *body;
-    size_t base64_size, body_len;
+    char hdr[sizeof(HTTP_HEADER) + 16]; // accounts for a 16 digit content-size
+    size_t base64_size, body_len, hdr_len;
 
     base64 = variables_base64();
     if ( !base64 )
         return -1;
 
     base64_size = strlen(base64);
+    body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) + base64_size - 1;
 
-    printf("base64_size=%lu\n", base64_size);
-    printf("sz1=%lu\n", sizeof(HTTP_BODY_SET_NVRAM_VARS));
-
-    body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) - 1;
     body = malloc(body_len);
+
     if ( !body )
     {
         free(base64);
@@ -275,11 +275,26 @@ int xapi_nvram_set_efi_vars(void)
     if ( ret < 0 )
         goto end;
 
-    if ( ret !=  body_len)
-    {
-        ret = -1;
+    body_len = ret;
+
+    ret = snprintf(hdr, sizeof(hdr), HTTP_HEADER, body_len);
+
+    if ( ret < 0 )
         goto end;
-    }
+
+    hdr_len = ret;
+
+    message = malloc(body_len + hdr_len + 1); 
+    if ( !message )
+        goto end;
+
+    strncpy(message, hdr, hdr_len);
+    strncpy(message + hdr_len, body, body_len);
+    message[body_len + hdr_len] = '\0';
+
+    printf("message:\n%s\n", (char*) message);
+
+    free(message);
 
 end:
     free(body);
