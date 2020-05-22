@@ -9,7 +9,7 @@ LIB_DEPS :=	\
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 OBJS := src/backends/filedb.o src/common.o src/xenvariable.o libs/kissdb/kissdb.o src/serializer.o src/xapi_nvram.o
 INC := -Iinc/ -Ilibs/
-CFLAGS := -g -Wall
+CFLAGS := -g -Wall -lssl -lcrypto
 
 all: varstored
 
