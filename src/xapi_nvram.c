@@ -250,7 +250,7 @@ int xapi_nvram_set_efi_vars(void)
 {
     int ret;
     char *base64;
-    char body[4096] = { 0 };
+    char *body;
     size_t base64_size, body_len;
 
     base64 = variables_base64();
@@ -263,16 +263,14 @@ int xapi_nvram_set_efi_vars(void)
     printf("sz1=%lu\n", sizeof(HTTP_BODY_SET_NVRAM_VARS));
 
     body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) - 1;
-/*
-    body = malloc(body_len + 1);
+    body = malloc(body_len);
     if ( !body )
     {
         free(base64);
         return ret;
     }
-*/
 
-    ret = snprintf(body, 4096, HTTP_BODY_SET_NVRAM_VARS, base64);
+    ret = snprintf(body, body_len, HTTP_BODY_SET_NVRAM_VARS, base64);
 
     if ( ret < 0 )
         goto end;
@@ -284,7 +282,7 @@ int xapi_nvram_set_efi_vars(void)
     }
 
 end:
-//    free(body);
+    free(body);
     free(base64);
 
     return ret;
