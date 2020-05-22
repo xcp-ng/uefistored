@@ -9,6 +9,9 @@
 
 #include "xapi_nvram.h"
 
+/* The maximum number of digits in the Content-Length HTTP field */
+#define MAX_CONTENT_LENGTH_DIGITS 16
+
 #define HTTP_HEADER 							            \
     "POST / HTTP/1.1\r\n"                                                   \
     "Host: _var_lib_xcp_xapi\r\n"                                           \
@@ -252,7 +255,7 @@ int xapi_nvram_set_efi_vars(void)
     char *message, *p;
     char *base64;
     char *body;
-    char hdr[sizeof(HTTP_HEADER) + 16]; // accounts for a 16 digit content-size
+    char hdr[sizeof(HTTP_HEADER) + MAX_CONTENT_LENGTH_DIGITS];
     size_t base64_size, body_len, hdr_len;
 
     base64 = variables_base64();
