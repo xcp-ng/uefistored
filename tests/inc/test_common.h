@@ -18,11 +18,16 @@ extern int all_passed;
 
 #define test(assertion)                                                 \
     do {                                                                \
-        printf("%s:%s:%d: %s: %s\n", __FILE__, __func__, __LINE__, #assertion, (assertion) ? "pass" : "fail");   \
         if ( !(assertion) )                                             \
+        {                                                               \
+            printf("%s:%s:%d: %s: %s\n", __FILE__, __func__, __LINE__, #assertion, "fail");   \
             failcount++;                                                \
+        }                                                               \
         else                                                            \
+        {                                                               \
+            printf("%s:%s:%d: %s: %s\n", __FILE__, __func__, __LINE__, #assertion, "pass");   \
             passcount++;                                                \
+        }                                                               \
     } while ( 0 )
 
 #define DEFAULT_ATTR (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS)
