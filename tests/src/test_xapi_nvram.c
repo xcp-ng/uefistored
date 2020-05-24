@@ -1,5 +1,10 @@
 #include <string.h>
 
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "test_common.h"
 #include "test_xapi_nvram.h"
 #include "backends/filedb.h"
@@ -93,7 +98,10 @@ static void test_xapi_nvram_serialize(void)
 
 void test_xapi_nvram_set_efi_vars(void)
 {
+    char readbuf[4096] = {0};
+    int fd, ret;
     serializable_var_t *var;
+    struct sockaddr_un saddr;
     uint8_t guid[16] = {0};
     uint32_t attr = DEFAULT_ATTR;
 
@@ -108,6 +116,14 @@ void test_xapi_nvram_set_efi_vars(void)
     xenvariable_handle_request(comm_buf);
 
     xapi_nvram_set_efi_vars();
+
+    fd = open("./random_socket_mock", O_RDWR | O_EXCL, S_IRWXU);
+    
+    test(fd > 0);
+    test(read(fd, readbuf, 4096) >= 0);
+    test(strstr(readbuf, "BAAAAAAAAABCAEMABgAAAAAAAABXT1JMRCEEAAAAAAAAAFkAWgADAAAAAAAAAGJh") != NULL);
+
+    remove("./random_socket_mock");
 }
 
 void test_xapi_nvram(void)
