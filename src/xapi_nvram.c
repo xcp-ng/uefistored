@@ -1,6 +1,8 @@
 #include <stdio.h>
-#include <sys/types.h>
+#include <unistd.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
@@ -68,7 +70,7 @@ char *blob_to_base64(char *buffer, size_t length)
         goto cleanup;
 
     memcpy(b64text, bufferPtr->data, bufferPtr->length);
-    b64text[bufferPtr->length - 1] = '\0';
+    b64text[bufferPtr->length] = '\0';
     BIO_set_close(bio, BIO_NOCLOSE);
 
 cleanup:
@@ -128,7 +130,6 @@ int xapi_nvram_serialize(serializable_var_t *vars, size_t len, void *data, size_
 static size_t blob_size(size_t *outsize)
 {
     int ret;
-    uint8_t *buf, *p;
     size_t cnt = 0;
     size_t len = 0;
     variable_t variables[MAX_VAR_COUNT] = {0};
@@ -226,7 +227,7 @@ static char *variables_base64(void)
 {
     int rc;
     char *base64 = NULL;
-    char *blob;
+    uint8_t *blob;
     size_t size;
 
 
@@ -262,7 +263,7 @@ static char *build_set_efi_vars_message(void)
 
     base64 = variables_base64();
     if ( !base64 )
-        return -1;
+        return NULL;
 
     base64_size = strlen(base64);
     body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) + base64_size - 1;
@@ -307,20 +308,24 @@ end:
 static int send_set_efi_vars_message(char *message)
 {
     int ret, fd;
+    struct sockaddr_un saddr;
 
-    strncpy(0x7ffcea0c4a72, "/xapi-depriv-socket", 107) = 0x7ffcea0c4a72
-    fd = socket(1, 1, 0);
+    saddr.sun_family = AF_UNIX;
+    strncpy(saddr.sun_path, "/xapi-depriv-socket", sizeof(saddr.sun_path));
+
+    fd = socket(AF_LOCAL, SOCK_STREAM, 0);
     
     if ( fd < 0 )
         return fd;
 
-    ret = connect(9, 0x7ffcea0c4a70, 110, 0x7fb1b1804d27);
-
+    ret = connect(fd, &saddr, sizeof(saddr));
     if ( ret < 0 )
-    {
-        close(fd);
         return ret;
-    }
+
+    ret = write(fd, message, strlen(message));
+
+    close(fd);
+    return ret;
 }
 
 int xapi_nvram_set_efi_vars(void)
