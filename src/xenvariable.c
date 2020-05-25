@@ -305,6 +305,8 @@ static void set_variable(void *comm_buf)
     void *dp = data;
     uint32_t attrs, command, version;
 
+    DEBUG("cmd: SET_VARIABLE\n");
+
     ptr = comm_buf;
     version = unserialize_uint32(&ptr);
 
@@ -407,6 +409,8 @@ static void get_next_variable(void *comm_buf)
 
     version = unserialize_uint32(&ptr);
 
+    TRACE();
+
     if ( version != 1 )
         WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
 
@@ -460,6 +464,7 @@ static void get_next_variable(void *comm_buf)
 void xenvariable_handle_request(void *comm_buf)
 {
     uint8_t *ptr;
+    uint32_t version, command;
 
     if ( !comm_buf )
     {
@@ -468,11 +473,14 @@ void xenvariable_handle_request(void *comm_buf)
     }
 
     ptr = comm_buf;
-
     /* advance the pointer passed the version field */
-    unserialize_uint32(&ptr);
+    version = unserialize_uint32(&ptr);
+    DEBUG("version: %u\n", version);
 
-    switch ( unserialize_uint32(&ptr) )
+    command = unserialize_uint32(&ptr);
+    DEBUG("command: 0x%x\n", command);
+
+    switch ( command )
     {
         case COMMAND_GET_VARIABLE:
             get_variable(comm_buf);
