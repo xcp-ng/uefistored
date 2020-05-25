@@ -183,6 +183,10 @@ void handle_ioreq(struct ioreq *ioreq)
         /* Free up mappable space */
         xenforeignmemory_unmap(_fmem, p, 16);
     }
+    else
+    {
+        ERROR("failed to map guest memory!\n");
+    }
 }
 
 void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
