@@ -51,10 +51,10 @@ static void device_error(void *comm_buf)
     serialize_result(&ptr, EFI_DEVICE_ERROR);
 }
 
-static void buffer_too_small(void *comm_buf, size_t namesz)
+static void buffer_too_small(void *comm_buf, size_t bufsz, size_t namesz)
 {
     uint8_t *ptr = comm_buf;
-    WARNING("EFI_BUFFER_TOO_SMALL, requires bufsz: %lu\n", namesz);
+    WARNING("EFI_BUFFER_TOO_SMALL, given bufsz: %lu, requires bufsz: %lu\n", bufsz, namesz);
 
     serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
     serialize_uintn(&ptr, (uint64_t)namesz);
@@ -183,7 +183,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
 static void get_variable(void *comm_buf)
 {
     int ret;
-    size_t len, datalen;
+    size_t len, namesz;
     EFI_GUID guid;
     uint32_t attrs, version;
     uint64_t buflen;
@@ -231,7 +231,7 @@ static void get_variable(void *comm_buf)
         return;
     }
 
-    ret = filedb_get(variable_name, len, data, MAX_DATA_SZ, &datalen, &attrs);
+    ret = filedb_get(variable_name, len, data, MAX_DATA_SZ, &namesz, &attrs);
     if ( ret == 1 )
     {
         dprint_vname("cmd:GET_VARIABLE: %s, not in DB\n", variable_name, len);
@@ -250,10 +250,10 @@ static void get_variable(void *comm_buf)
     unserialize_guid(&ptr, &guid);
 
     buflen = unserialize_uint64(&ptr);
-    if ( buflen < datalen )
+    if ( buflen < namesz )
     {
         DPRINTF("cmd:GET_VARIABLE\n");
-        buffer_too_small(comm_buf, datalen);
+        buffer_too_small(comm_buf, buflen, namesz);
         return;
     }
 
@@ -263,7 +263,7 @@ static void get_variable(void *comm_buf)
      * that is actually larger than the shared memory between
      * varstored and OVMF XenVariable.  SetVariable() should prevent this!
      */
-    if ( datalen > MAX_BUF )
+    if ( namesz > MAX_BUF )
     {
         eprint_vname("BUG:cmd:GET_VARIABLE: %s, EFI_DEVICE_ERROR\n", variable_name, len);
         device_error(comm_buf);
@@ -271,7 +271,7 @@ static void get_variable(void *comm_buf)
     }
 
     dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
-    dprint_data(data, datalen);
+    dprint_data(data, namesz);
 
     if ( !(attrs & EFI_VARIABLE_RUNTIME_ACCESS) )
     {
@@ -284,7 +284,7 @@ static void get_variable(void *comm_buf)
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_uint32(&ptr, attrs);
-    serialize_data(&ptr, data, datalen);
+    serialize_data(&ptr, data, namesz);
 }
 
 static void print_set_var(char *variable_name, size_t len, uint32_t attrs)
@@ -444,7 +444,7 @@ static void get_next_variable(void *comm_buf)
     {
         WARNING("GetNextVariableName(), %s, buffer too small: namesz: %lu, guest_bufsz: %lu\n",
                 next.name, next.namesz, guest_bufsz);
-        buffer_too_small(comm_buf, next.namesz);
+        buffer_too_small(comm_buf, guest_bufsz, next.namesz);
         return;
     }
 
