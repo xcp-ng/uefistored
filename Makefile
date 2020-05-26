@@ -7,7 +7,7 @@ LIB_DEPS :=	\
 	xentoolcore
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-OBJS := src/backends/filedb.o src/common.o src/xenvariable.o libs/kissdb/kissdb.o src/serializer.o src/xapi_nvram.o
+OBJS := src/backends/filedb.o src/common.o src/xenvariable.o libs/kissdb/kissdb.o src/serializer.o src/xapi.o
 INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall -lssl -lcrypto
 

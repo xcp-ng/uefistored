@@ -11,7 +11,7 @@
 #include <openssl/err.h>
 #include <openssl/engine.h>
 
-#include "xapi_nvram.h"
+#include "xapi.h"
 #include "backends/filedb.h"
 
 extern char root_path[PATH_MAX];
@@ -84,7 +84,7 @@ cleanup:
     return b64text;
 }
 
-size_t xapi_nvram_serialized_size(serializable_var_t *vars, size_t len)
+size_t xapi_serialized_size(serializable_var_t *vars, size_t len)
 {
     size_t size = 0;
     size_t i;
@@ -96,7 +96,7 @@ size_t xapi_nvram_serialized_size(serializable_var_t *vars, size_t len)
     return size;
 }
 
-int xapi_nvram_serialize(serializable_var_t *vars, size_t len, void *data, size_t size)
+int xapi_serialize(serializable_var_t *vars, size_t len, void *data, size_t size)
 {
     serializable_var_t *var;
     size_t current_size = 0;
@@ -345,7 +345,7 @@ static int send_set_efi_vars_message(char *message)
     return ret;
 }
 
-int xapi_nvram_set_efi_vars(void)
+int xapi_set_efi_vars(void)
 {
     int ret;
     char *message;

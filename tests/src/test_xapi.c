@@ -6,9 +6,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "test_common.h"
-#include "test_xapi_nvram.h"
+#include "test_xapi.h"
 #include "backends/filedb.h"
-#include "xapi_nvram.h"
+#include "xapi.h"
 #include "common.h"
 
 
@@ -44,24 +44,24 @@ static size_t blocksz;
 
 serializable_var_t vars[2];
 
-static void test_xapi_nvram_serialize_size(void)
+static void test_xapi_serialize_size(void)
 {
     size_t size;
 
-    size = xapi_nvram_serialized_size((serializable_var_t*)vars, 2);
+    size = xapi_serialized_size((serializable_var_t*)vars, 2);
 
     test(size == blocksz);
 }
 
-static void test_xapi_nvram_serialize(void)
+static void test_xapi_serialize(void)
 {
     uint8_t *p;
     void *data;
     size_t size, tmp;
 
-    size = xapi_nvram_serialized_size((serializable_var_t*)vars, 2);
+    size = xapi_serialized_size((serializable_var_t*)vars, 2);
     data = malloc(size);
-    xapi_nvram_serialize((serializable_var_t*)vars, 2, data, size);
+    xapi_serialize((serializable_var_t*)vars, 2, data, size);
 
     p = data;
 
@@ -98,7 +98,7 @@ static void test_xapi_nvram_serialize(void)
     free(data);
 }
 
-void test_xapi_nvram_set_efi_vars(void)
+void test_xapi_set_efi_vars(void)
 {
     char readbuf[4096] = {0};
     int fd, ret;
@@ -117,7 +117,7 @@ void test_xapi_nvram_set_efi_vars(void)
     XenSetVariable(var->variable, &guid, attr, var->data_len, (void*)var->data);
     xenvariable_handle_request(comm_buf);
 
-    xapi_nvram_set_efi_vars();
+    xapi_set_efi_vars();
 
     fd = open("./random_socket_mock", O_RDWR | O_EXCL, S_IRWXU);
     
@@ -128,7 +128,7 @@ void test_xapi_nvram_set_efi_vars(void)
     remove("./random_socket_mock");
 }
 
-void test_xapi_nvram(void)
+void test_xapi(void)
 {
     v1_len = strsize16((char16_t*)v1) + 2;
     d1_len = strlen(D1);
@@ -154,9 +154,9 @@ void test_xapi_nvram(void)
     vars[1].data = (uint8_t*)D2;
     vars[1].data_len = d2_len;
 
-    DO_TEST(test_xapi_nvram_serialize_size);
-    DO_TEST(test_xapi_nvram_serialize);
-    DO_TEST(test_xapi_nvram_set_efi_vars);
+    DO_TEST(test_xapi_serialize_size);
+    DO_TEST(test_xapi_serialize);
+    DO_TEST(test_xapi_set_efi_vars);
 
     free(vars[0].variable); 
     free(vars[1].variable); 

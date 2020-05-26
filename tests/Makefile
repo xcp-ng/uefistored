@@ -1,10 +1,10 @@
 CFLAGS := -g -Wall -lssl -lcrypto
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/
-OBJ := mock/XenVariable.o ../src/xenvariable.o ../src/xapi_nvram.o \
+OBJ := mock/XenVariable.o ../src/xenvariable.o ../src/xapi.o \
        ../src/backends/filedb.o ../libs/kissdb/kissdb.o ../src/serializer.o \
        ../src/common.o mock/sys/socket.o
 
-OBJ += src/test_xenvariable.o src/test_xapi_nvram.o
+OBJ += src/test_xenvariable.o src/test_xapi.o
 
 .PHONY: all
 all: test test-nosan
