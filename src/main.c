@@ -1,6 +1,8 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +28,7 @@
 
 #include "backends/filedb.h"
 #include "xenvariable.h"
+#include "xapi_nvram.h"
 #include "common.h"
 
 #define IOREQ_SERVER_TYPE 0
@@ -35,11 +38,28 @@
 #define VARSTORED_LOGFILE_MAX 32
 #define IOREQ_BUFFER_SLOT_NUM     511 /* 8 bytes each, plus 2 4-byte indexes */
 
+static evtchn_port_t bufioreq_local_port;
+static evtchn_port_t bufioreq_remote_port;
+static xendevicemodel_handle *dmod;
+static int domid;
+static xenforeignmemory_handle *fmem;
+static xenforeignmemory_resource_handle *fmem_resource;
+static ioservid_t ioservid;
+static char *logfile_name;
+static xenevtchn_handle *xce;
+static xc_interface *xc_handle;
+struct xs_handle *xsh;
+
 void handle_bufioreq(buf_ioreq_t *buf_ioreq);
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, size_t vcpu);
 
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
 char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = {0};
+
+static char root_path[PATH_MAX];
+
+#define SOCKET_MAX 108
+char socket_path[SOCKET_MAX];
 
 #define UNUSED(var) ((void)var);
 
@@ -261,7 +281,7 @@ int setup_portio(xendevicemodel_handle *dmod,
 
 static void *auth_file;
 
-int load_auth_file(void)
+static int load_auth_file(void)
 {
     int fd;
     ssize_t read_size;
@@ -468,27 +488,102 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
     return 0;
 }
 
+static void cleanup(void)
+{
+    if ( xapi_nvram_set_efi_vars() < 0 )
+    {
+        ERROR("Failed to set EFI vars\n");
+    }
+
+    filedb_destroy();
+
+    if ( fmem && fmem_resource )
+        xenforeignmemory_unmap_resource(fmem, fmem_resource);
+
+    if ( xce )
+    {
+        xenevtchn_unbind(xce, bufioreq_local_port);
+        xenevtchn_close(xce);
+    }
+
+    if ( fmem )
+        xenforeignmemory_close(fmem);
+
+    if ( dmod )
+    {
+        xendevicemodel_set_ioreq_server_state(dmod, (uint64_t)domid, (uint64_t)ioservid, 0);
+        xendevicemodel_destroy_ioreq_server(dmod, (uint64_t)domid, (uint64_t)ioservid);
+        xendevicemodel_close(dmod);
+    }
+
+    if ( xc_handle )
+        xc_interface_close(xc_handle);
+
+    if ( logfile_name )
+        free(logfile_name);
+
+    exit(-1);
+}
+
+static void signal_handler(int sig)
+{
+    DEBUG("%s()\n", __func__);
+    cleanup();
+}
+
+static int install_sighandler(int sig)
+{
+    int ret;
+    struct sigaction new;
+
+    new.sa_handler = signal_handler;
+    sigemptyset(&new.sa_mask);
+    new.sa_flags = 0;
+
+    ret = sigaction(sig, &new, NULL);
+    if ( ret < 0 )
+    {
+        ERROR("Failed to set SIGKILL handler\n");
+    }
+
+    return ret;
+}
+
+static int install_sighandlers(void)
+{
+    int ret;
+
+    ret = install_sighandler(SIGINT);
+    if ( ret < 0 )
+        return ret;
+
+    ret = install_sighandler(SIGABRT);
+    if ( ret < 0 )
+        return ret;
+
+    ret = install_sighandler(SIGTERM);
+    if ( ret < 0 )
+        return ret;
+
+    ret = install_sighandler(SIGHUP);
+    if ( ret < 0 )
+        return ret;
+
+    return ret;
+}
+
 int main(int argc, char **argv)
 {
-    xc_interface *xc_handle;
     xc_dominfo_t domain_info;
-    xendevicemodel_handle *dmod;
-    xenforeignmemory_handle *fmem;
-    xenevtchn_handle *xce;
-    struct xs_handle *xsh;
-    xenforeignmemory_resource_handle *fmem_resource;
-    evtchn_port_t bufioreq_remote_port;
-    evtchn_port_t bufioreq_local_port;
     shared_iopage_t *shared_iopage;
     buffered_iopage_t *buffered_iopage;
     bool secureboot_enabled;
     bool enforcement_level;
     int logfd;
-    int domid;
+    bool root_path_set = false;
+    bool socket_path_set = false;
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
-    ioservid_t ioservid;
-    char *logfile_name;
     int ret;
     int option_index = 0;
     int i;
@@ -537,7 +632,7 @@ int main(int argc, char **argv)
 
     set_logfd(logfd);
 
-    DEBUG("%d: Starting parsing args...\n", __LINE__);
+    install_sighandlers();
 
     while ( 1 )
     {
@@ -562,7 +657,6 @@ int main(int argc, char **argv)
             break;
 
         case 'd':
-            INFO("servicing UEFI variables for Domain %s\n", optarg);
             domid = atoi(optarg);
             break;
 
@@ -587,7 +681,9 @@ int main(int argc, char **argv)
             break;
 
         case 'c':
-            UNIMPLEMENTED("chroot");
+            strncpy(root_path, optarg, PATH_MAX);
+            DEBUG("root_path=%s\n", root_path);
+            root_path_set = true;
             break;
 
         case 'i':
@@ -599,8 +695,17 @@ int main(int argc, char **argv)
             break;
 
         case 'a':
-            UNIMPLEMENTED("arg");
+        {
+            char *p = strstr(optarg, "socket:");
+
+            if ( p )
+            {
+                p += strlen("socket:");
+                strncpy(socket_path, p, SOCKET_MAX);
+            }
+            socket_path_set = true;
             break;
+        }
 
         case 'h':
         case '?':
@@ -610,7 +715,21 @@ int main(int argc, char **argv)
         }
     }
 
+    DEBUG("preamble\n");
+    DEBUG("root_path=%s\n", root_path);
 #warning "TODO: implement signal handlers in order to tear down resources upon SIGKILL, etc..."
+
+    if ( !root_path_set )
+    {
+        snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
+    }
+
+    if ( !socket_path_set )
+    {
+        snprintf(socket_path, PATH_MAX, "/xapi-depriv-socket");
+    }
+
+    DEBUG("root_path=%s\n", root_path);
 
     /* Gain access to the hypervisor */
     xc_handle = xc_interface_open(0, 0, 0);
@@ -618,26 +737,23 @@ int main(int argc, char **argv)
     {
         ERROR("Failed to open xc_interface handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto error;
+        goto err;
     }
-    DEBUG("%d: xc_interface_open()\n", __LINE__);
-
     /* Get info on the domain */
     ret = xc_domain_getinfo(xc_handle, domid, 1, &domain_info);
     if ( ret < 0 )
     {
         ret = errno;
         ERROR("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno, strerror(errno));
-        goto cleanup;
+        goto err;
     }
-    DEBUG("%d: xc_domain_getinfo()\n", __LINE__);
 
     /* Verify the requested domain == the returned domain */
     if ( domid != domain_info.domid )
     {
         ret = errno;
         ERROR("Domid %u does not match expected %u\n", domain_info.domid, domid);
-        goto cleanup;
+        goto err;
     }
 
     /* Retrieve IO req server page count, retry until available */
@@ -647,9 +763,8 @@ int main(int argc, char **argv)
         if ( ret < 0 )
         {
             ERROR("xc_hvm_param_get failed: %d, %s\n", errno, strerror(errno));
-            goto cleanup;
+            goto err;
         }
-        DEBUG("%d: xc_hvm_param_get()\n", __LINE__);
 
         if ( ioreq_server_pages_cnt != 0 )
             break;
@@ -665,7 +780,7 @@ int main(int argc, char **argv)
     {
         ERROR("Failed to open xendevicemodel handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto cleanup;
+        goto err;
     }
 
     /* Open xen foreign memory interface */
@@ -674,7 +789,7 @@ int main(int argc, char **argv)
     {
         ERROR("Failed to open xenforeignmemory handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto close_dmod;
+        goto err;
     }
 
     /* Open xen event channel */
@@ -683,7 +798,7 @@ int main(int argc, char **argv)
     {
         ERROR("Failed to open evtchn handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto close_fmem;
+        goto err;
     }
 
     /* Restrict varstored's privileged accesses */
@@ -692,7 +807,7 @@ int main(int argc, char **argv)
     {
         ERROR("Failed to restrict Xen handles: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto close_evtchn;
+        goto err;
     }
 
     /* Create an IO Req server for Port IO requests in the port
@@ -705,10 +820,8 @@ int main(int argc, char **argv)
     {
         ERROR("Failed to create ioreq server: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto close_evtchn;
+        goto err;
     }
-
-    INFO("ioservid = %u\n", ioservid);
 
     ret = xen_map_ioreq_server(
             fmem, domid, ioservid, &shared_iopage,
@@ -717,19 +830,15 @@ int main(int argc, char **argv)
     if ( ret < 0 )
     {
         ERROR("Failed to map ioreq server: %d, %s\n", errno, strerror(errno));
-        goto close_evtchn;
+        goto err;
     }
-
-    DEBUG("Mapped ioreq server\n");
-    INFO("shared_iopage = %p\n", shared_iopage);
-    INFO("buffered_iopage = %p\n", buffered_iopage);
 
     ret = xendevicemodel_get_ioreq_server_info(dmod, domid, ioservid, 0, 0, &bufioreq_remote_port);
     if ( ret < 0 )
     {
         ERROR("Failed to get ioreq server info: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto unmap_resource;
+        goto err;
     }
 
     /* Enable the ioreq server state */
@@ -738,7 +847,7 @@ int main(int argc, char **argv)
     {
         ERROR("Failed to enable ioreq server: %d, %s\n", errno, strerror(errno));
         ret = errno;
-        goto unmap_resource;
+        goto err;
     }
 
     /* Initialize Port IO for domU */
@@ -751,7 +860,7 @@ int main(int argc, char **argv)
         if ( ret < 0 )
         {
             ERROR("failed to bind evtchns: %d, %s\n", errno, strerror(errno));
-            goto unmap_resource;
+            goto err;
         }
 
         remote_vcpu_ports[i] = ret;
@@ -766,7 +875,7 @@ int main(int argc, char **argv)
     if ( ret < 0 )
     {
         ERROR("failed to bind evtchns: %d, %s\n", errno, strerror(errno));
-        goto unmap_resource;
+        goto err;
     }
     bufioreq_local_port = ret;
 
@@ -774,14 +883,14 @@ int main(int argc, char **argv)
     if ( ret < 0 )
     {
         ERROR("failed to init port io: %d\n", ret);
-        goto unmap_resource;
+        goto err;
     }
 
     xsh = xs_open(0);
     if ( !xsh )
     {
         ERROR("Couldn\'t open xenstore: %d, %s", errno, strerror(errno));
-        goto unmap_resource;
+        goto err;
     }
 
     
@@ -798,10 +907,9 @@ int main(int argc, char **argv)
     if ( ret < 0 )
     {
         ERROR("buffer error: %d, %s\n", errno, strerror(errno));
-        goto unmap_resource;
+        goto err;
     }
 
-    DEBUG("%s:%d\n", __func__, __LINE__);
     ret = snprintf(pidstr, sizeof(pidstr), "%u", getpid());
     if ( ret < 0 )
     {
@@ -812,55 +920,35 @@ int main(int argc, char **argv)
     if ( ret == false )
     {
         ERROR("xs_write failed: %d, %s\n", errno, strerror(errno));
-        goto unmap_resource;
+        goto err;
     }
-
-    DEBUG("xs_write(%s=%s)\n", pidalive, pidstr);
-
-    /* TODO: Containerize varstored */
 
     /* Initialize UEFI variables */
     ret = filedb_init(NULL, NULL, NULL);
     if ( ret < 0 )
     {
-        DEBUG("Failed to initialize db: %d\n", ret);
-        goto unmap_resource;
+        ERROR("Failed to initialize db: %d\n", ret);
+        goto err;
     }
 
-    /* Initialize UEFI keys */
+
+    DEBUG("chroot path: %s\n", root_path);
+    
+    /* TODO: Containerize varstored */
+    ret = chroot(root_path);
+    if ( ret < 0 )
+    {
+        ERROR("chroot to dir %s failed!\n", root_path);
+        goto err;
+    }
 
     INFO("Starting handler loop!\n");
-    /* Initialize event channel handler */
     handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports, vcpu_count, shared_iopage);
 
     return 0;
 
-unmap_resource:
-    xenforeignmemory_unmap_resource(fmem, fmem_resource);
-
-close_evtchn:
-    xenevtchn_close(xce);
-
-close_fmem:
-    xenforeignmemory_close(fmem);
-
-close_dmod:
-    xendevicemodel_close(dmod);
-
-cleanup:
-    if ( xc_handle )
-        xc_interface_close(xc_handle);
-
-#if 0
-    xenevtchn_unbind(xenevtchn_handle);
-    xenevtchn_unbind(xenevtchn_handle);
-    xendevicemodel_destroy_ioreq_server(xendevicemodel_handle,(uint64_t)domain,(uint64_t)ioservid);
-
-    xendevicemodel_set_ioreq_server_state
-    (xendevicemodel_handle,(uint64_t)domain,(uint64_t)ioservid,0);
-#endif
-error:
-    free(logfile_name);
-    return ret;
+err:
+    cleanup();
+    return -1;
 }
 

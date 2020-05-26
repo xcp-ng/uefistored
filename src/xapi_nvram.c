@@ -12,6 +12,10 @@
 #include <openssl/engine.h>
 
 #include "xapi_nvram.h"
+#include "backends/filedb.h"
+
+extern char root_path[PATH_MAX];
+extern char socket_path[108];
 
 /* The maximum number of digits in the Content-Length HTTP field */
 #define MAX_CONTENT_LENGTH_DIGITS 16
@@ -132,8 +136,10 @@ static size_t blob_size(size_t *outsize)
     int ret;
     size_t cnt = 0;
     size_t len = 0;
-    variable_t variables[MAX_VAR_COUNT] = {0};
+    variable_t variables[MAX_VAR_COUNT];
     variable_t *current, *next;
+
+    memset(variables, 0, sizeof(variables));
 
     /* Retrieve DB contents */
     current = &variables[0];
@@ -172,8 +178,10 @@ static int convert_to_blob(uint8_t *buf, size_t bufsize)
     uint8_t *p;
     size_t cnt = 0;
     size_t len = 0;
-    variable_t variables[MAX_VAR_COUNT] = {0};
+    variable_t variables[MAX_VAR_COUNT];
     variable_t *current, *next;
+
+    memset(variables, 0, sizeof(variables));
 
     /* Retrieve DB contents */
     current = &variables[0];
@@ -307,24 +315,33 @@ end:
 
 static int send_set_efi_vars_message(char *message)
 {
+    char buf[4096];
     int ret, fd;
     struct sockaddr_un saddr;
 
     saddr.sun_family = AF_UNIX;
-    strncpy(saddr.sun_path, "/xapi-depriv-socket", sizeof(saddr.sun_path));
+    strncpy(saddr.sun_path, socket_path, sizeof(saddr.sun_path));
 
-    fd = socket(AF_LOCAL, SOCK_STREAM, 0);
+    fd = socket(AF_UNIX, SOCK_STREAM, 0);
     
     if ( fd < 0 )
         return fd;
 
-    ret = connect(fd, &saddr, sizeof(saddr));
+    ret = connect(fd, (struct sockaddr*)&saddr, sizeof(saddr));
     if ( ret < 0 )
         return ret;
 
     ret = write(fd, message, strlen(message));
 
-    close(fd);
+    if ( ret < 0 )
+        return ret;
+
+    ret = read(fd, buf, sizeof(buf));
+    if ( ret < 0 )
+        return ret;
+
+    DEBUG("RESPONSE:\n%s\n", buf);
+
     return ret;
 }
 
