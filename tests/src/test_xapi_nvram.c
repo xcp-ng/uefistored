@@ -15,6 +15,8 @@
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;
 
+char socket_path[108] = "/xapi-depriv-socket";
+
 static void pre_test(void)
 {
     filedb_init("./test.db", "./test_var_len.db", "./test_var_attrs.db");
