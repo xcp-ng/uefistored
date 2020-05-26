@@ -473,6 +473,7 @@ void xenvariable_handle_request(void *comm_buf)
     }
 
     ptr = comm_buf;
+
     /* advance the pointer passed the version field */
     version = unserialize_uint32(&ptr);
     DEBUG("version: %u\n", version);
