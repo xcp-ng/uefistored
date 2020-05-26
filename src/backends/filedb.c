@@ -15,7 +15,6 @@
 #define DEFAULT_DBPATH_VAR_ATTRS "/var/run/xen/varstored-db-var-attrs.dat"
 
 static bool initialized;
-static bool iter_initialized;
 static bool in_progress;
 
 static KISSDB db;
@@ -197,8 +196,6 @@ int filedb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t att
     return 0;
 }
 
-static KISSDB_Iterator key_dbi;
-
 /**
  * Returns the cache entry that matches current.
  *
@@ -253,7 +250,6 @@ static void __populate_cache(void)
     size_t tmp;
     static KISSDB_Iterator dbi;
     int ret;
-    char valdummy[FILEDB_VAL_SIZE];
 
     KISSDB_Iterator_init(&db, &dbi);
     
@@ -269,7 +265,7 @@ static void __populate_cache(void)
         /* Get the variable's value's length */
         ret = KISSDB_get(&db_var_len, &p->name, &tmp);
         if ( ret != 0 )
-            return ret;
+            return;
 
         p->datasz = tmp;
         cache_len++;
