@@ -343,7 +343,7 @@ static void set_variable(void *comm_buf)
         return;
     }
 
-#if 1
+#if 0
     if (name_eq(variable_name, len, "XV_DEBUG_UINTN"))
     {
         DEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));

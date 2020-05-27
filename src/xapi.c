@@ -11,8 +11,16 @@
 #include <openssl/err.h>
 #include <openssl/engine.h>
 
+#include <libxml/xmlmemory.h>
+#include <libxml/xpath.h>
+#include <libxml/parser.h>
+
+#include "common.h"
 #include "xapi.h"
 #include "backends/filedb.h"
+
+static char *VM_UUID;
+static char *UUID_ARG;
 
 extern char root_path[PATH_MAX];
 extern char socket_path[108];
@@ -260,14 +268,42 @@ end:
     return base64;
 }
 
+static char *build_header(size_t body_len, size_t *hdr_len)
+{
+    int ret;
+    size_t maxlen = sizeof(HTTP_HEADER) + MAX_CONTENT_LENGTH_DIGITS;
+    char *hdr;
+
+    hdr = malloc(maxlen);
+
+    if ( !hdr )
+    {
+        return NULL;
+    }
+
+    ret = snprintf(hdr, maxlen, HTTP_HEADER, body_len);
+
+    if ( ret < 0 )
+    {
+        free(hdr);
+        *hdr_len = 0;
+        return NULL;
+    }
+
+    *hdr_len = ret;
+
+    return hdr;
+}
+
 static char *build_set_efi_vars_message(void)
 {
     int ret;
     char *message = NULL;
     char *base64;
     char *body;
-    char hdr[sizeof(HTTP_HEADER) + MAX_CONTENT_LENGTH_DIGITS];
+    //char hdr[sizeof(HTTP_HEADER) + MAX_CONTENT_LENGTH_DIGITS];
     size_t base64_size, body_len, hdr_len;
+    char *hdr;
 
     base64 = variables_base64();
     if ( !base64 )
@@ -291,13 +327,10 @@ static char *build_set_efi_vars_message(void)
 
     body_len = ret;
 
-    ret = snprintf(hdr, sizeof(hdr), HTTP_HEADER, body_len);
-
-    if ( ret < 0 )
+    hdr = build_header(body_len, &hdr_len);
+    if ( !hdr )
         goto end;
-
-    hdr_len = ret;
-
+    
     message = malloc(body_len + hdr_len + 1); 
     if ( !message )
         goto end;
@@ -308,38 +341,46 @@ static char *build_set_efi_vars_message(void)
 
 end:
     free(body);
+    free(hdr);
     free(base64);
 
     return message;
 }
 
-static int send_set_efi_vars_message(char *message)
+static int send_request(char *message, char *buf, size_t bufsz)
 {
-    char buf[4096];
     int ret, fd;
     struct sockaddr_un saddr;
 
+    TRACE();
     saddr.sun_family = AF_UNIX;
     strncpy(saddr.sun_path, socket_path, sizeof(saddr.sun_path));
 
+    TRACE();
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     
     if ( fd < 0 )
         return fd;
+    TRACE();
 
     ret = connect(fd, (struct sockaddr*)&saddr, sizeof(saddr));
     if ( ret < 0 )
         return ret;
 
+    TRACE();
     ret = write(fd, message, strlen(message));
 
     if ( ret < 0 )
         return ret;
 
-    ret = read(fd, buf, sizeof(buf));
+    TRACE();
+    ret = read(fd, buf, bufsz);
     if ( ret < 0 )
         return ret;
 
+    /* TODO: process the HTTP status code */
+
+    TRACE();
     DEBUG("RESPONSE:\n%s\n", buf);
 
     return ret;
@@ -347,6 +388,7 @@ static int send_set_efi_vars_message(char *message)
 
 int xapi_set_efi_vars(void)
 {
+    char response[4096];
     int ret;
     char *message;
 
@@ -355,9 +397,454 @@ int xapi_set_efi_vars(void)
     if ( !message )
         return -1;
 
-    ret = send_set_efi_vars_message(message);
+    ret = send_request(message, response, 4096);
 
     free(message);
 
     return ret;
+}
+
+#define HTTP_LOGIN                                                              \
+    "POST / HTTP/1.1\r\n"                                                       \
+    "Host: _var_lib_xcp_xapi\r\n"                                               \
+    "Accept-Encoding: identity\r\n"                                             \
+    "User-Agent: varstored/0.1\r\n"                                             \
+    "Connection: close\r\n"                                                     \
+    "Content-Type: text/xml\r\n"                                                \
+    "Content-Length: 307\r\n"                                                   \
+    "\r\n"                                                                      \
+    "<?xml version='1.0'?>"                                                     \
+    "<methodCall>"                                                              \
+        "<methodName>session.login_with_password</methodName>"                  \
+        "<params>"                                                              \
+            "<param><value><string>root</string></value></param>"               \
+            "<param><value><string></string></value></param>"                   \
+            "<param><value><string></string></value></param>"                   \
+            "<param><value><string></string></value></param>"                   \
+        "</params>"                                                             \
+    "</methodCall>"
+
+int xapi_connect(void)
+{
+    char response[4096];
+    int ret;
+
+    ret = send_request(HTTP_LOGIN, response, 4096);
+    if ( ret < 0 )
+        return ret;
+
+    return ret;
+}
+
+void save_time(void)
+{
+#if 0
+    time_t ret;
+
+    /* Time since last saved */
+    ret = time((time_t *)0x0);
+    DAT_0060d7c0 = DAT_0060d7c0 + ((int)ret - (int)_DAT_0060d8a0) * 2;
+    _DAT_0060d8a0 = ret;
+    if (DAT_0060d7c0 < 0x65)
+    {
+        if (DAT_0060d7c0 == 0)
+        {
+            response = (void *)0x0;
+            nanosleep((timespec *)&response,(timespec *)0x0);
+            _DAT_0060d8a0 = time((time_t *)0x0);
+        }
+        else
+        {
+            DAT_0060d7c0 = DAT_0060d7c0 - 1;
+        }
+    }
+    else
+    {
+        DAT_0060d7c0 = 99;
+    }
+#endif
+}
+
+
+int xapi_request(char **response, const char *format, ...)
+{
+    va_list ap;
+    char body[4096] = {0};
+    char *hdr, *message;
+    size_t hdr_len, body_len;
+    int ret;
+
+    va_start(ap, format);
+    ret = vsnprintf(body, 4096, format, ap);
+    va_end(ap);
+
+    TRACE();
+    if ( ret < 0 )
+        return ret;
+
+    TRACE();
+    body_len = ret;
+
+    hdr = build_header(body_len, &hdr_len);
+
+    if ( !hdr )
+    {
+        return -1;
+    }
+    TRACE();
+
+    message = strncat(hdr, body, hdr_len + body_len + 1);
+    message[hdr_len + body_len + 1] = '\0';
+
+    DEBUG("%s: request\n%s\n", __func__, message);
+
+    *response = malloc(4096);
+
+    TRACE();
+    ret = send_request(message, *response, 4096);
+    DEBUG("%s: response\n%s\n", __func__, *response);
+
+    free(message);
+    free(hdr);
+    free(body);
+
+    return ret;
+}
+
+int get_response_content(char* response, void *content)
+{
+    (void)response;
+    (void)content;
+
+    return 0;
+}
+
+int set_efi_vars(char *session_id, char *b64)
+{
+    char *response = NULL;
+    int status, ret;
+
+    if ( !VM_UUID )
+    {
+        ERROR("no VM_UUID set!\n");
+        return -1;
+    }
+
+    status = xapi_request(&response,
+        "<?xmlversion=\'1.0\'?>"
+        "<methodCall>"
+        "<methodName>VM.set_NVRAM_EFI_variables</methodName>"
+            "<params>"
+                "<param><value><string>%s</string></value></param>"
+                "<param><value><string>%s</string></value></param>"
+                "<param><value><string>%s</string></value></param>"
+            "</params>"
+        "</methodCall>",
+        session_id, VM_UUID, b64);
+
+    if ( status != 200 )
+    {
+        ERROR("Failed to set NVRAM EFI vars\n");
+        return -1;
+    }
+
+    ret = get_response_content(response, NULL);
+
+    if ( ret < 0 )
+    {
+        free(response);
+        ERROR("Failed to set NVRAM EFI vars\n");
+        return ret;
+    }
+
+    return 0;
+}
+
+int global_set_vm_uuid(char *session_id)
+{
+    int status, ret;
+    char *response = NULL;
+
+    if ( VM_UUID )
+        return 0;
+
+    status = xapi_request(&response,
+        "<?xmlversion=\'1.0\'?>"
+        "<methodCall>"
+            "<methodName>VM.get_by_uuid</methodName>"
+            "<params>"
+                "<param><value><string>%s</string></value></param>"
+                "<param><value><string>%s</string></value></param>"
+            "</params>"
+        "</methodCall>",
+        session_id, &VM_UUID);
+
+    if ( status != 200 )
+    {
+        ERROR("Failed to communicate with XAPI\n");
+        return -1;
+    }
+
+    ret = get_response_content(response, &VM_UUID);
+    if ( ret < 0 )
+    {
+        ERROR("failed to lookup VM\n");
+    }
+
+    free(response);
+    return ret;
+}
+
+int session_login(char **session_id)
+{
+    int status, ret;
+    char *response = NULL;
+
+    status = xapi_request(&response,
+            "<?xmlversion=\'1.0\'?>"
+            "<methodCall>"
+            "<methodName>session.login_with_password</methodName>"
+            "<params>"
+                "<param><value><string>root</string></value></param>"
+                "<param><value><string></string></value></param>"
+                "<param><value><string></string></value></param>"
+                "<param><value><string></string></value></param>"
+            "</params>"
+            "</methodCall>"
+    );
+
+    if ( status != 200 )
+    {
+        ERROR("failed to login to xapi\n");
+        return -1;
+    }
+
+    ret = get_response_content(response, &session_id);
+    
+    if ( ret < 0 )
+    {
+        ERROR("failed to login to xapi\n");
+    }
+
+    free(response);
+    return 0;
+}
+
+int session_logout(char *session_id)
+{
+    int status, ret;
+    char *response = NULL;
+
+    status = xapi_request(
+        &response,
+        "<?xmlversion=\'1.0\'?>"
+        "<methodCall>"
+            "<methodName>session.logout</methodName>"
+            "<params>"
+                "<param><value><string>%s</string></value></param>"
+            "</params>"
+        "</methodCall>",
+        session_id);
+
+    if ( status != 200 )
+    {
+        ERROR("failed to logout of xapi session\n");
+        return -1;
+    }
+
+    ret = get_response_content(response, NULL);
+
+    if ( ret < 0 )
+    {
+        ERROR("failed to logout of xapi session\n");
+    }
+
+    free(response);
+    return ret;
+}
+
+static int get_nvram(char *session_id)
+{
+    int status;
+    size_t len;
+    xmlXPathObject *obj;
+    xmlDoc *doc;
+    xmlXPathContext *context;
+    xmlChar *string;
+    char *response;
+
+    status = xapi_request(&response,
+        "<?xmlversion=\'1.0\'?>"
+        "<methodCall>"
+        "<methodName>VM.get_NVRAM</methodName>"
+        "<params>"
+            "<param><value><string>%s</string></value></param>"
+            "<param><value><string>%s</string></value></param>"
+        "</params>"
+        "</methodCall>",
+        session_id, VM_UUID);
+
+    if ( status != 200 )
+        return -1;
+
+    len = strlen(response);
+
+    doc = xmlReadMemory(response, len, "dummy.xml", 0, 0);
+    if ( !doc )
+    {
+        free(response);
+        return -1;
+    }
+
+    context = xmlXPathNewContext(doc);
+    if ( !context )
+    {
+        free(response);
+        free(doc);
+
+        return -1;
+    }
+
+    obj = xmlXPathEvalExpression((xmlChar*)
+        "/methodResponse/params/param/value/struct/member[1]/value", context);
+
+    if ( !obj )
+    {
+        free(response);
+        free(doc);
+        free(context);
+
+        return -1;
+    }
+
+    string = xmlNodeGetContent((xmlNodePtr)obj->nodesetval->nodeTab[0]);
+    if ( memcmp(string, "Success", 8) != 0 )
+    {
+        free(response);
+        free(doc);
+        free(context);
+        xmlXPathFreeObject(obj);
+
+        return -1;
+    }
+
+    xmlFree(string);
+    xmlXPathFreeObject(obj);
+
+    obj = xmlXPathEvalExpression((xmlChar *)
+        "/methodResponse/params/param/value/struct/member/value/struct/member[name=\"EFI-variables\"]/value"
+        , context);
+
+    if ( !obj )
+    {
+        free(response);
+        free(doc);
+        free(context);
+
+        return -1;
+    }
+
+    string = xmlNodeGetContent((xmlNodePtr)obj->nodesetval->nodeTab[0]);
+
+    DEBUG("string: %s\n", string);
+
+    xmlFree(string);
+    xmlXPathFreeObject(obj);
+    xmlXPathFreeContext(context);
+    xmlFreeDoc(doc);
+    free(response);
+
+    return 0;
+}
+
+
+int xapi_get_efi_vars(void)
+
+{
+    int ret;
+    char *session_id;
+
+    TRACE();
+
+    ret = session_login(&session_id);
+
+    if ( ret < 0 )
+        return ret;
+    TRACE();
+
+    if ( !VM_UUID )
+    {
+    TRACE();
+        ret = global_set_vm_uuid(session_id);
+
+        if ( ret < 0 )
+            goto free_session_id;
+    }
+
+    TRACE();
+    ret = get_nvram(session_id);
+    if ( ret < 0 )
+    {
+        ERROR("failed to get NVRAM from xapi\n");
+    }
+
+    TRACE();
+free_session_id:
+    free(session_id);
+
+    TRACE();
+    return 0;
+}
+
+int xapi_set_variables(void)
+{
+    char *b64;
+    int ret;
+    char *session_id;
+
+    if ( UUID_ARG == 0 )
+        return 1;
+
+    save_time();
+
+    ret = session_login(&session_id);
+
+    if ( ret < 0 )
+        return ret;
+
+    if ( !VM_UUID )
+    {
+        ret = global_set_vm_uuid(session_id);
+
+        if ( ret < 0 )
+            goto free_session_id;
+    }
+
+    b64 = variables_base64();
+
+    ret = set_efi_vars(session_id, b64);
+
+    if ( ret < 0 )
+        goto free_b64;
+
+    ret = session_logout(session_id);
+
+    if ( ret < 0 )
+        goto free_b64;
+
+free_b64:
+    free(b64);
+
+free_session_id:
+    free(session_id);
+
+    return ret;
+}
+
+int xapi_efi_vars(variable_t *variables, size_t sz)
+{
+    (void)variables;
+    (void)sz;
+
+    return 0;
 }

@@ -572,6 +572,11 @@ static int install_sighandlers(void)
     return ret;
 }
 
+static int load_vars_into_db(variable_t *variables, size_t sz)
+{
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     xc_dominfo_t domain_info;
@@ -590,6 +595,7 @@ int main(int argc, char **argv)
     char pidstr[21];
     char pidalive[0x80];
     char c;
+    variable_t variables[MAX_VAR_COUNT];
 
     const struct option options[] = {
         {"domain", required_argument,  0, 'd'},
@@ -608,6 +614,8 @@ int main(int argc, char **argv)
 
     UNUSED(assertsz);
     UNUSED(assertsz2);
+
+    memset(variables, 0, sizeof(variables));
 
     logfile_name = malloc(VARSTORED_LOGFILE_MAX);
     memset(logfile_name, '\0', VARSTORED_LOGFILE_MAX);
@@ -941,6 +949,39 @@ int main(int argc, char **argv)
         ERROR("chroot to dir %s failed!\n", root_path);
         goto err;
     }
+
+#if 0
+    ret = xapi_connect();
+    if ( ret < 0 )
+    {
+        ERROR("failed to connect XAPI database\n");
+        goto err;
+    }
+
+    ret = xapi_efi_vars(variables, MAX_VAR_COUNT);
+    if ( ret < 0 )
+    {
+        ERROR("failed to retrieve variables\n");
+        goto err;
+    }
+
+    ret = load_vars_into_db(variables, MAX_VAR_COUNT);
+    if ( ret < 0 )
+    {
+        ERROR("failed to load vars into db\n");
+        goto err;
+    }
+#endif
+
+    DEBUG("xapi_get_efi_vars()\n");
+    ret = xapi_get_efi_vars();
+
+    if ( ret < 0 )
+    {
+        ERROR("failed to get vars from xapi\n");
+        goto err;
+    }
+    
 
     INFO("Starting handler loop!\n");
     handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports, vcpu_count, shared_iopage);
