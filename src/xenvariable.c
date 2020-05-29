@@ -305,8 +305,6 @@ static void set_variable(void *comm_buf)
     void *dp = data;
     uint32_t attrs, command, version;
 
-    DEBUG("cmd: SET_VARIABLE\n");
-
     ptr = comm_buf;
     version = unserialize_uint32(&ptr);
 
@@ -476,10 +474,7 @@ void xenvariable_handle_request(void *comm_buf)
 
     /* advance the pointer passed the version field */
     version = unserialize_uint32(&ptr);
-    DEBUG("version: %u\n", version);
-
     command = unserialize_uint32(&ptr);
-    DEBUG("command: 0x%x\n", command);
 
     switch ( command )
     {

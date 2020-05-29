@@ -9,5 +9,6 @@ int xapi_set_efi_vars(void);
 int xapi_connect(void);
 int xapi_efi_vars(variable_t *variables, size_t sz);
 int xapi_get_efi_vars(void);
+int xapi_parse_arg(char *arg);
 
 #endif // __H_XAPI_

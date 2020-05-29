@@ -58,9 +58,6 @@ char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = {0};
 
 static char root_path[PATH_MAX];
 
-#define SOCKET_MAX 108
-char socket_path[SOCKET_MAX];
-
 #define UNUSED(var) ((void)var);
 
 #define USAGE                           \
@@ -106,7 +103,7 @@ static int xen_map_ioreq_server(
     if ( !fres )
     {
         ERROR("failed to map ioreq server resources: error %d: %s",
-                     errno, strerror(errno));
+               errno, strerror(errno));
         return -1;
     }
 
@@ -115,9 +112,10 @@ static int xen_map_ioreq_server(
     *shared_iopage = addr + PAGE_SIZE;
 
     DEBUG("fresp=%p, buffered_iopage=%p, shared_iopage=%p\n",
-            fresp,
-            buffered_iopage,
-            shared_iopage);
+           fresp,
+           buffered_iopage,
+           shared_iopage);
+
     return 0;
 }
 
@@ -521,14 +519,36 @@ static void cleanup(void)
 
     if ( logfile_name )
         free(logfile_name);
-
-    exit(-1);
 }
 
 static void signal_handler(int sig)
 {
-    DEBUG("%s()\n", __func__);
+    DEBUG("varstored-ng signal: %s\n", strsignal(sig));
     cleanup();
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+struct sigaction old_sighup;
+struct sigaction old_sigint;
+struct sigaction old_sigabrt;
+struct sigaction old_sigterm;
+
+static struct sigaction *get_old(int sig)
+{
+    switch ( sig )
+    {
+    case SIGHUP:
+        return &old_sigterm;
+    case SIGINT:
+        return &old_sigint;
+    case SIGABRT:
+        return &old_sigabrt;
+    case SIGTERM:
+        return &old_sigterm;
+    }
+
+    return NULL;
 }
 
 static int install_sighandler(int sig)
@@ -540,7 +560,7 @@ static int install_sighandler(int sig)
     sigemptyset(&new.sa_mask);
     new.sa_flags = 0;
 
-    ret = sigaction(sig, &new, NULL);
+    ret = sigaction(sig, &new, get_old(sig));
     if ( ret < 0 )
     {
         ERROR("Failed to set SIGKILL handler\n");
@@ -586,7 +606,6 @@ int main(int argc, char **argv)
     bool enforcement_level;
     int logfd;
     bool root_path_set = false;
-    bool socket_path_set = false;
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     int ret;
@@ -704,14 +723,7 @@ int main(int argc, char **argv)
 
         case 'a':
         {
-            char *p = strstr(optarg, "socket:");
-
-            if ( p )
-            {
-                p += strlen("socket:");
-                strncpy(socket_path, p, SOCKET_MAX);
-            }
-            socket_path_set = true;
+            xapi_parse_arg(optarg);
             break;
         }
 
@@ -730,11 +742,6 @@ int main(int argc, char **argv)
     if ( !root_path_set )
     {
         snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
-    }
-
-    if ( !socket_path_set )
-    {
-        snprintf(socket_path, PATH_MAX, "/xapi-depriv-socket");
     }
 
     DEBUG("root_path=%s\n", root_path);
@@ -978,8 +985,12 @@ int main(int argc, char **argv)
 
     if ( ret < 0 )
     {
-        ERROR("failed to get vars from xapi\n");
-        goto err;
+        INFO("failed to get vars from xapi, starting with blank DB\n");
+    }
+    else
+    {
+        /* TODO: do this */
+        INFO("Populating DB from XAPI data\n");
     }
     
 

@@ -217,14 +217,8 @@ static variable_t *find_next_cache_entry(variable_t cache[CACHE_SIZE], variable_
         if ( cache[i].namesz != current->namesz )
             continue;
 
-        DEBUG("current->namesz=%lu, cache[%d].namesz=%lu\n",
-              current->namesz, i, cache[i].namesz);
-        DEBUG("Comparing:\n");
-        dprint_variable(current);
-        dprint_variable(&cache[i]);
         if (memcmp(&cache[i].name, current->name, current->namesz) == 0)
         {
-            DEBUG("MATCH\n");
             break;
         }
     }
@@ -237,7 +231,6 @@ static variable_t *find_next_cache_entry(variable_t cache[CACHE_SIZE], variable_
      * (there is no next one).
      */
      
-     DEBUG("cache.i=%d\n", i);
     if ( i >= cache_len - 1 )
         return NULL;
 
@@ -255,7 +248,6 @@ static void __populate_cache(void)
     
     cache_len = 0;
 
-    DEBUG("%s\n", __func__);
     /* Run the iterator to the end or until an error */
     p = cache;
     while ( KISSDB_Iterator_next(&dbi, &p->name, &p->data) > 0 )
