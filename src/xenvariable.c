@@ -11,7 +11,7 @@
 #include "uefitypes.h"
 #include "common.h"
 
-//#define VALIDATE_WRITES
+#define VALIDATE_WRITES
 
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
 #define MAX_DATA_SZ (FILEDB_VAL_SIZE)
@@ -59,29 +59,6 @@ static void buffer_too_small(void *comm_buf, size_t bufsz, size_t namesz)
     serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
     serialize_uintn(&ptr, (uint64_t)namesz);
 }
-
-static char strbuf[512];
-
-
-/**
- * dprint_vname -  Debug print a variable name
- *
- * WARNING: this only prints ASCII characters correctly.
- * Any char code above 255 will be displayed incorrectly.
- */
-#define dprint_vname(format, vn, vnlen, ...) \
-do { \
-    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
-    DEBUG(format, strbuf __VA_ARGS__); \
-    memset(strbuf, '\0', 512); \
-} while ( 0 )
-
-#define eprint_vname(format, vn, vnlen, ...) \
-do { \
-    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
-    ERROR(format, strbuf __VA_ARGS__); \
-    memset(strbuf, '\0', 512); \
-} while( 0 )
 
 static void dprint_next_var(variable_t *curr, variable_t *next)
 {

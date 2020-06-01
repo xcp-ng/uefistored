@@ -25,6 +25,9 @@ typedef struct {
     size_t datasz;
 } variable_t;
 
+#define for_each_variable(vars, var) \
+    for ( (var) = (vars); (var) <= &(vars)[sizeof((vars))/sizeof((vars)[0])]; (var)++ )
+
 typedef struct {
     /* The name of the variable */
     uint8_t *variable;
@@ -38,6 +41,8 @@ typedef struct {
     /* The length of the value of the variable */
     size_t data_len;
 } serializable_var_t;
+
+
 
 void dprint_variable(variable_t *var);
 
@@ -111,5 +116,27 @@ void set_logfd(int logfd);
 void uc2_ascii_safe(void *uc2, size_t uc2_len, char *ascii, size_t len);
 void uc2_ascii(void *uc2, char *ascii, size_t len);
 bool variable_is_empty(variable_t *);
+
+extern char strbuf[512];
+
+/**
+ * dprint_vname -  Debug print a variable name
+ *
+ * WARNING: this only prints ASCII characters correctly.
+ * Any char code above 255 will be displayed incorrectly.
+ */
+#define dprint_vname(format, vn, vnlen, ...) \
+do { \
+    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
+    DEBUG(format, strbuf __VA_ARGS__); \
+    memset(strbuf, '\0', 512); \
+} while ( 0 )
+
+#define eprint_vname(format, vn, vnlen, ...) \
+do { \
+    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
+    ERROR(format, strbuf __VA_ARGS__); \
+    memset(strbuf, '\0', 512); \
+} while( 0 )
 
 #endif

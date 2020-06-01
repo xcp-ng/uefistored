@@ -38,6 +38,8 @@
 #define VARSTORED_LOGFILE_MAX 32
 #define IOREQ_BUFFER_SLOT_NUM     511 /* 8 bytes each, plus 2 4-byte indexes */
 
+static bool saved_efi_vars;
+
 static evtchn_port_t bufioreq_local_port;
 static evtchn_port_t bufioreq_remote_port;
 static xendevicemodel_handle *dmod;
@@ -350,6 +352,37 @@ error:
     return ret;
 }
 
+#define VAR_BUF_SZ (4 * PAGE_SIZE)
+
+static int initialize_variables(void)
+{
+    int ret;
+    variable_t variables[512];
+    variable_t *var;
+
+    ret = xapi_get_efi_vars(variables, 512);
+
+    if ( ret < 0 )
+    {
+        INFO("failed to get vars from xapi, starting with blank DB\n");
+    }
+    else
+    {
+        /* TODO: do this */
+        INFO("Populating DB from XAPI data\n");
+    }
+
+    if ( ret > 0 )
+    {
+        for_each_variable(variables, var) 
+        {
+            DEBUG("%s: %s\n", var->name, var->data);
+        }
+    }
+
+    return 0;
+}
+
 char *varstored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int domid, unsigned int *len)
 {
     char stringbuf[0x80];
@@ -488,9 +521,13 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 
 static void cleanup(void)
 {
-    if ( xapi_set_efi_vars() < 0 )
+    DEBUG("%s()\n", __func__);
+    if ( !saved_efi_vars )
     {
-        ERROR("Failed to set EFI vars\n");
+        if ( xapi_set_efi_vars() == 0 )
+            saved_efi_vars = true;
+        else
+            ERROR("Failed to set EFI vars\n");
     }
 
     filedb_destroy();
@@ -735,14 +772,15 @@ int main(int argc, char **argv)
         }
     }
 
-    DEBUG("preamble\n");
-    DEBUG("root_path=%s\n", root_path);
 #warning "TODO: implement signal handlers in order to tear down resources upon SIGKILL, etc..."
 
     if ( !root_path_set )
     {
         snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
     }
+
+    if ( xapi_init() < 0 )
+        goto err;
 
     DEBUG("root_path=%s\n", root_path);
 
@@ -980,17 +1018,12 @@ int main(int argc, char **argv)
     }
 #endif
 
-    DEBUG("xapi_get_efi_vars()\n");
-    ret = xapi_get_efi_vars();
+    ret = initialize_variables();
 
     if ( ret < 0 )
     {
-        INFO("failed to get vars from xapi, starting with blank DB\n");
-    }
-    else
-    {
-        /* TODO: do this */
-        INFO("Populating DB from XAPI data\n");
+        ERROR("Error in variable db initialization\n");
+        goto err;
     }
     
 

@@ -21,9 +21,11 @@
 
 #define XAPI_DEBUG 0
 
+#define BIG_MESSAGE_SIZE (8 * PAGE_SIZE)
+
 #define VM_UUID_MAX 36
 char VM_UUID[VM_UUID_MAX];
-bool vm_uuid_initialized = false;
+bool xapi_uuid_initialized = false;
 
 static char *UUID_ARG;
 
@@ -49,8 +51,8 @@ bool socket_path_initialized = false;
 	"<methodCall>"									                                \
 	"<methodName>VM.set_NVRAM_EFI_variables</methodName>"				            \
 		"<params>"								                                    \
-			"<param><value><string>VARSTOREDSESSION</string></value></param>"	    \
-			"<param><value><string>VARSTOREDVM</string></value></param>"	        \
+			"<param><value><string>DUMMYSESSION</string></value></param>"	    \
+			"<param><value><string>DUMMYVM</string></value></param>"	        \
 			"<param><value><string>%s</string></value></param>"		                \
 		"</params>"								                                    \
 	"</methodCall>"
@@ -73,8 +75,19 @@ int xapi_parse_arg(char *arg)
     {
         p += 5; 
         strncpy(VM_UUID, p, VM_UUID_MAX);
-        vm_uuid_initialized = true;
+        xapi_uuid_initialized = true;
         return 0;
+    }
+
+    return 0;
+}
+
+int xapi_init(void)
+{
+    if ( !xapi_uuid_initialized )
+    {
+        ERROR("No uuid initialized passed as arg!\n");
+        return -1;
     }
 
     return 0;
@@ -258,61 +271,199 @@ static size_t blob_size(size_t *outsize)
     return 0;
 }
 
-static int convert_to_blob(uint8_t *buf, size_t bufsize)
-{
+/**
+ * Retrieves variables from db and stores in vars arg
+ *
+ * Returns the total bytes retrieved.
+ */
+static int retrieve_vars(variable_t *vars, size_t n)
+{   
     int ret;
-    uint8_t *p;
     size_t cnt = 0;
-    size_t len = 0;
-    variable_t variables[MAX_VAR_COUNT];
     variable_t *current, *next;
 
-    memset(variables, 0, sizeof(variables));
+    memset(vars, 0, sizeof(*vars) * n);
 
-    /* Retrieve DB contents */
-    current = &variables[0];
-    next = &variables[0];
-    
-    do {
+    current = &vars[0];
+    next = &vars[0];
+
+    DEBUG("%s: n=%lu\n", __func__, n);
+
+    memset(current, 0, sizeof(*current));
+
+    while ( cnt < n )
+    {
+        TRACE();
         ret = filedb_variable_next(current, next);
-        
-        if ( ret > 0 )
-        {
-            len += next->namesz;
-            len += sizeof(next->namesz);
-            len += next->datasz;
-            len += sizeof(next->datasz);
-            cnt += 1;
-        }
+        DEBUG("%s: filedb_variable_next() ret=%d\n", __func__, ret);
+
+        /* Error */
+        if ( ret < 0 )
+            return ret;
+        TRACE();
+
+        /* Last variable */
+        if ( ret == 0 )
+            break;
+        TRACE();
 
         current = next;
         next++;
-    } while ( ret > 0 && next != &variables[MAX_VAR_COUNT - 1] );
+        cnt++;
+    }
+    TRACE();
 
-    if ( ret < 0 )
-        return ret;
-
-    if ( len == 0 || len > bufsize )
+    /* Too many variables */
+    if ( cnt > INT_MAX )
         return -1;
 
-    /* Serialize DB contents */
-    p = buf;
+    DEBUG("%s: return cnt=%lu\n", __func__, cnt);
+    return cnt;
+}
 
-    int i;
+static size_t sizeof_var(variable_t *var)
+{
+        return var->namesz + sizeof(var->namesz) + 
+                var->datasz + sizeof(var->datasz);
+}
+
+static int from_vars_to_blob(uint8_t *buf, size_t bufsize)
+{
+    uint8_t *p;
+    int cnt, i;
+    size_t bytes_copied = 0;
+    variable_t *var;
+    variable_t vars[MAX_VAR_COUNT];
+
+    if ( !buf || bufsize <= 0 )
+        return -1;
+
+    TRACE();
+    cnt = retrieve_vars(vars, MAX_VAR_COUNT);
+    TRACE();
+    
+    if ( cnt < 0 )
+    {
+        DEBUG("retrieve_vars err: %d\n", cnt);
+        return cnt;
+    }
+
+    TRACE();
+    if ( cnt < 0 )
+    {
+        DEBUG("retrieve_vars err: %d\n", cnt);
+        return cnt;
+    }
+    TRACE();
+
+    if ( cnt == 0 )
+    {
+        DEBUG("retrieve_vars no variables found: cnt=%d\n", cnt);
+        return -1;
+    }
+
+    p = buf;
+    var = vars;
+
     for ( i=0; i<cnt; i++ )
     {
-        memcpy(p, &variables[i].namesz, sizeof(variables[i].namesz)); 
-        p += sizeof(variables[i].namesz);
+        var = &vars[i];
 
-        memcpy(p, variables[i].name, variables[i].namesz); 
-        p += variables[i].namesz;
+        dprint_vname("from_vars_to_blob: %s\n", var->name, var->namesz);
 
-        memcpy(p, &variables[i].datasz, sizeof(variables[i].datasz)); 
-        p += sizeof(variables[i].datasz);
+        if ( bytes_copied + sizeof_var(var) > bufsize )
+        {
+            ERROR("%s: buffer not big enough\n", __func__);
+            return -1;
+        }
 
-        memcpy(p, variables[i].data, variables[i].datasz); 
-        p += variables[i].datasz;
+        memcpy(p, &var->namesz, sizeof(var->namesz)); 
+        p += sizeof(var->namesz);
+
+        memcpy(p, var->name, var->namesz); 
+        p += var->namesz;
+
+        memcpy(p, &var->datasz, sizeof(var->datasz)); 
+        p += sizeof(var->datasz);
+
+        memcpy(p, var->data, var->datasz); 
+        p += var->datasz;
+
+        bytes_copied += sizeof_var(var);
     }
+    
+    return 0;
+}
+
+#define copy_field(dst, src, size)         \
+    do {                                        \
+        memcpy((dst), (src), (size));                \
+        (src) += (size);                            \
+    } while ( 0 )
+
+#define copy_namesz(var, src)                                         \
+    do {                                                            \
+        copy_field(&(var)->namesz, src, sizeof((var)->namesz));        \
+    } while( 0 )
+
+#define copy_name(var, src)                                         \
+    do {                                                            \
+        copy_field((var)->name, src, (var)->namesz);                  \
+    } while( 0 )
+
+#define copy_datasz(var, src)                                         \
+    do {                                                            \
+        copy_field(&(var)->datasz, src, sizeof((var)->datasz));        \
+    } while( 0 )
+
+#define copy_data(var, src)                                         \
+    do {                                                            \
+        copy_field((var)->data, src, (var)->datasz);                  \
+    } while( 0 )
+
+static int from_blob_to_vars(variable_t *vars, size_t n, uint8_t *blob, size_t blob_sz)
+{
+    uint8_t *p;
+    size_t cnt;
+    const uint8_t *end = blob + blob_sz;
+    variable_t *var;
+
+    if ( !vars || !blob || n == 0 || blob_sz == 0 )
+        return -1;
+
+    cnt = 0;
+    p = blob;
+    var = vars;
+
+        TRACE();
+    while ( p < end )
+    {
+        TRACE();
+        if ( p > end )
+        {
+            return -1;
+        }
+        TRACE();
+
+        if ( cnt >= n )
+        {
+            ERROR("%s: var buffer too small for blob\b", __func__);
+            return -1;
+        }
+
+        DEBUG("%s: p=%p, end=%p\n", __func__, p, end);
+
+        copy_namesz(var, p);
+        copy_name(var, p);
+        copy_datasz(var, p);
+        copy_data(var, p);
+        DEBUG("%s: p=%p, end=%p\n", __func__, p, end);
+
+        //dprint_vname("from_blob_to_vars: %s\n", var->name, var->namesz);
+        cnt++;
+        var++;
+    }
+    TRACE();
     
     return 0;
 }
@@ -334,7 +485,7 @@ static char *variables_base64(void)
     if ( !blob )
         return NULL;
 
-    rc = convert_to_blob(blob, size);
+    rc = from_vars_to_blob(blob, size);
 
     if ( rc < 0 )
         goto end;
@@ -360,10 +511,9 @@ static int create_header(size_t body_len, char *message, size_t message_size)
     return ret;
 }
 
-static char *build_set_efi_vars_message(void)
+static int build_set_efi_vars_message(char *buffer, size_t n)
 {
     int ret;
-    char *message = NULL;
     char *base64;
     char *body;
     size_t base64_size, body_len, hdr_len;
@@ -374,43 +524,48 @@ static char *build_set_efi_vars_message(void)
 
     base64_size = strlen(base64);
     body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) + base64_size - 1;
+    DEBUG("sizeof(HTTP)=%lu, base64_size=%lu\n", sizeof(HTTP_BODY_SET_NVRAM_VARS), base64_size);
+    DEBUG("body_len=%lu\n", body_len);
 
     body = malloc(body_len);
 
     if ( !body )
     {
         free(base64);
-        return NULL;
+        return -1;
     }
 
     ret = snprintf(body, body_len, HTTP_BODY_SET_NVRAM_VARS, base64);
 
     if ( ret < 0 )
-        goto end;
-
-    body_len = ret;
-
-    message = malloc(4096);
-
-    if ( !message )
-        goto end;
-
-    hdr_len = create_header(body_len, message, 4096);
-    if ( hdr_len < 0 )
     {
-        free(message);
-        message = NULL;
+        ret = -1;
         goto end;
     }
 
-    strncpy(message + hdr_len, body, body_len);
-    message[body_len + hdr_len] = '\0';
 
+    DEBUG("body: %s\n", body);
+
+    body_len = strlen(body);
+
+    hdr_len = create_header(body_len, buffer, n);
+    if ( hdr_len < 0 )
+    {
+        ret = -1;
+        goto end;
+    }
+
+    DEBUG("%s: size=%lu\n", __func__, hdr_len + body_len);
+
+    strncpy(buffer + hdr_len, body, body_len);
+    buffer[body_len + hdr_len] = '\0';
+
+    ret = 0;
 end:
     free(body);
     free(base64);
 
-    return message;
+    return ret;
 }
 
 static int send_request(char *message, char *buf, size_t bufsz)
@@ -436,8 +591,11 @@ static int send_request(char *message, char *buf, size_t bufsz)
         return ret;
 
     ret = read(fd, buf, bufsz);
+    DEBUG("read=%d\n", ret);
+
     if ( ret < 0 )
         return ret;
+
     
     buf[ret] = '\0';
     
@@ -446,20 +604,19 @@ static int send_request(char *message, char *buf, size_t bufsz)
 
 int xapi_set_efi_vars(void)
 {
-    char response[4096];
+    char buffer[BIG_MESSAGE_SIZE];
     int ret;
     char *message;
 
-    message = build_set_efi_vars_message();
+    ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
 
-    if ( !message )
-        return -1;
+    if ( ret < 0 )
+        return ret;
 
     
-    DEBUG("%s: request:\n%s\n", __func__, message);
-    ret = send_request(message, response, 4096);
-
-    DEBUG("%s: response:\n%s\n", __func__, response);
+    DEBUG("%s: request:\n%s\n", __func__, buffer);
+    ret = send_request(buffer, buffer, BIG_MESSAGE_SIZE);
+    DEBUG("%s: response:\n%s\n", __func__, buffer);
 
     free(message);
 
@@ -531,7 +688,7 @@ void save_time(void)
 int xapi_request(char *response, size_t response_sz, const char *format, ...)
 {
     va_list ap;
-    char message[4096];
+    char message[BIG_MESSAGE_SIZE];
     char body[3*1024];
     int hdr_len;
     size_t body_len;
@@ -546,16 +703,16 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
 
     body_len = ret;
 
-    hdr_len = create_header(body_len, message, 4096);
+    hdr_len = create_header(body_len, message, BIG_MESSAGE_SIZE);
 
     if ( hdr_len < 0 )
     {
         return -1;
     }
 
-    strncat(message, body, 4096);
+    strncat(message, body, BIG_MESSAGE_SIZE);
 
-    if ( strlen(message) ==  (4096-1) )
+    if ( strlen(message) ==  (BIG_MESSAGE_SIZE-1) )
     {
         WARNING("message length is exactly, equal to buffer length.  May have lost bytes!\n");
     }
@@ -619,7 +776,6 @@ static bool success(char *body)
     }
 
     DEBUG("%s: string=%s\n", __func__, (char*)string);
-
     ret = memcmp(string, "Success", 8);
     DEBUG("%s: ret=%d\n", __func__, ret);
 
@@ -643,8 +799,6 @@ static int get_value(char *body, char *dest, size_t n)
         return -1;
     }
 
-
-    DEBUG("***** body *****\n%s\n", body);
 
     doc = xmlReadMemory(body, strlen(body), "dummy.xml", 0, 0);
 
@@ -715,14 +869,14 @@ int get_response_content(char *response, char *outstr, size_t n)
 
 int set_efi_vars(char *session_id, char *b64)
 {
+    int ret;
     char response[1024] = {0};
     int status;
 
-    if ( !vm_uuid_initialized )
-    {
-        ERROR("no VM_UUID set!\n");
-        return -1;
-    }
+    ret = xapi_vm_get_by_uuid(session_id);
+
+    if ( ret < 0 )
+        return ret;
 
     status = xapi_request(response, 1024,
         "<?xmlversion=\'1.0\'?>"
@@ -745,13 +899,10 @@ int set_efi_vars(char *session_id, char *b64)
     return success(response_body(response)) ? 0 : -1;
 }
 
-int global_set_vm_uuid(char *session_id)
+int xapi_vm_get_by_uuid(char *session_id)
 {
     int status, ret;
     char response[1024] = {0};
-
-    if ( vm_uuid_initialized )
-        return 0;
 
     status = xapi_request(response, 1024,
         "<?xmlversion=\'1.0\'?>"
@@ -777,7 +928,6 @@ int global_set_vm_uuid(char *session_id)
         return ret;
     }
 
-    vm_uuid_initialized = true;
     return ret;
 }
 
@@ -785,6 +935,8 @@ int session_login(char *session_id, size_t n)
 {
     int status, ret;
     char response[1024] = {0};
+
+    TRACE();
 
     status = xapi_request(response, 1024,
             "<?xmlversion=\'1.0\'?>"
@@ -798,6 +950,7 @@ int session_login(char *session_id, size_t n)
             "</params>"
             "</methodCall>"
     );
+    TRACE();
 
     if ( status != 200 )
     {
@@ -805,14 +958,17 @@ int session_login(char *session_id, size_t n)
         return -1;
     }
 
+    TRACE();
     ret = get_response_content(response, session_id, n);
     
+    TRACE();
     if ( ret < 0 )
     {
         ERROR("failed to login to xapi, ret=%d\n", ret);
         return ret;
     }
 
+    TRACE();
     return 0;
 }
 
@@ -847,7 +1003,7 @@ int session_logout(char *session_id)
     return 0;
 }
 
-static int get_nvram(char *session_id)
+static int get_nvram(char *session_id, char *buffer, size_t n)
 {
     int status;
     size_t len;
@@ -856,9 +1012,9 @@ static int get_nvram(char *session_id)
     xmlXPathContext *context;
     xmlChar *string;
     char *body;
-    char response[4 * PAGE_SIZE] = {0};
+    char response[BIG_MESSAGE_SIZE] = {0};
 
-    status = xapi_request(response, 4 * PAGE_SIZE,
+    status = xapi_request(response, BIG_MESSAGE_SIZE,
         "<?xmlversion=\'1.0\'?>"
         "<methodCall>"
         "<methodName>VM.get_NVRAM</methodName>"
@@ -886,13 +1042,13 @@ static int get_nvram(char *session_id)
     {
         return -1;
     }
-    TRACE();
 
     context = xmlXPathNewContext(doc);
     if ( !context )
     {
         free(doc);
 
+        DEBUG("xmlXPathNewContext() failed!\n");
         return -1;
     }
 
@@ -901,6 +1057,7 @@ static int get_nvram(char *session_id)
 
     if ( !obj )
     {
+        DEBUG("xmlXPathEvalExpression() failed!\n");
         free(doc);
         xmlXPathFreeContext(context);
 
@@ -910,13 +1067,13 @@ static int get_nvram(char *session_id)
     string = xmlNodeGetContent((xmlNodePtr)obj->nodesetval->nodeTab[0]);
     if ( memcmp(string, "Success", 8) != 0 )
     {
+        INFO("xapi response, no success!\n");
         free(doc);
         xmlXPathFreeContext(context);
         xmlXPathFreeObject(obj);
 
         return -1;
     }
-    TRACE();
 
     xmlFree(string);
     xmlXPathFreeObject(obj);
@@ -924,8 +1081,6 @@ static int get_nvram(char *session_id)
     obj = xmlXPathEvalExpression((xmlChar *)
         "/methodResponse/params/param/value/struct/member/value/struct/member[name=\"EFI-variables\"]/value",
         context);
-
-    TRACE();
 
     if ( !obj || !obj->nodesetval )
     {
@@ -937,49 +1092,89 @@ static int get_nvram(char *session_id)
         return -1;
     }
 
-    TRACE();
-
-    DEBUG("%s: NODES: %d\n", __func__, obj->nodesetval->nodeNr);
-    
     string = xmlNodeGetContent(obj->nodesetval->nodeTab[0]);
-    TRACE();
-    DEBUG("STRING: %s\n", (char*) string);
+
+    strncpy(buffer, (char*)string, n);
 
     xmlFree(string);
     xmlXPathFreeObject(obj);
     xmlXPathFreeContext(context);
     xmlFreeDoc(doc);
-    TRACE();
 
     return 0;
 }
 
+static int decode_b64(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size)
+{
+    size_t ret;
 
-int xapi_get_efi_vars(void)
+    BIO *mem, *b64;
+
+    b64 = BIO_new(BIO_f_base64());
+    mem = BIO_new_mem_buf(encoded, encoded_size);
+
+    mem = BIO_push(mem, b64);
+
+    BIO_set_flags(mem, BIO_FLAGS_BASE64_NO_NL);
+    BIO_set_close(mem, BIO_CLOSE);
+
+    ret = BIO_read(mem, plaintext, n);
+
+    BIO_free_all(mem);
+
+    if ( ret == 0 )
+    {
+        ERROR("No data decrypted!\n");
+        return  -1;
+    }
+
+    return ret > INT_MAX ? -2 : (int) ret;
+}
+
+int xapi_get_efi_vars(variable_t *vars, size_t n)
 
 {
     int ret;
     char session_id[512];
+    uint8_t plaintext[BIG_MESSAGE_SIZE];
+    char b64[BIG_MESSAGE_SIZE];
 
     ret = session_login(session_id, 512);
+
+    TRACE();
+    if ( ret < 0 )
+        return ret;
+    TRACE();
+
+    ret = xapi_vm_get_by_uuid(session_id);
+
+    TRACE();
+    if ( ret < 0 )
+        return ret;
+
+    TRACE();
+    TRACE();
+    ret = get_nvram(session_id, b64, BIG_MESSAGE_SIZE);
+
+    if ( ret < 0 )
+    {
+        ERROR("failed to get NVRAM from xapi, ret=%d\n", ret);
+        return ret;
+    }
+
+    TRACE();
+    ret = decode_b64(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64)); 
+    
+    if ( ret < 0 )
+        return ret;
+
+    TRACE();
+    ret = from_blob_to_vars(vars, n, plaintext, (size_t)ret);
 
     if ( ret < 0 )
         return ret;
 
-    if ( !vm_uuid_initialized )
-    {
-        ret = global_set_vm_uuid(session_id);
-
-        if ( ret < 0 )
-            return ret;
-    }
-
-    ret = get_nvram(session_id);
-    if ( ret < 0 )
-    {
-        ERROR("failed to get NVRAM from xapi\n");
-    }
-
+    TRACE();
     return ret;
 }
 
@@ -999,13 +1194,10 @@ int xapi_set_variables(void)
     if ( ret < 0 )
         return ret;
 
-    if ( !vm_uuid_initialized )
-    {
-        ret = global_set_vm_uuid(session_id);
+    ret = xapi_vm_get_by_uuid(session_id);
 
-        if ( ret < 0 )
-            return ret;
-    }
+    if ( ret < 0 )
+        return ret;
 
     b64 = variables_base64();
 

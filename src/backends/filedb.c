@@ -212,6 +212,7 @@ static variable_t *find_next_cache_entry(variable_t cache[CACHE_SIZE], variable_
     if ( variable_is_empty(current) )
         return NULL;
 
+    
     for ( i=0; i<cache_len; i++ )
     {
         if ( cache[i].namesz != current->namesz )
@@ -231,9 +232,11 @@ static variable_t *find_next_cache_entry(variable_t cache[CACHE_SIZE], variable_
      * (there is no next one).
      */
      
+    
     if ( i >= cache_len - 1 )
         return NULL;
 
+    
     return &cache[i + 1];
 }
 
@@ -277,8 +280,10 @@ int filedb_variable_next(variable_t *current, variable_t *next)
 {
     variable_t *p;
 
+    
     if ( !current || !next )
         return -1;
+    
 
     if ( !in_progress )
     {
@@ -290,17 +295,21 @@ int filedb_variable_next(variable_t *current, variable_t *next)
     }
     else
     {
+    
         /*
          * If a search is in progress and the user provides the empty string again,
          * we simply restart the iteration from the beginning.
          */
         if ( variable_is_empty(current) )
         {
+    
             memset(cache, 0, sizeof(cache));
             __populate_cache();
+            in_progress = true;
         }
     }
 
+    
     /*
      * If current is the empty string, then the user is asking for the first
      * variable.  If there is no first variable, return not found.
@@ -311,16 +320,20 @@ int filedb_variable_next(variable_t *current, variable_t *next)
         if ( variable_is_empty(&cache[0]) )
             goto stop_iterator;
 
+        DEBUG("%s: return 1\n", __func__);
         memcpy(next, &cache[0], sizeof(*next));
         return 1;
     }
 
     p = find_next_cache_entry(cache, current);
 
+    DEBUG("current=%s\n", current->name);
+    DEBUG("%s: p=%p\n", __func__, p);
+
     /* If not found, we've reached the end */
     if ( !p )
         goto stop_iterator;
-
+    
     memcpy(next, p, sizeof(*p));
     return 1;
 

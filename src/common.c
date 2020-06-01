@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include "common.h"
 
+char strbuf[512] = {0};
+
 bool variable_is_empty(variable_t *v1)
 {
     if ( !v1 )
