@@ -1,4 +1,4 @@
-CFLAGS := -g -Wall -lssl -lcrypto
+CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/
 OBJ := mock/XenVariable.o ../src/xenvariable.o ../src/xapi.o \
        ../src/backends/filedb.o ../libs/kissdb/kissdb.o ../src/serializer.o \

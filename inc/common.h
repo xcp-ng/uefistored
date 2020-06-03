@@ -19,10 +19,10 @@
 
 
 typedef struct {
-    uint8_t name[MAX_VARNAME_SZ];
     size_t namesz;
-    uint8_t data[MAX_VARDATA_SZ];
+    uint8_t name[MAX_VARNAME_SZ];
     size_t datasz;
+    uint8_t data[MAX_VARDATA_SZ];
 } variable_t;
 
 #define for_each_variable(vars, var) \

@@ -521,13 +521,10 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 
 static void cleanup(void)
 {
-    DEBUG("%s()\n", __func__);
-    if ( !saved_efi_vars )
+    if ( !saved_efi_vars && xapi_set_efi_vars() >= 0 )
     {
-        if ( xapi_set_efi_vars() == 0 )
-            saved_efi_vars = true;
-        else
-            ERROR("Failed to set EFI vars\n");
+        DEBUG("Success: xapi_set_efi_vars()\n");
+        saved_efi_vars = true;
     }
 
     filedb_destroy();

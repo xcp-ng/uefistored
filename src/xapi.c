@@ -17,8 +17,10 @@
 
 #include "common.h"
 #include "xapi.h"
+#include "serializer.h"
 #include "backends/filedb.h"
 
+#define XAPI_CODEC_DEBUG 1
 #define XAPI_DEBUG 0
 
 #define BIG_MESSAGE_SIZE (8 * PAGE_SIZE)
@@ -141,7 +143,38 @@ static char *response_body(char *response)
     return body + sizeof("\r\n\r\n") - 1;
 }
 
-char *blob_to_base64(char *buffer, size_t length)
+int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size)
+{
+    size_t ret;
+
+    if ( !plaintext || n == 0 || !encoded || encoded_size == 0 )
+        return -1;
+
+    BIO *mem, *b64;
+
+    b64 = BIO_new(BIO_f_base64());
+    mem = BIO_new_mem_buf(encoded, encoded_size);
+
+    mem = BIO_push(b64, mem);
+
+    BIO_set_flags(mem, BIO_FLAGS_BASE64_NO_NL);
+    BIO_set_close(mem, BIO_CLOSE);
+
+    ret = BIO_read(mem, plaintext, encoded_size);
+
+    BIO_free_all(mem);
+
+    if ( ret == 0 )
+    {
+        ERROR("No data decrypted!\n");
+        return  -1;
+    }
+
+    return ret > INT_MAX ? -2 : (int) ret;
+}
+
+
+char *blob_to_base64(uint8_t *buffer, size_t length)
 {
     BIO *bio = NULL, *b64 = NULL;
     BUF_MEM *bufferPtr = NULL;
@@ -160,7 +193,7 @@ char *blob_to_base64(char *buffer, size_t length)
 
     bio = BIO_push(b64, bio);
 
-    if(BIO_write(bio, buffer, (int)length) <= 0)
+    if(BIO_write(bio, (char*)buffer, (int)length) <= 0)
         goto cleanup;
 
     if(BIO_flush(bio) != 1)
@@ -173,7 +206,7 @@ char *blob_to_base64(char *buffer, size_t length)
         goto cleanup;
 
     memcpy(b64text, bufferPtr->data, bufferPtr->length);
-    b64text[bufferPtr->length] = '\0';
+    b64text[bufferPtr->length - 1] = '\0';
     BIO_set_close(bio, BIO_NOCLOSE);
 
 cleanup:
@@ -230,45 +263,23 @@ int xapi_serialize(serializable_var_t *vars, size_t len, void *data, size_t size
     return 0;
 }
 
-static size_t blob_size(size_t *outsize)
+size_t blob_size(variable_t *variables, size_t n)
 {
-    int ret;
-    size_t cnt = 0;
-    size_t len = 0;
-    variable_t variables[MAX_VAR_COUNT];
-    variable_t *current, *next;
+    size_t i, sz;
+    variable_t *next;
 
-    memset(variables, 0, sizeof(variables));
+    sz = 0;
+    for ( i=0; i<n; i++ )
+    {
+        next = &variables[i];
 
-    /* Retrieve DB contents */
-    current = &variables[0];
-    next = &variables[0];
-    
-    do {
-        ret = filedb_variable_next(current, next);
-        
-        if ( ret > 0 )
-        {
-            len += next->namesz;
-            len += sizeof(next->namesz);
-            len += next->datasz;
-            len += sizeof(next->datasz);
-            cnt += 1;
-        }
+        sz += next->namesz;
+        sz += sizeof(next->namesz);
+        sz += next->datasz;
+        sz += sizeof(next->datasz);
+    }
 
-        current = next;
-        next++;
-    } while ( ret > 0 && next != &variables[MAX_VAR_COUNT - 1] );
-
-    if ( ret < 0 )
-        return ret;
-
-    if ( len == 0 )
-        return -1;
-
-    *outsize = len;
-
-    return 0;
+    return sz;
 }
 
 /**
@@ -311,7 +322,6 @@ static int retrieve_vars(variable_t *vars, size_t n)
         next++;
         cnt++;
     }
-    TRACE();
 
     /* Too many variables */
     if ( cnt > INT_MAX )
@@ -327,101 +337,125 @@ static size_t sizeof_var(variable_t *var)
                 var->datasz + sizeof(var->datasz);
 }
 
-static int from_vars_to_blob(uint8_t *buf, size_t bufsize)
+int serialize_var(uint8_t **p, size_t n, variable_t *var)
+{
+    size_t used = 0;
+
+    if ( sizeof(var->namesz) > n )
+        return -1;
+
+    memcpy(*p, &var->namesz, sizeof(var->namesz)); 
+    *p += sizeof(var->namesz);
+    used += sizeof(var->namesz);
+
+    if ( var->namesz + used > n )
+        return -1;
+
+    memcpy(*p, var->name, var->namesz); 
+    *p += var->namesz;
+    used += var->namesz;
+
+    if ( sizeof(var->datasz) + used > n )
+        return -1;
+
+    memcpy(*p, &var->datasz, sizeof(var->datasz)); 
+    *p += sizeof(var->datasz);
+    used += sizeof(var->datasz);
+
+    if ( var->datasz + used > n )
+        return -1;
+
+    memcpy(*p, var->data, var->datasz); 
+    *p += var->datasz;
+    used += var->datasz;
+
+    DEBUG("%s: used=%ld\n", __func__, used);
+
+    return 0;
+}
+
+int from_vars_to_blob(uint8_t *buf, size_t bufsize, variable_t *vars, size_t vars_cnt)
 {
     uint8_t *p;
-    int cnt, i;
-    size_t bytes_copied = 0;
-    variable_t *var;
-    variable_t vars[MAX_VAR_COUNT];
+    int i, ret;
 
-    if ( !buf || bufsize <= 0 )
+    if ( !buf || bufsize <= 0 || !vars || vars_cnt == 0 )
         return -1;
-
-    TRACE();
-    cnt = retrieve_vars(vars, MAX_VAR_COUNT);
-    TRACE();
     
-    if ( cnt < 0 )
-    {
-        DEBUG("retrieve_vars err: %d\n", cnt);
-        return cnt;
-    }
-
-    TRACE();
-    if ( cnt < 0 )
-    {
-        DEBUG("retrieve_vars err: %d\n", cnt);
-        return cnt;
-    }
-    TRACE();
-
-    if ( cnt == 0 )
-    {
-        DEBUG("retrieve_vars no variables found: cnt=%d\n", cnt);
-        return -1;
-    }
-
     p = buf;
-    var = vars;
 
-    for ( i=0; i<cnt; i++ )
+    for ( i=0; i<vars_cnt; i++ )
     {
-        var = &vars[i];
+        ret = serialize_var(&p, bufsize, &vars[i]);
 
-        dprint_vname("from_vars_to_blob: %s\n", var->name, var->namesz);
-
-        if ( bytes_copied + sizeof_var(var) > bufsize )
+        if ( ret < 0 )
         {
             ERROR("%s: buffer not big enough\n", __func__);
-            return -1;
+            return ret;
         }
-
-        memcpy(p, &var->namesz, sizeof(var->namesz)); 
-        p += sizeof(var->namesz);
-
-        memcpy(p, var->name, var->namesz); 
-        p += var->namesz;
-
-        memcpy(p, &var->datasz, sizeof(var->datasz)); 
-        p += sizeof(var->datasz);
-
-        memcpy(p, var->data, var->datasz); 
-        p += var->datasz;
-
-        bytes_copied += sizeof_var(var);
     }
     
     return 0;
 }
 
-#define copy_field(dst, src, size)         \
-    do {                                        \
-        memcpy((dst), (src), (size));                \
-        (src) += (size);                            \
-    } while ( 0 )
+static inline void copy_field(void *dst, uint8_t **src, size_t n)
+{
+    memcpy(dst, *src, n);
+    *src += n;
+}
 
-#define copy_namesz(var, src)                                         \
-    do {                                                            \
-        copy_field(&(var)->namesz, src, sizeof((var)->namesz));        \
-    } while( 0 )
+static inline int copy_name(variable_t *var, uint8_t **src)
+{
+    if ( var->namesz <= 0 || var->namesz >= MAX_VARNAME_SZ )
+        return -1;
 
-#define copy_name(var, src)                                         \
-    do {                                                            \
-        copy_field((var)->name, src, (var)->namesz);                  \
-    } while( 0 )
+    copy_field(var->name, src, var->namesz);            
+    var->name[var->namesz] = '\0';
+    return 0;
+}
 
-#define copy_datasz(var, src)                                         \
-    do {                                                            \
-        copy_field(&(var)->datasz, src, sizeof((var)->datasz));        \
-    } while( 0 )
+static inline void copy_namesz(variable_t *var, uint8_t **src)
+{
+    var->namesz = unserialize_uintn(src);
 
-#define copy_data(var, src)                                         \
-    do {                                                            \
-        copy_field((var)->data, src, (var)->datasz);                  \
-    } while( 0 )
+    //copy_field(&var->namesz, src, sizeof(var->namesz));            
+}
 
-static int from_blob_to_vars(variable_t *vars, size_t n, uint8_t *blob, size_t blob_sz)
+static inline int copy_data(variable_t *var, uint8_t **src)
+{
+    if ( var->datasz <= 0 || var->datasz >= MAX_VARDATA_SZ )
+        return -1;
+
+    copy_field(var->data, src, var->datasz);            
+    var->data[var->datasz] = '\0';
+    return 0;
+}
+
+static inline void copy_datasz(variable_t *var, uint8_t **src)
+{
+    copy_field(&var->datasz, src, sizeof(var->datasz));            
+}
+
+int unserialize_var(variable_t *var, uint8_t **src)
+{
+    int ret;
+
+    var->namesz = unserialize_uintn(src);
+    ret = copy_name(var, src);
+
+    if ( ret < 0 )
+        return ret;
+
+    copy_datasz(var, src);
+
+    ret = copy_data(var, src);
+    if ( ret < 0 )
+        return ret;
+
+    return 0;
+}
+
+int from_blob_to_vars(variable_t *vars, size_t n, uint8_t *blob, size_t blob_sz)
 {
     uint8_t *p;
     size_t cnt;
@@ -435,35 +469,18 @@ static int from_blob_to_vars(variable_t *vars, size_t n, uint8_t *blob, size_t b
     p = blob;
     var = vars;
 
-        TRACE();
-    while ( p < end )
+    while ( p < end && cnt < n )
     {
-        TRACE();
         if ( p > end )
         {
             return -1;
         }
-        TRACE();
 
-        if ( cnt >= n )
-        {
-            ERROR("%s: var buffer too small for blob\b", __func__);
-            return -1;
-        }
+        unserialize_var(var, &p);
 
-        DEBUG("%s: p=%p, end=%p\n", __func__, p, end);
-
-        copy_namesz(var, p);
-        copy_name(var, p);
-        copy_datasz(var, p);
-        copy_data(var, p);
-        DEBUG("%s: p=%p, end=%p\n", __func__, p, end);
-
-        //dprint_vname("from_blob_to_vars: %s\n", var->name, var->namesz);
         cnt++;
         var++;
     }
-    TRACE();
     
     return 0;
 }
@@ -474,23 +491,55 @@ static char *variables_base64(void)
     char *base64 = NULL;
     uint8_t *blob;
     size_t size;
+    variable_t vars[MAX_VAR_COUNT];
 
-
-    rc = blob_size(&size);
+    rc = retrieve_vars(vars, MAX_VAR_COUNT);
     if ( rc < 0 )
+    {
+        DEBUG("retrieve_vars err: %d\n", rc);
         return NULL;
+    }
+
+    if ( rc == 0 )
+    {
+        DEBUG("retrieve_vars no variables found: rc=%d\n", rc);
+        return NULL;
+    }
+
+    size = blob_size(vars, rc);
+    if ( size == 0 )
+        return NULL;
+
+    DEBUG("%s: size=%lu\n", __func__, size);
 
     blob = malloc(size);
 
     if ( !blob )
         return NULL;
 
-    rc = from_vars_to_blob(blob, size);
+
+    rc = from_vars_to_blob(blob, size, vars, (size_t)rc);
+    if ( rc < 0 )
+        return NULL;
+
+#if XAPI_CODEC_DEBUG
+    TRACE();
+    DPRINTF("0x");
+    int i;
+    for (i=0; i<16 * sizeof(unsigned long long); i += sizeof(unsigned long long))
+    {
+        unsigned long long val;
+        memcpy(&val, blob + i, sizeof(unsigned long long));
+
+        DPRINTF("%llx", val);
+    }
+    DPRINTF("\n");
+#endif
 
     if ( rc < 0 )
         goto end;
 
-    base64 = blob_to_base64((char *)blob, size);
+    base64 = blob_to_base64(blob, size);
 
 end:
     free(blob);
@@ -520,7 +569,7 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
 
     base64 = variables_base64();
     if ( !base64 )
-        return NULL;
+        return -1;
 
     base64_size = strlen(base64);
     body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) + base64_size - 1;
@@ -606,10 +655,9 @@ int xapi_set_efi_vars(void)
 {
     char buffer[BIG_MESSAGE_SIZE];
     int ret;
-    char *message;
+
 
     ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
-
     if ( ret < 0 )
         return ret;
 
@@ -618,9 +666,7 @@ int xapi_set_efi_vars(void)
     ret = send_request(buffer, buffer, BIG_MESSAGE_SIZE);
     DEBUG("%s: response:\n%s\n", __func__, buffer);
 
-    free(message);
-
-    return ret;
+    return ret == 200 ? 0 : -1;
 }
 
 #define HTTP_LOGIN                                                              \
@@ -936,8 +982,6 @@ int session_login(char *session_id, size_t n)
     int status, ret;
     char response[1024] = {0};
 
-    TRACE();
-
     status = xapi_request(response, 1024,
             "<?xmlversion=\'1.0\'?>"
             "<methodCall>"
@@ -950,7 +994,6 @@ int session_login(char *session_id, size_t n)
             "</params>"
             "</methodCall>"
     );
-    TRACE();
 
     if ( status != 200 )
     {
@@ -958,7 +1001,6 @@ int session_login(char *session_id, size_t n)
         return -1;
     }
 
-    TRACE();
     ret = get_response_content(response, session_id, n);
     
     TRACE();
@@ -1104,33 +1146,6 @@ static int get_nvram(char *session_id, char *buffer, size_t n)
     return 0;
 }
 
-static int decode_b64(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size)
-{
-    size_t ret;
-
-    BIO *mem, *b64;
-
-    b64 = BIO_new(BIO_f_base64());
-    mem = BIO_new_mem_buf(encoded, encoded_size);
-
-    mem = BIO_push(mem, b64);
-
-    BIO_set_flags(mem, BIO_FLAGS_BASE64_NO_NL);
-    BIO_set_close(mem, BIO_CLOSE);
-
-    ret = BIO_read(mem, plaintext, n);
-
-    BIO_free_all(mem);
-
-    if ( ret == 0 )
-    {
-        ERROR("No data decrypted!\n");
-        return  -1;
-    }
-
-    return ret > INT_MAX ? -2 : (int) ret;
-}
-
 int xapi_get_efi_vars(variable_t *vars, size_t n)
 
 {
@@ -1141,40 +1156,50 @@ int xapi_get_efi_vars(variable_t *vars, size_t n)
 
     ret = session_login(session_id, 512);
 
-    TRACE();
     if ( ret < 0 )
         return ret;
-    TRACE();
 
     ret = xapi_vm_get_by_uuid(session_id);
 
-    TRACE();
     if ( ret < 0 )
         return ret;
 
     TRACE();
-    TRACE();
     ret = get_nvram(session_id, b64, BIG_MESSAGE_SIZE);
+    TRACE();
 
     if ( ret < 0 )
     {
         ERROR("failed to get NVRAM from xapi, ret=%d\n", ret);
         return ret;
     }
+    DEBUG("b64:::::::::::\n%s\n", b64);
 
-    TRACE();
-    ret = decode_b64(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64)); 
+    ret = base64_to_blob(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64)); 
     
     if ( ret < 0 )
         return ret;
 
+#if XAPI_CODEC_DEBUG
+    int i;
+
     TRACE();
+    DPRINTF("0x");
+    for (i=0; i<16 * sizeof(unsigned long long); i += sizeof(unsigned long long))
+    {
+        unsigned long long val;
+        memcpy(&val, plaintext + i, sizeof(unsigned long long));
+
+        DPRINTF("%llx", val);
+    }
+    DPRINTF("\n");
+#endif
+
     ret = from_blob_to_vars(vars, n, plaintext, (size_t)ret);
 
     if ( ret < 0 )
         return ret;
 
-    TRACE();
     return ret;
 }
 
