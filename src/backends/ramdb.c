@@ -61,6 +61,9 @@ int ramdb_get(void *varname, size_t varname_len,
             break;
     }
 
+    if ( cnt > total )
+        return -1;
+
     if ( !var || var == &variables[MAX_VAR_COUNT])
         return -1;
 
@@ -70,6 +73,8 @@ int ramdb_get(void *varname, size_t varname_len,
         return -1;
     }
 
+    DEBUG("dest=%p, var=%p, var->datasz=%lu\n", dest, var, var->datasz);
+    DEBUG("cnt=%lu, total=%lu\n", cnt, total);
     memcpy(dest, var->data, var->datasz);
     *len = var->datasz;
     *attrs = var->attrs;
@@ -105,7 +110,7 @@ int ramdb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attr
             memcpy(&var->namesz, &varlen, sizeof(var->namesz));
             memcpy(&var->datasz, &len, sizeof(var->datasz));
             memcpy(&var->attrs, &attrs, sizeof(var->attrs));
-            goto success;
+            return 0;
         }
     }
 
@@ -119,15 +124,12 @@ int ramdb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attr
             memcpy(&var->namesz, &varlen, sizeof(var->namesz));
             memcpy(&var->datasz, &len, sizeof(var->datasz));
             memcpy(&var->attrs, &attrs, sizeof(var->attrs));
-            goto success;
+            total++;
+            return 0;
         }
     }
 
     return -1;
-
-success:
-    total++;
-    return 0;
 }
 
 /**

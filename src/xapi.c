@@ -1073,14 +1073,14 @@ int base64_from_response_body(char *buffer, size_t n, char *body)
 
     len = strlen(body);
 
-    DEBUG("len=%lu\n", len);
+    DEBUG("%s: len=%lu\n", __func__, len);
 
-    doc = xmlReadMemory(body, len, "dummy.xml", NULL, 0);
+    doc = xmlReadMemory(body, len-1, "dummy.xml", NULL, 0);
 
     if ( !doc )
     {
         ERROR("null doc! err=%d, errstring=%s\n", errno, strerror(errno));
-        //return -1;
+        return -1;
     }
 
     if ( errno != 0 )

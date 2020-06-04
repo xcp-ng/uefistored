@@ -174,18 +174,21 @@ void handle_ioreq(struct ioreq *ioreq)
             ioreq->vp_eport, ioreq->state, ioreq->data_is_ptr, ioreq->dir, ioreq->type);
 #endif
 
+    TRACE();
     if ( !io_port_enabled )
     {
         ERROR("ioport not yet enabled!\n");
         return;
     }
 
+    TRACE();
     if ( !(io_port_addr <= port_addr && port_addr < io_port_addr + io_port_size) )
     {
         ERROR("port addr 0x%lx not in range (0x%02lx-0x%02lx)\n",
                 port_addr, io_port_addr, io_port_addr + io_port_size - 1);
         return;
     }
+    TRACE();
 
     if ( size != 4 )
     {
@@ -193,15 +196,20 @@ void handle_ioreq(struct ioreq *ioreq)
         return;
     }
         
+    TRACE();
     p = map_guest_memory(gfn);
+    TRACE();
     if ( p )
     {
+        TRACE();
         /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
          * let's process it. */
         xenvariable_handle_request(p);
+        TRACE();
 
         /* Free up mappable space */
         xenforeignmemory_unmap(_fmem, p, 16);
+        TRACE();
     }
     else
     {
@@ -211,20 +219,23 @@ void handle_ioreq(struct ioreq *ioreq)
 
 void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
 {
+    TRACE();
     if ( ioreq->type > 8 )
     {
         ERROR("UNKNOWN (%02x)", ioreq->type);
         return;
     }
 
+    TRACE();
     if ( ioreq->type != IOREQ_TYPE_PIO )
     {
         ERROR("Not PIO ioreq type, 0x%02x\n", ioreq->type);
         return;
     }
 
+    TRACE();
     assert( ioreq->state < 16 );
-
+    TRACE();
 #if 0
     DEBUG("ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
             ioreq->addr, ioreq->data, ioreq->count, ioreq->size,
@@ -237,10 +248,15 @@ void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
         return;
     }
 
+    TRACE();
+
     ioreq->state = STATE_IOREQ_INPROCESS;
+    TRACE();
     handle_ioreq(ioreq);
+    TRACE();
     ioreq->state = STATE_IORESP_READY;
     xenevtchn_notify(xce, port);
+    TRACE();
 }
 
 int setup_portio(xendevicemodel_handle *dmod,
@@ -425,6 +441,7 @@ void handler_loop(xenevtchn_handle *xce,
 
     while ( true )
     {
+        TRACE();
         ret = poll(&pollfd, 1, -1);
         if ( ret < 0 )
         {
@@ -432,6 +449,7 @@ void handler_loop(xenevtchn_handle *xce,
             usleep(100000);
             continue;
         }
+        TRACE();
 
         port = xenevtchn_pending(xce);
         if ( port < 0 )
@@ -439,6 +457,7 @@ void handler_loop(xenevtchn_handle *xce,
             ERROR("xenevtchn_pending() error: %d, %s\n", errno, strerror(errno));
             continue;
         }
+        TRACE();
 
         ret = xenevtchn_unmask(xce, port);
         if ( ret < 0 )
@@ -446,6 +465,7 @@ void handler_loop(xenevtchn_handle *xce,
             ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
             continue;
         }
+        TRACE();
 
         if ( port == bufioreq_local_port )
         {
@@ -453,22 +473,28 @@ void handler_loop(xenevtchn_handle *xce,
             int i;
             buf_ioreq_t *p;
 
+            TRACE();
             for ( i=0; i<IOREQ_BUFFER_SLOT_NUM; i++ ) 
             {
                 p = &buffered_iopage->buf_ioreq[i];
-
+                TRACE();
                 /* Do some thing */
                 handle_bufioreq(p);
+                TRACE();
             }
         }
         else
         {
+            TRACE();
             for ( i=0; i<vcpu_count; i++ )
             {
+                TRACE();
                 evtchn_port_t remote_port = remote_vcpu_ports[i];
                 if ( remote_port == port )
                 {
+                    TRACE();
                     ret = handle_shared_iopage(xce, shared_iopage, port, i);
+                    TRACE();
                     if ( ret < 0 )
                         continue;
                 }
@@ -505,18 +531,22 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 {
     struct ioreq *p;
 
+    TRACE();
+
     if ( !shared_iopage )
     {
         ERROR("null sharedio_page\n");
         return -1;
     }
 
+    TRACE();
     p = &shared_iopage->vcpu_ioreq[vcpu];
     if ( !p )
     {
         ERROR("null vcpu_ioreq\n");
         return -1;
     }
+    TRACE();
 
     handle_pio(xce, port, p);
     return 0;

@@ -454,6 +454,7 @@ void xenvariable_handle_request(void *comm_buf)
     unserialize_uint32(&ptr);
 
     command = unserialize_uint32(&ptr);
+    DEBUG("command=%d\n", command);
 
     switch ( command )
     {
