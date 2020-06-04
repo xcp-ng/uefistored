@@ -7,7 +7,9 @@ LIB_DEPS :=	\
 	xentoolcore
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-OBJS := src/backends/filedb.o src/common.o src/xenvariable.o libs/kissdb/kissdb.o src/serializer.o src/xapi.o
+OBJS := src/backends/filedb.o src/common.o src/xenvariable.o    \
+        libs/kissdb/kissdb.o src/serializer.o src/xapi.o        \
+        src/backends/ramdb.o
 INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
 
@@ -22,6 +24,7 @@ varstored: src/main.c $(OBJS)
 .PHONY: clean
 clean:
 	rm varstored $(OBJS)
+	$(MAKE) -C tests/
 
 .PHONY: tools
 tools:
