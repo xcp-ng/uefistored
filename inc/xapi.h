@@ -21,4 +21,6 @@ int serialize_var(uint8_t **p, size_t n, variable_t *var);
 int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size);
 char *blob_to_base64(uint8_t *buffer, size_t length);
 size_t blob_size(variable_t *variables, size_t n);
+int base64_from_response_body(char *buffer, size_t n, char *body);
+
 #endif // __H_XAPI_

@@ -145,10 +145,13 @@ static char *response_body(char *response)
 
 int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size)
 {
+
     size_t ret;
 
     if ( !plaintext || n == 0 || !encoded || encoded_size == 0 )
         return -1;
+
+    DEBUG("n=%lu, encoded_size=%lu, encoded=%s\n", n, encoded_size, encoded);
 
     BIO *mem, *b64;
 
@@ -173,40 +176,42 @@ int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_s
     return ret > INT_MAX ? -2 : (int) ret;
 }
 
-
 char *blob_to_base64(uint8_t *buffer, size_t length)
 {
     BIO *bio = NULL, *b64 = NULL;
     BUF_MEM *bufferPtr = NULL;
     char *b64text = NULL;
 
-    if(length <= 0)
+    if ( length <= 0 )
         goto cleanup;
 
     b64 = BIO_new(BIO_f_base64());
-    if(b64 == NULL)
+    if ( b64 == NULL )
         goto cleanup;
 
     bio = BIO_new(BIO_s_mem());
-    if(bio == NULL)
+    if ( bio == NULL )
         goto cleanup;
 
     bio = BIO_push(b64, bio);
 
-    if(BIO_write(bio, (char*)buffer, (int)length) <= 0)
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    BIO_set_close(bio, BIO_CLOSE);
+
+    if ( BIO_write(bio, (char*)buffer, (int)length) <= 0 )
         goto cleanup;
 
-    if(BIO_flush(bio) != 1)
+    if ( BIO_flush(bio) != 1 )
         goto cleanup;
 
     BIO_get_mem_ptr(bio, &bufferPtr);
 
     b64text = (char*) malloc((bufferPtr->length + 1) * sizeof(char));
-    if(b64text == NULL)
+    if ( b64text == NULL )
         goto cleanup;
 
     memcpy(b64text, bufferPtr->data, bufferPtr->length);
-    b64text[bufferPtr->length - 1] = '\0';
+    b64text[bufferPtr->length] = '\0';
     BIO_set_close(bio, BIO_NOCLOSE);
 
 cleanup:
@@ -298,25 +303,19 @@ static int retrieve_vars(variable_t *vars, size_t n)
     current = &vars[0];
     next = &vars[0];
 
-    DEBUG("%s: n=%lu\n", __func__, n);
-
     memset(current, 0, sizeof(*current));
 
     while ( cnt < n )
     {
-        TRACE();
         ret = filedb_variable_next(current, next);
-        DEBUG("%s: filedb_variable_next() ret=%d\n", __func__, ret);
 
         /* Error */
         if ( ret < 0 )
             return ret;
-        TRACE();
 
         /* Last variable */
         if ( ret == 0 )
             break;
-        TRACE();
 
         current = next;
         next++;
@@ -482,7 +481,7 @@ int from_blob_to_vars(variable_t *vars, size_t n, uint8_t *blob, size_t blob_sz)
         var++;
     }
     
-    return 0;
+    return cnt > INT_MAX ? -1 : (int)cnt;
 }
 
 static char *variables_base64(void)
@@ -523,7 +522,6 @@ static char *variables_base64(void)
         return NULL;
 
 #if XAPI_CODEC_DEBUG
-    TRACE();
     DPRINTF("0x");
     int i;
     for (i=0; i<16 * sizeof(unsigned long long); i += sizeof(unsigned long long))
@@ -628,26 +626,41 @@ static int send_request(char *message, char *buf, size_t bufsz)
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     
     if ( fd < 0 )
+    {
+        ERROR("socket() failed: %d\n", fd);
         return fd;
+    }
 
     ret = connect(fd, (struct sockaddr*)&saddr, sizeof(saddr));
+
     if ( ret < 0 )
+    {
+        close(fd);
+        ERROR("connect() failed: %d\n", ret);
         return ret;
+    }
 
     ret = write(fd, message, strlen(message));
 
     if ( ret < 0 )
+    {
+        close(fd);
+        ERROR("write() failed: %d\n", ret);
         return ret;
+    }
 
     ret = read(fd, buf, bufsz);
-    DEBUG("read=%d\n", ret);
 
     if ( ret < 0 )
+    {
+        close(fd);
+        ERROR("read() failed: %d\n", ret);
         return ret;
+    }
 
     
+    close(fd);
     buf[ret] = '\0';
-    
     return http_status(buf);
 }
 
@@ -730,7 +743,6 @@ void save_time(void)
 #endif
 }
 
-
 int xapi_request(char *response, size_t response_sz, const char *format, ...)
 {
     va_list ap;
@@ -763,9 +775,9 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
         WARNING("message length is exactly, equal to buffer length.  May have lost bytes!\n");
     }
 
-    DEBUG("%s: request\n%s\n", __func__, message);
+    DEBUG("%s: request, ret=%d\n%s\n", __func__, ret, message);
     ret = send_request(message, response, response_sz);
-    DEBUG("%s: response\n%s\n", __func__, response);
+    DEBUG("%s: response, ret=%d\n%s\n", __func__, ret, response);
 
     return ret;
 }
@@ -787,12 +799,12 @@ static bool success(char *body)
     len = strlen(body);
 
     doc = xmlReadMemory(body, len, "dummy.xml", 0, 0);
+
     if ( !doc )
     {
         ERROR("xmlReadMemory() error\n");
         return false;
     }
-
 
     context = xmlXPathNewContext(doc);
     if ( !context )
@@ -1003,14 +1015,12 @@ int session_login(char *session_id, size_t n)
 
     ret = get_response_content(response, session_id, n);
     
-    TRACE();
     if ( ret < 0 )
     {
         ERROR("failed to login to xapi, ret=%d\n", ret);
         return ret;
     }
 
-    TRACE();
     return 0;
 }
 
@@ -1045,47 +1055,39 @@ int session_logout(char *session_id)
     return 0;
 }
 
-static int get_nvram(char *session_id, char *buffer, size_t n)
+/**
+ * Return the EFI vars string from the XML response for VM.get_NVRAM XAPI
+ * request.
+ *
+ * buffer: the destination buffer
+ * n: the size of buffer
+ * body: the null-terminated XML body
+ */
+int base64_from_response_body(char *buffer, size_t n, char *body)
 {
-    int status;
     size_t len;
     xmlXPathObject *obj;
     xmlDoc *doc;
     xmlXPathContext *context;
     xmlChar *string;
-    char *body;
-    char response[BIG_MESSAGE_SIZE] = {0};
-
-    status = xapi_request(response, BIG_MESSAGE_SIZE,
-        "<?xmlversion=\'1.0\'?>"
-        "<methodCall>"
-        "<methodName>VM.get_NVRAM</methodName>"
-        "<params>"
-            "<param><value><string>%s</string></value></param>"
-            "<param><value><string>%s</string></value></param>"
-        "</params>"
-        "</methodCall>",
-        session_id, VM_UUID);
-
-    if ( status != 200 )
-        return -1;
-
-    body = response_body(response);
-
-#if XAPI_DEBUG
-    DEBUG("%s: response:\n%s\n", __func__, response);
-    DEBUG("%s: body:\n%s\n", __func__, body);
-#endif
 
     len = strlen(body);
 
-    doc = xmlReadMemory(body, len, "dummy.xml", 0, 0);
+    DEBUG("len=%lu\n", len);
+
+    doc = xmlReadMemory(body, len, "dummy.xml", NULL, 0);
+
     if ( !doc )
     {
-        return -1;
+        ERROR("null doc! err=%d, errstring=%s\n", errno, strerror(errno));
+        //return -1;
     }
 
+    if ( errno != 0 )
+        return errno;
+
     context = xmlXPathNewContext(doc);
+
     if ( !context )
     {
         free(doc);
@@ -1146,15 +1148,59 @@ static int get_nvram(char *session_id, char *buffer, size_t n)
     return 0;
 }
 
+int base64_from_response(char *buffer, size_t n, char *response)
+{
+    char *body;
+
+    body = response_body(response);
+
+    return base64_from_response_body(buffer, n, body);
+}
+
+static int get_nvram(char *session_id, char *buffer, size_t n)
+{
+    int status;
+    char response[BIG_MESSAGE_SIZE] = {0};
+
+    status = xapi_request(response, BIG_MESSAGE_SIZE,
+        "<?xmlversion=\'1.0\'?>"
+        "<methodCall>"
+        "<methodName>VM.get_NVRAM</methodName>"
+        "<params>"
+            "<param><value><string>%s</string></value></param>"
+            "<param><value><string>%s</string></value></param>"
+        "</params>"
+        "</methodCall>",
+        session_id, VM_UUID);
+
+    if ( status != 200 )
+        return -1;
+
+    return base64_from_response(buffer, n, response);
+}
+
+/**
+ * Returns 0 if successfully retrieved variables.
+ *
+ * Returns negative errno for errors.
+ */
 int xapi_get_efi_vars(variable_t *vars, size_t n)
 
 {
+    int retries = 5;
     int ret;
     char session_id[512];
     uint8_t plaintext[BIG_MESSAGE_SIZE];
     char b64[BIG_MESSAGE_SIZE];
 
     ret = session_login(session_id, 512);
+
+    while ( ret < 0 && retries > 0 )
+    {
+        usleep(100000);
+        ret = session_login(session_id, 512);
+        retries--;
+    }
 
     if ( ret < 0 )
         return ret;
@@ -1164,16 +1210,13 @@ int xapi_get_efi_vars(variable_t *vars, size_t n)
     if ( ret < 0 )
         return ret;
 
-    TRACE();
     ret = get_nvram(session_id, b64, BIG_MESSAGE_SIZE);
-    TRACE();
 
     if ( ret < 0 )
     {
         ERROR("failed to get NVRAM from xapi, ret=%d\n", ret);
         return ret;
     }
-    DEBUG("b64:::::::::::\n%s\n", b64);
 
     ret = base64_to_blob(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64)); 
     
@@ -1183,7 +1226,6 @@ int xapi_get_efi_vars(variable_t *vars, size_t n)
 #if XAPI_CODEC_DEBUG
     int i;
 
-    TRACE();
     DPRINTF("0x");
     for (i=0; i<16 * sizeof(unsigned long long); i += sizeof(unsigned long long))
     {
@@ -1217,7 +1259,12 @@ int xapi_set_variables(void)
     ret = session_login(session_id, 512);
 
     if ( ret < 0 )
-        return ret;
+    {
+        usleep(100000);
+        ret = session_login(session_id, 512);
+        if ( ret < 0 )
+            return ret;
+    }
 
     ret = xapi_vm_get_by_uuid(session_id);
 
@@ -1227,8 +1274,6 @@ int xapi_set_variables(void)
     b64 = variables_base64();
 
     ret = set_efi_vars(session_id, b64);
-
-    DEBUG("set_efi_vars: ret=%d\n", ret);
 
     if ( ret < 0 )
         goto free_b64;

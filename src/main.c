@@ -360,6 +360,7 @@ static int initialize_variables(void)
     variable_t variables[512];
     variable_t *var;
 
+    /* TODO: if there is an error, prevent boot.  If vars are empty, allow boot */
     ret = xapi_get_efi_vars(variables, 512);
 
     if ( ret < 0 )
@@ -376,7 +377,9 @@ static int initialize_variables(void)
     {
         for_each_variable(variables, var) 
         {
-            DEBUG("%s: %s\n", var->name, var->data);
+            char ascii[512];
+            uc2_ascii(var->name, ascii, 512);
+            DEBUG("%s: %s\n", ascii, var->data);
         }
     }
 

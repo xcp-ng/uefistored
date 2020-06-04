@@ -11,7 +11,7 @@
 #include "uefitypes.h"
 #include "common.h"
 
-#define VALIDATE_WRITES
+//#define VALIDATE_WRITES
 
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
 #define MAX_DATA_SZ (FILEDB_VAL_SIZE)
@@ -305,14 +305,22 @@ static void set_variable(void *comm_buf)
     }
 
     len = unserialize_name(&ptr, variable_name, MAX_VARNAME_SZ);
+    if ( len <= 0 )
+    {
+        ERROR("%s: len == %lu\n", __func__, len);
+        return len < 0 ? len : -1;
+    }
+
+
     unserialize_guid(&ptr, &guid);
     datalen = unserialize_data(&ptr, dp, MAX_DATA_SZ);
     attrs = unserialize_uint32(&ptr);
 
+    print_set_var(variable_name, len, attrs);
+
     if ( datalen == 0 )
     {
         ERROR("UEFI error: datalen == 0\n");
-        print_set_var(variable_name, len, attrs);
         ptr = comm_buf;
         serialize_result(&ptr, EFI_SECURITY_VIOLATION);
         return;
@@ -345,7 +353,6 @@ static void set_variable(void *comm_buf)
         return;
     }
 #endif
-    print_set_var(variable_name, len, attrs);
 
     ret = filedb_set(variable_name, len, dp, datalen, attrs);
     if ( ret < 0 )

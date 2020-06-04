@@ -40,14 +40,9 @@ int filedb_init(char *dbpath,
     _varlenpath = varlenpath ? varlenpath : DEFAULT_DBPATH_VAR_LEN;
     _attrspath = attrspath ? attrspath : DEFAULT_DBPATH_VAR_ATTRS;
 
-    INFO("DB: %s\n", _dbpath);
-    INFO("VARLEN DB: %s\n", _varlenpath);
-    INFO("ATTRS DB: %s\n", _attrspath);
-
     ret = KISSDB_open(&db, _dbpath, KISSDB_OPEN_MODE_RWCREAT, CACHE_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
     if ( ret != 0 )
     {
-        DEBUG("KISSDB_open(): err=%d\n", ret);
         return -1;
     }
 
@@ -320,15 +315,11 @@ int filedb_variable_next(variable_t *current, variable_t *next)
         if ( variable_is_empty(&cache[0]) )
             goto stop_iterator;
 
-        DEBUG("%s: return 1\n", __func__);
         memcpy(next, &cache[0], sizeof(*next));
         return 1;
     }
 
     p = find_next_cache_entry(cache, current);
-
-    DEBUG("current=%s\n", current->name);
-    DEBUG("%s: p=%p\n", __func__, p);
 
     /* If not found, we've reached the end */
     if ( !p )
