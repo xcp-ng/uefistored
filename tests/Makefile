@@ -7,7 +7,7 @@ OBJ := mock/XenVariable.o ../src/xenvariable.o ../src/xapi.o \
 OBJ += src/test_xenvariable.o src/test_xapi.o
 
 .PHONY: all
-all: test test-nosan
+all: test-nosan test
 	valgrind --leak-check=full \
 		--show-leak-kinds=all \
 		--track-origins=yes \
