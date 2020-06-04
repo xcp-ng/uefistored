@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#include "backends/backend.h"
 #include "backends/filedb.h"
 #include "common.h"
 #include "kissdb/kissdb.h"
@@ -30,17 +31,16 @@ static char *_dbpath;
 static char *_varlenpath;
 static char *_attrspath;
 
-int filedb_init(char *dbpath,
-            char *varlenpath,
-            char *attrspath)
+int filedb_init(void)
 {
     int ret;
 
-    _dbpath = dbpath ? dbpath : DEFAULT_DBPATH;
-    _varlenpath = varlenpath ? varlenpath : DEFAULT_DBPATH_VAR_LEN;
-    _attrspath = attrspath ? attrspath : DEFAULT_DBPATH_VAR_ATTRS;
+    _dbpath = DEFAULT_DBPATH;
+    _varlenpath = DEFAULT_DBPATH_VAR_LEN;
+    _attrspath = DEFAULT_DBPATH_VAR_ATTRS;
 
-    ret = KISSDB_open(&db, _dbpath, KISSDB_OPEN_MODE_RWCREAT, CACHE_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
+    ret = KISSDB_open(&db, _dbpath, KISSDB_OPEN_MODE_RWCREAT,
+                      CACHE_SIZE, FILEDB_KEY_SIZE, FILEDB_VAL_SIZE);
     if ( ret != 0 )
     {
         return -1;
@@ -271,7 +271,7 @@ static void __populate_cache(void)
  *
  * Returns -1 on error, 0 on end of list, 1 on success
  */
-int filedb_variable_next(variable_t *current, variable_t *next)
+int filedb_next(variable_t *current, variable_t *next)
 {
     variable_t *p;
 
@@ -335,3 +335,11 @@ stop_iterator:
     return  0;
 }
 
+struct backend filedb_backend = {
+    .init = filedb_init,
+    .deinit = filedb_deinit,
+    .get = filedb_get,
+    .set = filedb_set,
+    .destroy = filedb_destroy,
+    .next = filedb_next,
+};

@@ -26,7 +26,7 @@
 #include <xen/hvm/params.h>
 #include <xen/memory.h>
 
-#include "backends/filedb.h"
+#include "backends/backend.h"
 #include "xenvariable.h"
 #include "xapi.h"
 #include "common.h"
@@ -530,7 +530,7 @@ static void cleanup(void)
         saved_efi_vars = true;
     }
 
-    filedb_destroy();
+    backend_destroy();
 
     if ( fmem && fmem_resource )
         xenforeignmemory_unmap_resource(fmem, fmem_resource);
@@ -977,7 +977,7 @@ int main(int argc, char **argv)
     }
 
     /* Initialize UEFI variables */
-    ret = filedb_init(NULL, NULL, NULL);
+    ret = backend_init(BACKEND_RAMDB);
     if ( ret < 0 )
     {
         ERROR("Failed to initialize db: %d\n", ret);

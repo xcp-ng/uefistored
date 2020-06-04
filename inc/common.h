@@ -8,7 +8,9 @@
 #include <string.h>
 #include <uchar.h>
 
-#define MAX_VAR_COUNT 1024
+#define min(x, y) ((x) < (y) ? (x) : (y))
+
+#define MAX_VAR_COUNT 512
 #define MAX_VARNAME_SZ 128 
 #define MAX_VARDATA_SZ 1024
 
@@ -23,6 +25,7 @@ typedef struct {
     uint8_t name[MAX_VARNAME_SZ];
     size_t datasz;
     uint8_t data[MAX_VARDATA_SZ];
+    uint32_t attrs;
 } variable_t;
 
 #define for_each_variable(vars, var) \

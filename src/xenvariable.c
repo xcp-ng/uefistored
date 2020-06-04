@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "backends/filedb.h"
+#include "backends/backend.h"
 #include "xenvariable.h"
 #include "serializer.h"
 #include "UefiMultiPhase.h"
@@ -14,7 +14,6 @@
 //#define VALIDATE_WRITES
 
 #define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
-#define MAX_DATA_SZ (FILEDB_VAL_SIZE)
 
 static void dprint_attrs(uint32_t attr)
 {
@@ -88,13 +87,6 @@ void print_uc2(const char *TAG, void *vn)
 #endif
 }
 
-static bool name_eq(void *vn, size_t vnlen, const char *comp)
-{
-    uc2_ascii_safe(vn, vnlen, strbuf, 512);
-    return memcmp(strbuf, comp, vnlen / 2) == 0;
-}
-
-
 static bool isnull(void *mem, size_t len)
 {
     uint8_t *p = mem;
@@ -125,11 +117,11 @@ static void dprint_data(void *data, size_t datalen)
 static void validate(void *variable_name, size_t len, void *data, size_t datalen, uint32_t attrs)
 {
     int ret;
-    uint8_t test_data[MAX_DATA_SZ];
+    uint8_t test_data[MAX_VARDATA_SZ];
     uint32_t test_attrs = 0;
     size_t test_datalen;
 
-    ret = filedb_get(variable_name, len, test_data, MAX_DATA_SZ, &test_datalen, &test_attrs);
+    ret = backend_get(variable_name, len, test_data, MAX_VARDATA_SZ, &test_datalen, &test_attrs);
     if ( ret != 0 )
     {
         ERROR("Failed to validate variable!\n");
@@ -164,7 +156,7 @@ static void get_variable(void *comm_buf)
     EFI_GUID guid;
     uint32_t attrs, version;
     uint64_t buflen;
-    uint8_t data[MAX_DATA_SZ];
+    uint8_t data[MAX_VARDATA_SZ];
     char variable_name[MAX_VARNAME_SZ];
 
     uint8_t *ptr;
@@ -208,7 +200,7 @@ static void get_variable(void *comm_buf)
         return;
     }
 
-    ret = filedb_get(variable_name, len, data, MAX_DATA_SZ, &namesz, &attrs);
+    ret = backend_get(variable_name, len, data, MAX_VARDATA_SZ, &namesz, &attrs);
     if ( ret == 1 )
     {
         dprint_vname("cmd:GET_VARIABLE: %s, not in DB\n", variable_name, len);
@@ -223,6 +215,8 @@ static void get_variable(void *comm_buf)
         device_error(comm_buf);
         return;
     }
+
+    DEBUG("namesz=%lu\n", namesz);
 
     unserialize_guid(&ptr, &guid);
 
@@ -278,7 +272,7 @@ static void set_variable(void *comm_buf)
     size_t len, datalen;
     int ret;
     char variable_name[MAX_VARNAME_SZ];
-    uint8_t data[MAX_DATA_SZ];
+    uint8_t data[MAX_VARDATA_SZ];
     void *dp = data;
     uint32_t attrs, command, version;
 
@@ -308,12 +302,11 @@ static void set_variable(void *comm_buf)
     if ( len <= 0 )
     {
         ERROR("%s: len == %lu\n", __func__, len);
-        return len < 0 ? len : -1;
+        return;
     }
 
-
     unserialize_guid(&ptr, &guid);
-    datalen = unserialize_data(&ptr, dp, MAX_DATA_SZ);
+    datalen = unserialize_data(&ptr, dp, MAX_VARDATA_SZ);
     attrs = unserialize_uint32(&ptr);
 
     print_set_var(variable_name, len, attrs);
@@ -354,7 +347,7 @@ static void set_variable(void *comm_buf)
     }
 #endif
 
-    ret = filedb_set(variable_name, len, dp, datalen, attrs);
+    ret = backend_set(variable_name, len, dp, datalen, attrs);
     if ( ret < 0 )
     {
         ERROR("Failed to set variable in db\n");
@@ -380,8 +373,8 @@ static void set_variable(void *comm_buf)
 static void get_next_variable(void *comm_buf)
 {
     uint32_t command;
-    variable_t current = {{0}};
-    variable_t next = {{0}};
+    variable_t current;
+    variable_t next;
     bool efi_at_runtime;
     uint64_t guest_bufsz;
     EFI_GUID guid;
@@ -389,9 +382,10 @@ static void get_next_variable(void *comm_buf)
     int ret;
     uint32_t version;
 
-    version = unserialize_uint32(&ptr);
+    memset(&current, 0, sizeof(current));
+    memset(&next, 0, sizeof(next));
 
-    TRACE();
+    version = unserialize_uint32(&ptr);
 
     if ( version != 1 )
         WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
@@ -413,7 +407,7 @@ static void get_next_variable(void *comm_buf)
         /* TODO: does this information get used? */
     }
 
-    ret = filedb_variable_next(&current, &next);
+    ret = backend_next(&current, &next);
     if ( ret == 0 )
     {
         next_var_not_found(comm_buf);
@@ -446,7 +440,7 @@ static void get_next_variable(void *comm_buf)
 void xenvariable_handle_request(void *comm_buf)
 {
     uint8_t *ptr;
-    uint32_t version, command;
+    uint32_t command;
 
     if ( !comm_buf )
     {
@@ -457,7 +451,8 @@ void xenvariable_handle_request(void *comm_buf)
     ptr = comm_buf;
 
     /* advance the pointer passed the version field */
-    version = unserialize_uint32(&ptr);
+    unserialize_uint32(&ptr);
+
     command = unserialize_uint32(&ptr);
 
     switch ( command )

@@ -10,7 +10,7 @@
 #include "data/bigbase64.h"
 #include "test_common.h"
 #include "test_xapi.h"
-#include "backends/filedb.h"
+#include "backends/backend.h"
 #include "xapi.h"
 
 #define TEST_PT_SIZE 512
@@ -25,14 +25,14 @@ char socket_path[108] = "/xapi-depriv-socket";
 
 static void pre_test(void)
 {
-    filedb_init("./test.db", "./test_var_len.db", "./test_var_attrs.db");
+    backend_init(BACKEND_RAMDB);
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 static void post_test(void)
 {
-    filedb_deinit();
-    filedb_destroy();
+    backend_deinit();
+    backend_destroy();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 

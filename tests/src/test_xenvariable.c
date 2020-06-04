@@ -4,7 +4,7 @@
 #include <uchar.h>
 
 #include "xenvariable.h"
-#include "backends/filedb.h"
+#include "backends/backend.h"
 #include "mock/XenVariable.h"
 #include "test_common.h"
 #include "UefiMultiPhase.h"
@@ -17,14 +17,14 @@ static void *comm_buf = comm_buf_phys;
 
 static void pre_test(void)
 {
-    filedb_init("./test.db", "./test_var_len.db", "./test_var_attrs.db");
+    backend_init(BACKEND_RAMDB);
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 static void post_test(void)
 {
-    filedb_deinit();
-    filedb_destroy();
+    backend_deinit();
+    backend_destroy();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
@@ -182,7 +182,7 @@ static void set_mtc_variable(void *buf)
  * Test that using SetVariable() to save a variable
  * and subsequently calling GetVariable() to retrieve
  * that same variable results in the saved and
- * restored variable vlaues being equivalent.
+ * restored variables being equivalent.
  */
 static void test_set_and_get(void)
 {

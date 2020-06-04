@@ -4,6 +4,7 @@
 #include <fcntl.h>
 
 #include "test_xenvariable.h"
+#include "test_ramdb.h"
 #include "test_xapi.h"
 #include "test_common.h"
 #include "common.h"
@@ -24,6 +25,7 @@ int main(void)
     set_logfd(open_logfile());
     test_xenvariable();
     test_xapi();
+    test_ramdb();
 
     printf("PASSED (%d), FAILED (%d)\n", passcount, failcount);
     return failcount == 0 ? 0 : -1;
