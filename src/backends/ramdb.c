@@ -73,8 +73,6 @@ int ramdb_get(void *varname, size_t varname_len,
         return -1;
     }
 
-    DEBUG("dest=%p, var=%p, var->datasz=%lu\n", dest, var, var->datasz);
-    DEBUG("cnt=%lu, total=%lu\n", cnt, total);
     memcpy(dest, var->data, var->datasz);
     *len = var->datasz;
     *attrs = var->attrs;
