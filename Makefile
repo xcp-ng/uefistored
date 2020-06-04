@@ -31,4 +31,8 @@ tools:
 test:
 	$(MAKE) -C tests/
 
+.PHONY: test-nosan
+test-nosan:
+	$(MAKE) -C tests/
+
 include Env.mk

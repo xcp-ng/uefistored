@@ -5,14 +5,18 @@
 #include <sys/un.h>
 #include <fcntl.h>
 #include <unistd.h>
+
+#include "common.h"
+#include "data/bigbase64.h"
 #include "test_common.h"
 #include "test_xapi.h"
 #include "backends/filedb.h"
 #include "xapi.h"
-#include "common.h"
-
 
 #define TEST_PT_SIZE 512
+
+static char *BIG_BASE64 =  BIG_BASE64_STR;
+static char *BIG_BASE64_XML =  BIG_BASE64_XML_STR;
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;
@@ -189,6 +193,8 @@ void test_base64_encode(void)
     from_vars_to_blob(buf, 4096, &orig, 1);
     base64 = blob_to_base64(buf, blob_size(&orig, 1));
 
+
+    DEBUG("exp: %s\n", expected);
     /* Do the test */
     test(strcmp(base64, expected) == 0);
     free(base64);
@@ -265,6 +271,78 @@ void test_base64_multiple(void)
     free(base64);
 }
 
+void test_base64_big(void)
+{
+    bool has_bootorder = false, has_conout = false;
+    int ret;
+    int i;
+    uint8_t pt[4096*4];
+    variable_t vars[256] = {0};
+
+    ret = base64_to_blob(pt, 4096*4, BIG_BASE64, strlen(BIG_BASE64));
+    test(ret > 0);
+
+    ret = from_blob_to_vars(vars, 256, pt, ret); 
+
+    for ( i=0; i<ret; i++ )
+    {
+        char ascii[512];
+        uc2_ascii(vars[i].name, ascii, 512);
+
+        if ( strcmp(ascii, "BootOrder") == 0 )
+            has_bootorder = true;
+        else if ( strcmp(ascii, "ConOut") == 0 )
+            has_conout = true;
+        
+    }
+
+    test(has_bootorder);
+    test(has_conout);
+
+#if 0
+    int i;
+
+    DPRINTF("0x");
+    for ( i=0; i<128; i++ )
+    {
+        DPRINTF("%02x", pt[i]);
+    }
+    DPRINTF("\n");
+#endif
+}
+
+void test_base64_big_xml(void)
+{
+    bool has_bootorder = false, has_conout = false;
+    int ret;
+    int i;
+    char base64[4096*4];
+    uint8_t pt[4096*4];
+    variable_t vars[256] = {0};
+
+    ret = base64_from_response_body(base64, 4096*4, BIG_BASE64_XML);
+    test( ret == 0 );
+
+    ret = base64_to_blob(pt, 4096*4, base64, strlen(base64));
+    test(ret > 0);
+
+    ret = from_blob_to_vars(vars, 256, pt, ret); 
+
+    for ( i=0; i<ret; i++ )
+    {
+        char ascii[512];
+        uc2_ascii(vars[i].name, ascii, 512);
+
+        if ( strcmp(ascii, "BootOrder") == 0 )
+            has_bootorder = true;
+        else if ( strcmp(ascii, "ConOut") == 0 )
+            has_conout = true;
+    }
+
+    test(has_bootorder);
+    test(has_conout);
+}
+
 void test_xapi(void)
 {
     v1_len = strsize16((char16_t*)v1) + 2;
@@ -299,6 +377,8 @@ void test_xapi(void)
     DO_TEST(test_base64);
     DO_TEST(test_base64_multiple);
     DO_TEST(test_base64_encode);
+    DO_TEST(test_base64_big);
+    DO_TEST(test_base64_big_xml);
 
     free(vars[0].variable); 
     free(vars[1].variable); 
