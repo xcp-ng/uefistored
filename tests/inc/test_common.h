@@ -22,6 +22,7 @@ extern int all_passed;
         {                                                               \
             printf("%s:%s:%d: %s: %s\n", __FILE__, __func__, __LINE__, #assertion, "fail");   \
             failcount++;                                                \
+            return;                                                     \
         }                                                               \
         else                                                            \
         {                                                               \

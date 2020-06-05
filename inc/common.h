@@ -14,6 +14,9 @@
 #define MAX_VARNAME_SZ 128 
 #define MAX_VARDATA_SZ 1024
 
+#define VARSTORED_ERROR 1
+#define VAR_NOT_FOUND (-10)
+
 /* OVMF XenVariable loads 16 pages of shared memory to pass varstored the command */
 #define PAGE_SIZE (4<<10)
 #define SHMEM_PAGES 16

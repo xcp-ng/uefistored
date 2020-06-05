@@ -151,7 +151,7 @@ int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_s
     if ( !plaintext || n == 0 || !encoded || encoded_size == 0 )
         return -1;
 
-    DEBUG("n=%lu, encoded_size=%lu, encoded=%s\n", n, encoded_size, encoded);
+    DEBUG("n=%lu, encoded_size=%lu, encoded=%lu\n", n, encoded_size, encoded);
 
     BIO *mem, *b64;
 
@@ -798,7 +798,7 @@ static bool success(char *body)
 
     len = strlen(body);
 
-    doc = xmlReadMemory(body, len, "dummy.xml", 0, 0);
+    doc = xmlReadMemory(body, len+1, "dummy.xml", 0, 0);
 
     if ( !doc )
     {
@@ -1075,7 +1075,7 @@ int base64_from_response_body(char *buffer, size_t n, char *body)
 
     DEBUG("%s: len=%lu\n", __func__, len);
 
-    doc = xmlReadMemory(body, len-1, "dummy.xml", NULL, 0);
+    doc = xmlReadMemory(body, len, "dummy.xml", NULL, 0);
 
     if ( !doc )
     {

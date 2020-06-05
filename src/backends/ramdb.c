@@ -8,6 +8,7 @@
 
 #include "backends/backend.h"
 #include "backends/ramdb.h"
+#include "uefitypes.h"
 #include "common.h"
 
 #define MAX_VARNAME_SZ 128 
@@ -61,11 +62,11 @@ int ramdb_get(void *varname, size_t varname_len,
             break;
     }
 
-    if ( cnt > total )
-        return -1;
+    if ( cnt > MAX_VAR_COUNT )
+        return VAR_NOT_FOUND;
 
-    if ( !var || var == &variables[MAX_VAR_COUNT])
-        return -1;
+    if ( var == &variables[MAX_VAR_COUNT])
+        return VAR_NOT_FOUND;
 
     if ( dest_len < var->datasz )
     {

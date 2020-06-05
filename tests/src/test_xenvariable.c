@@ -69,14 +69,14 @@ static void test_nonexistent_variable_returns_not_found(void)
 
     /* Build a GetVariable() command */
     XenGetVariable(rtcname, &guid, &attr, &datasize, (void*)&data);
-    ptr = comm_buf;
-    status = unserialize_result(&ptr);
+    DEBUG("1.status=%lu\n", getstatus(comm_buf));
 
     /* Handle the command */
     xenvariable_handle_request(comm_buf);
 
    // xenvariable_handle_request(comm_buf);
     test(getstatus(comm_buf) == EFI_NOT_FOUND);
+    DEBUG("2.status=%lu\n", getstatus(comm_buf));
 }
 
 static EFI_STATUS deserialize_xen_get_var_response(
@@ -307,14 +307,6 @@ static void print_bytes(void *buf, size_t len, size_t width)
         DPRINTF("0x%02x ", p[i]);
     }
     DPRINTF("\n");
-}
-
-static void show_buf(void *comm_buf)
-{
-    uint8_t *p = (uint8_t*)comm_buf;
-
-    DPRINTF("comm_buf:\n");
-    print_bytes(p, 64, 8);
 }
 
 /**

@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "data/bigbase64.h"
+#include "data/bigrequest.h"
 #include "test_common.h"
 #include "test_xapi.h"
 #include "backends/backend.h"
@@ -343,6 +344,10 @@ void test_base64_big_xml(void)
     test(has_conout);
 }
 
+static void test_big_request(void)
+{
+}
+
 void test_xapi(void)
 {
     v1_len = strsize16((char16_t*)v1) + 2;
@@ -379,6 +384,7 @@ void test_xapi(void)
     DO_TEST(test_base64_encode);
     DO_TEST(test_base64_big);
     DO_TEST(test_base64_big_xml);
+    DO_TEST(test_big_request);
 
     free(vars[0].variable); 
     free(vars[1].variable); 

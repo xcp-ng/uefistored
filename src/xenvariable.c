@@ -201,7 +201,7 @@ static void get_variable(void *comm_buf)
     }
 
     ret = backend_get(variable_name, len, data, MAX_VARDATA_SZ, &namesz, &attrs);
-    if ( ret == 1 )
+    if ( ret == VAR_NOT_FOUND )
     {
         dprint_vname("cmd:GET_VARIABLE: %s, not in DB\n", variable_name, len);
         ptr = comm_buf;
@@ -242,7 +242,6 @@ static void get_variable(void *comm_buf)
     }
 
     dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
-    dprint_data(data, namesz);
 
     if ( !(attrs & EFI_VARIABLE_RUNTIME_ACCESS) )
     {
