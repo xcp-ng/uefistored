@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <string.h>
 
+extern const EFI_GUID gEfiCertPkcs7Guid;
+extern const EFI_GUID gEfiCertX509Guid;
+extern const EFI_GUID gEfiGlobalVariableGuid;
+
 #define OFFSET_OF(TYPE, Field) ((uint64_t) &(((TYPE *)0)->Field))
 EFI_STATUS GetTime (EFI_TIME *Time)
 {
