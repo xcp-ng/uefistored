@@ -6,6 +6,8 @@
 
 typedef uint16_t UTF16;
 
+#define OFFSET_OF(TYPE, Field) ((uint64_t) &(((TYPE *)0)->Field))
+
 //
 // Processor specific defines
 //
@@ -284,6 +286,14 @@ typedef struct _WIN_CERTIFICATE {
 typedef struct _WIN_CERTIFICATE_UEFI_GUID {
   WIN_CERTIFICATE   Hdr;
   EFI_GUID          CertType;
+
+  /* 
+   * This is just used as a reference point for the OFFSET_OF macro for finding
+   * the payload.
+   *
+   * I don't really like this, but it's done this way in OVMF so I'm keeping
+   * it the same here.
+   */
   uint8_t             CertData[1];
 } WIN_CERTIFICATE_UEFI_GUID;
 
@@ -340,5 +350,9 @@ typedef struct {
   ///
   WIN_CERTIFICATE_UEFI_GUID   AuthInfo;
  } EFI_VARIABLE_AUTHENTICATION_2;
+
+extern const EFI_GUID gEfiCertPkcs7Guid;
+extern const EFI_GUID gEfiCertX509Guid;
+extern const EFI_GUID gEfiGlobalVariableGuid;
 
 #endif // __H_UEFITYPES_

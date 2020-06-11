@@ -37,6 +37,18 @@ void ramdb_destroy(void)
     memset(variables, 0, sizeof(variables));
 }
 
+int ramdb_exists(const UTF16 *name)
+{
+    variable_t *var = NULL;
+
+    var = find_variable(name, variables, MAX_VAR_COUNT);
+
+    if ( !var )
+        return VAR_NOT_FOUND;
+
+    return 0;
+}
+
 int ramdb_get(const UTF16 *name,
               void *dest, size_t n,
               size_t *len, uint32_t *attrs)

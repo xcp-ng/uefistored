@@ -24,8 +24,6 @@ extern const EFI_GUID gEfiCertPkcs7Guid;
 extern const EFI_GUID gEfiCertX509Guid;
 extern const EFI_GUID gEfiGlobalVariableGuid;
 
-#define OFFSET_OF(TYPE, Field) ((uint64_t) &(((TYPE *)0)->Field))
-
 EFI_STATUS GetTime (EFI_TIME *Time)
 {
 	Time->Year = 1990;
@@ -88,7 +86,8 @@ EFI_STATUS ReadFileContent(const char *file, void **data, uint64_t *datasize)
 EFI_STATUS
 CreateTimeBasedPayload (
   uint64_t      *DataSize,
-  uint8_t      **Data
+  uint8_t      **Data,
+  EFI_GUID *CertTypeGuid
   )
 {
   EFI_STATUS                        Status;
@@ -140,7 +139,7 @@ CreateTimeBasedPayload (
   DescriptorData->AuthInfo.Hdr.dwLength         = OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
   DescriptorData->AuthInfo.Hdr.wRevision        = 0x0200;
   DescriptorData->AuthInfo.Hdr.wCertificateType = WIN_CERT_TYPE_EFI_GUID;
-  memcpy (&DescriptorData->AuthInfo.CertType, &gEfiCertPkcs7Guid, sizeof(EFI_GUID));
+  memcpy (&DescriptorData->AuthInfo.CertType, CertTypeGuid, sizeof(EFI_GUID));
 
   if (Payload != NULL) {
     free (Payload);
@@ -235,7 +234,8 @@ ON_EXIT:
 **/
 EFI_STATUS
 EnrollPlatformKey (
-    EFI_GUID* guid,
+   EFI_GUID* guid,
+   EFI_GUID *CertTypeGuid,
    char*   FileName
   )
 {
@@ -284,7 +284,7 @@ EnrollPlatformKey (
   Attr = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS
           | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
   DataSize = PkCert->SignatureListSize;
-  Status = CreateTimeBasedPayload (&DataSize, (uint8_t**) &PkCert);
+  Status = CreateTimeBasedPayload (&DataSize, (uint8_t**) &PkCert, CertTypeGuid);
   if (EFI_ERROR (Status)) {
     goto ON_EXIT;
   }

@@ -391,38 +391,81 @@ static void handle_set_variable(void *comm_buf)
 }
 
 /**
+ * Returns true if data contains a pkcs7 cert type guid, otherwise false.
+ */
+static bool pkcs7_cert(void *data, size_t sz)
+{
+    bool result;
+    uint8_t *payload;
+    size_t payload_sz;
+    EFI_VARIABLE_AUTHENTICATION_2 *descriptor;
+    size_t descriptor_sz;
+
+    descriptor_sz = OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
+                        OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
+    descriptor = data;
+    payload = (uint8_t*)(descriptor + descriptor_sz);
+    payload_sz = sz - descriptor_sz;
+
+    TRACE();
+
+    if ( memcmp(&descriptor->AuthInfo.CertType, &gEfiCertPkcs7Guid, sizeof(EFI_GUID)) != 0 )
+        return false;
+
+    TRACE();
+
+    /* TODO: parse PKCS7 Cert here*/
+
+    return true;
+}
+
+/**
  * Handle the special case of setting the PK.
  */
-static int handle_set_pk(EFI_STATUS result)
+static EFI_STATUS handle_set_pk(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
 {
+    int ret;
+
+    if ( !pkcs7_cert(data, datalen) ) 
+        return EFI_SECURITY_VIOLATION;
+
+    ret = ramdb_set(variable, data, datalen, attrs);
+
     /* If it was successful, then try seting SetupMode to 0 */
-    if ( !result )
+    if ( !ret )
         return set_setup_mode(0);
 
-    return -1;
+    return EFI_DEVICE_ERROR;
+}
+
+/**
+ * Returns true if variable is read-only, otherwise false.
+ */
+static bool is_ro(UTF16 *variable)
+{
+    /* TODO: simply save and use the attrs */
+    return strcmp16(variable, SecureBoot) == 0;
 }
 
 EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
 {
     int ret;
 
+    if ( !variable || !guid || !data )
+        return -1;
+
+    if ( is_ro(variable) )
+        return EFI_WRITE_PROTECTED;
+
+    if ( strcmp16(variable, PK) == 0 )
+        return handle_set_pk(variable, guid, attrs, datalen, data);
+
     ret = ramdb_set(variable, data, datalen, attrs);
 
     if ( ret < 0 )
     {
-    
         ERROR("Failed to set variable in db\n");
         return EFI_OUT_OF_RESOURCES;
-    }
-
-    if ( strcmp16(variable, PK) == 0 )
-    {
-        if ( handle_set_pk(ret) < 0 )
-            return -1;
-    }
-    else if ( strcmp16(variable, SecureBoot) == 0 )
-    {
-        return EFI_WRITE_PROTECTED;
     }
 
     return EFI_SUCCESS;

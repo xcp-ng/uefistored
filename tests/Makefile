@@ -1,5 +1,5 @@
 CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
-INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/ -Isrc/edk2/
+INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/ -Isrc/
 
 SRC := mock/XenVariable.c ../src/xenvariable.c ../src/xapi.c \
        ../src/backends/filedb.c ../src/backends/ramdb.c ../libs/kissdb/kissdb.c ../src/serializer.c \

@@ -9,6 +9,8 @@
 #include "uefitypes.h"
 #include "common.h"
 #include "xenvariable.h"
+#include "backends/ramdb.h"
+#include "edk2/secure_boot.h"
 #include "test_common.h"
 #include "test_auth.h"
 
@@ -16,10 +18,6 @@
 
 static const UTF16 SetupMode[] = {'S', 'e', 't', 'u', 'p', 'M', 'o', 'd', 'e', 0};
 static const UTF16 SecureBoot[] = {'S', 'e', 'c', 'u', 'r', 'e', 'B', 'o', 'o', 't', 0};
-
-extern const EFI_GUID gEfiCertPkcs7Guid;
-extern const EFI_GUID gEfiCertX509Guid;
-extern const EFI_GUID gEfiGlobalVariableGuid;
 
 static void pre_test(void)
 {
@@ -91,16 +89,16 @@ following prior to invoking the service:
         variable(DataNew_variable_content).
 
 */
-void test_timebased_auth(void)
+static void test_timebased_auth(void)
 {
     EFI_STATUS status;
 
-    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, "keys/PK.der");
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK.der");
 
     test(!status);
 }
 
-void test_setting_pk_turns_setup_mode_off(void)
+static void test_setting_pk_turns_setup_mode_off(void)
 {
     uint32_t attrs;
     uint8_t data;
@@ -108,7 +106,7 @@ void test_setting_pk_turns_setup_mode_off(void)
     int ret;
     EFI_STATUS status;
 
-    EnrollPlatformKey(&gEfiGlobalVariableGuid, "keys/PK.der");
+    EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK.der");
     status = get_variable(SetupMode, &gEfiGlobalVariableGuid, &attrs, &size, &data);
 
     test(!status);
@@ -118,7 +116,7 @@ void test_setting_pk_turns_setup_mode_off(void)
 /**
  * Test that the system begins in setup mode with no PK.
  */
-void test_start_in_setup_mode(void)
+static void test_start_in_setup_mode(void)
 {
     uint32_t attrs;
     EFI_STATUS status;
@@ -134,7 +132,7 @@ void test_start_in_setup_mode(void)
     test(data == 1);
 }
 
-void test_secure_boot_var_ro(void)
+static void test_secure_boot_var_ro(void)
 {
     uint32_t attrs;
     EFI_STATUS status;
@@ -146,7 +144,7 @@ void test_secure_boot_var_ro(void)
     test(status == EFI_WRITE_PROTECTED);
 }
 
-void test_start_with_secure_boot_off(void)
+static void test_start_with_secure_boot_off(void)
 {
     uint32_t attrs;
     EFI_STATUS status;
@@ -159,13 +157,34 @@ void test_start_with_secure_boot_off(void)
     test(data == 0);
 }
 
-void test_bad_cert_type(void)
+static void test_bad_guid(void)
 {
+    EFI_GUID guid;
+    EFI_STATUS status;
 
-    uint32_t attr = EFI_VARIABLE_NON_VOLATILE |
-                    EFI_VARIABLE_RUNTIME_ACCESS |
-                    EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
+    memset(&guid, 0, sizeof(guid));
+
+    status = EnrollPlatformKey(&guid, &gEfiCertPkcs7Guid, "keys/PK.der");
+
+    test(status);
+}
+
+static void test_bad_cert_type(void)
+{
+    EFI_GUID cert_guid;
+    EFI_STATUS status;
+
+    memset(&cert_guid, 0, sizeof(cert_guid));
+    cert_guid.Data1 = 0xdeadbeef;
+
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &cert_guid, "keys/PK.der");
+
+    test(status == EFI_SECURITY_VIOLATION);
+}
+
+static void test_bad_attrs(void)
+{
+    test(0);
 }
 
 void test_auth(void)
@@ -174,4 +193,7 @@ void test_auth(void)
     DO_TEST(test_setting_pk_turns_setup_mode_off);
     DO_TEST(test_secure_boot_var_ro);
     DO_TEST(test_start_with_secure_boot_off);
+    DO_TEST(test_bad_guid);
+    DO_TEST(test_bad_cert_type);
+    DO_TEST(test_bad_attrs);
 }

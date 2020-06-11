@@ -5,7 +5,8 @@
 
 EFI_STATUS
 EnrollPlatformKey (
-    EFI_GUID* guid,
+   EFI_GUID* guid,
+   EFI_GUID *CertTypeGuid,
    char*   FileName
   );
 
