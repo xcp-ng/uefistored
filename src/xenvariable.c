@@ -16,6 +16,7 @@
 
 static const UTF16 SetupMode[] = {'S', 'e', 't', 'u', 'p', 'M', 'o', 'd', 'e', 0, 0};
 static const UTF16 PK[] = {'P', 'K', 0};
+static const UTF16 SecureBoot[] = {'S', 'e', 'c', 'u', 'r', 'e', 'B', 'o', 'o', 't', 0};
 
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
@@ -397,6 +398,10 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
     {
         if ( handle_set_pk(ret) < 0 );
             return -1;
+    }
+    else if ( strcmp16(variable, SecureBoot) == 0 )
+    {
+        return EFI_WRITE_PROTECTED;
     }
 
     return EFI_SUCCESS;

@@ -15,6 +15,7 @@
 #define BUFSZ 128
 
 static const UTF16 SetupMode[] = {'S', 'e', 't', 'u', 'p', 'M', 'o', 'd', 'e', 0};
+static const UTF16 SecureBoot[] = {'S', 'e', 'c', 'u', 'r', 'e', 'B', 'o', 'o', 't', 0};
 
 extern const EFI_GUID gEfiGlobalVariableGuid;
 
@@ -131,8 +132,21 @@ void test_start_in_setup_mode(void)
     test(data == 1);
 }
 
+void test_secure_boot_var_ro(void)
+{
+    uint32_t attrs;
+    EFI_STATUS status;
+    uint8_t data = 1;
+    size_t size = sizeof(data);
+    int ret;
+
+    status = set_variable(SecureBoot, &gEfiGlobalVariableGuid, 0x6, size, &data);
+    test(status == EFI_WRITE_PROTECTED);
+}
+
 void test_auth(void)
 {
     DO_TEST(test_start_in_setup_mode);
     DO_TEST(test_setting_pk_turns_setup_mode_off);
+    DO_TEST(test_secure_boot_var_ro);
 }
