@@ -15,8 +15,20 @@
 //#define VALIDATE_WRITES
 
 static const UTF16 SetupMode[] = {'S', 'e', 't', 'u', 'p', 'M', 'o', 'd', 'e', 0, 0};
+static const UTF16 PK[] = {'P', 'K', 0};
 
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
+
+static int set_setup_mode(uint8_t val)
+{
+    if ( ramdb_set(SetupMode,
+                   &val,
+                   sizeof(val),
+                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS) < 0 )
+        ERROR("%s:%d: Failed to set SetupMode to %u!\n", __func__, __LINE__, val);
+    else
+        INFO("%s:%d: set SetupMode to %u!\n", __func__, __LINE__, val);
+}
 
 static void dprint_attrs(uint32_t attr)
 {
@@ -356,6 +368,18 @@ static void handle_set_variable(void *comm_buf)
     serialize_result(&ptr, status);
 }
 
+/**
+ * Handle the special case of setting the PK.
+ */
+static int handle_set_pk(EFI_STATUS result)
+{
+    /* If it was successful, then try seting SetupMode to 0 */
+    if ( !result )
+        return set_setup_mode(0);
+
+    return -1;
+}
+
 EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
 {
     int ret;
@@ -367,6 +391,12 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
     
         ERROR("Failed to set variable in db\n");
         return EFI_OUT_OF_RESOURCES;
+    }
+
+    if ( strcmp16(variable, PK) == 0 )
+    {
+        if ( handle_set_pk(ret) < 0 );
+            return -1;
     }
 
     return EFI_SUCCESS;
@@ -491,19 +521,11 @@ void xenvariable_handle_request(void *comm_buf)
 
 void init_setup_mode(variable_t variables[MAX_VAR_COUNT], size_t n)
 {
-    uint8_t default_setup_mode = 1;
-
-    /* If SetupMode is already set, then we don't mess with up */
+    /* If SetupMode is already set, then we don't mess with it */
     if ( find_variable(SetupMode, variables, n) )
         return;
 
-    if ( ramdb_set(SetupMode,
-                   &default_setup_mode,
-                   sizeof(default_setup_mode),
-                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS) < 0 )
-        ERROR("%s:%d: Failed to set SetupMode!\n", __func__, __LINE__);
-    else
-        INFO("%s:%d: set SetupMode to %u!\n", __func__, __LINE__, default_setup_mode);
+    set_setup_mode(1);
 }
 
 int xenvariable_init(var_initializer_t init_vars)
