@@ -76,7 +76,7 @@ static void test_set_and_get2(void)
 
     test( var1.namesz == tmp.namesz );
     test( var1.datasz == tmp.datasz );
-    test( memcmp(tmp.name, var1.name, var1.namesz) == 0 );
+    test( strcmp16(tmp.name, var1.name) == 0 );
     test( memcmp(tmp.data, var1.data, var1.datasz) == 0 );
     test( var1.attrs == tmp.attrs );
 
