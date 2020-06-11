@@ -235,6 +235,7 @@ ON_EXIT:
 **/
 EFI_STATUS
 EnrollPlatformKey (
+    EFI_GUID* guid,
    char*   FileName
   )
 {
@@ -291,7 +292,7 @@ EnrollPlatformKey (
 #if 1
   Status = set_variable(
                   EFI_PLATFORM_KEY_NAME,
-                  &gEfiGlobalVariableGuid,
+                  guid,
                   Attr,
                   DataSize,
                   PkCert

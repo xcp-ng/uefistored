@@ -17,6 +17,8 @@
 static const UTF16 SetupMode[] = {'S', 'e', 't', 'u', 'p', 'M', 'o', 'd', 'e', 0};
 static const UTF16 SecureBoot[] = {'S', 'e', 'c', 'u', 'r', 'e', 'B', 'o', 'o', 't', 0};
 
+extern const EFI_GUID gEfiCertPkcs7Guid;
+extern const EFI_GUID gEfiCertX509Guid;
 extern const EFI_GUID gEfiGlobalVariableGuid;
 
 static void pre_test(void)
@@ -93,7 +95,7 @@ void test_timebased_auth(void)
 {
     EFI_STATUS status;
 
-    status = EnrollPlatformKey("keys/PK.der");
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, "keys/PK.der");
 
     test(!status);
 }
@@ -106,7 +108,7 @@ void test_setting_pk_turns_setup_mode_off(void)
     int ret;
     EFI_STATUS status;
 
-    EnrollPlatformKey("keys/PK.der");
+    EnrollPlatformKey(&gEfiGlobalVariableGuid, "keys/PK.der");
     status = get_variable(SetupMode, &gEfiGlobalVariableGuid, &attrs, &size, &data);
 
     test(!status);
@@ -155,6 +157,15 @@ void test_start_with_secure_boot_off(void)
     status = get_variable(SecureBoot, &gEfiGlobalVariableGuid, &attrs, &size, &data);
     test(!status);
     test(data == 0);
+}
+
+void test_bad_cert_type(void)
+{
+
+    uint32_t attr = EFI_VARIABLE_NON_VOLATILE |
+                    EFI_VARIABLE_RUNTIME_ACCESS |
+                    EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
 }
 
 void test_auth(void)
