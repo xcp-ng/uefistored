@@ -120,7 +120,7 @@ void test_start_in_setup_mode(void)
 {
     uint32_t attrs;
     EFI_STATUS status;
-    uint8_t data;
+    uint8_t data = 0;
     size_t size = sizeof(data);
     int ret;
 
@@ -136,7 +136,7 @@ void test_secure_boot_var_ro(void)
 {
     uint32_t attrs;
     EFI_STATUS status;
-    uint8_t data = 1;
+    uint8_t data;
     size_t size = sizeof(data);
     int ret;
 
@@ -144,9 +144,23 @@ void test_secure_boot_var_ro(void)
     test(status == EFI_WRITE_PROTECTED);
 }
 
+void test_start_with_secure_boot_off(void)
+{
+    uint32_t attrs;
+    EFI_STATUS status;
+    uint8_t data = 1;
+    size_t size = sizeof(data);
+    int ret;
+
+    status = get_variable(SecureBoot, &gEfiGlobalVariableGuid, &attrs, &size, &data);
+    test(!status);
+    test(data == 0);
+}
+
 void test_auth(void)
 {
     DO_TEST(test_start_in_setup_mode);
     DO_TEST(test_setting_pk_turns_setup_mode_off);
     DO_TEST(test_secure_boot_var_ro);
+    DO_TEST(test_start_with_secure_boot_off);
 }

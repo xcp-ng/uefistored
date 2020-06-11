@@ -31,6 +31,17 @@ static int set_setup_mode(uint8_t val)
         INFO("%s:%d: set SetupMode to %u!\n", __func__, __LINE__, val);
 }
 
+static int set_secure_boot(uint8_t val)
+{
+    if ( ramdb_set(SecureBoot,
+                   &val,
+                   sizeof(val),
+                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS) < 0 )
+        ERROR("%s:%d: Failed to set SecureBoot to %u!\n", __func__, __LINE__, val);
+    else
+        INFO("%s:%d: set SecureBoot to %u!\n", __func__, __LINE__, val);
+}
+
 static void dprint_attrs(uint32_t attr)
 {
     DPRINTF("0x%x:", attr);
@@ -533,6 +544,14 @@ void init_setup_mode(variable_t variables[MAX_VAR_COUNT], size_t n)
     set_setup_mode(1);
 }
 
+void init_secure_boot(variable_t variables[MAX_VAR_COUNT], size_t n)
+{
+    if ( find_variable(SecureBoot, variables, n) )
+        return;
+
+    set_secure_boot(0);
+}
+
 int xenvariable_init(var_initializer_t init_vars)
 {
     int ret;
@@ -569,6 +588,7 @@ int xenvariable_init(var_initializer_t init_vars)
     }
 
     init_setup_mode(variables, MAX_VAR_COUNT);
+    init_secure_boot(variables, MAX_VAR_COUNT);
 
     return 0;
 }
