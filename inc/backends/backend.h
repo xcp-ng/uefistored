@@ -15,12 +15,13 @@ enum backend_type {
 struct backend {
     int (*init)(void);
     void (*deinit)(void);
-    int (*get)(void *varname, size_t varname_len,
+    int (*get)(UTF16* name,
                void* dest, size_t dest_len,
                size_t *len, uint32_t *attrs);
-    int (*set)(void *varname, size_t varlen, void *val, size_t len, uint32_t attrs);
+    int (*set)(UTF16* name, void *val, size_t len, uint32_t attrs);
     void (*destroy)(void);
     int (*next)(variable_t *current, variable_t *next);
+    void (*debug)(void);
 };
 
 extern struct backend ramdb_backend;
@@ -59,24 +60,24 @@ static inline void backend_deinit(void)
     backend->deinit();
 }
 
-static inline int backend_get(void *varname, size_t varname_len,
+static inline int backend_get(UTF16 *varname,
                 void* dest, size_t dest_len,
                 size_t *len, uint32_t *attrs)
 {
     if ( !backend || !backend->get )
         return -1;
 
-    return backend->get(varname, varname_len,
+    return backend->get(varname,
                         dest, dest_len,
                         len, attrs);
 }
 
-static inline int backend_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attrs)
+static inline int backend_set(UTF16 *varname, void *val, size_t len, uint32_t attrs)
 {
     if ( !backend || !backend->set )
         return -1;
 
-    return backend->set(varname, varlen, val, len, attrs);
+    return backend->set(varname, val, len, attrs);
 }
 
 static inline void backend_destroy(void)

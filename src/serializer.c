@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include <stdbool.h>
-#include <uchar.h>
 #include <string.h>
 #include <limits.h>
 
@@ -8,10 +7,9 @@
 #include "serializer.h"
 #include "uefitypes.h"
 
-void serialize_name(uint8_t **ptr, char16_t *VariableName)
+void serialize_name(uint8_t **ptr, UTF16 *VariableName)
 {
     uint64_t VarNameSize = strsize16(VariableName);
-    printf("VarNameSize: %lu\n", VarNameSize);
     memcpy (*ptr, &VarNameSize, sizeof VarNameSize);
     *ptr += sizeof VarNameSize;
     memcpy (*ptr, VariableName, VarNameSize);
@@ -136,23 +134,30 @@ bool unserialize_boolean(uint8_t **ptr)
 
 /**
  * Unserialize the name field.
+ *
+ * Adds a UTF16 null-terminator (i.e, 2 bytes of zero).
  * 
- * Returns -1 if error, otherwise the length of the name.
+ * Returns -1 if error, otherwise the length of the name 
+ * (not including null-terminator).
  */
 int unserialize_name(uint8_t **ptr, void *buf, size_t buflen)
 {
     size_t len;
+    uint8_t *p = buf;
 
     memcpy(&len, *ptr, sizeof(len));
     *ptr += sizeof(len);
 
-    if ( len > buflen )
-    {
+    /* We add buffer of 2 bytes at end for UTF16 null-terminator */
+    if ( len + 2 > buflen )
         return -1;
-    }
 
-    memcpy(buf, *ptr, len);
+    memcpy(p, *ptr, len);
+    p[len] = 0;
+    p[len + 1] = 0;
+
     *ptr += len;
+    
     return len;
 }
 
@@ -166,3 +171,37 @@ EFI_STATUS unserialize_result(uint8_t **ptr)
     return status;
 }
 
+int serialize_var(uint8_t **p, size_t n, variable_t *var)
+{
+    size_t used = 0;
+
+    if ( sizeof(var->namesz) > n )
+        return -1;
+
+    memcpy(*p, &var->namesz, sizeof(var->namesz)); 
+    *p += sizeof(var->namesz);
+    used += sizeof(var->namesz);
+
+    if ( var->namesz + used > n )
+        return -1;
+
+    memcpy(*p, var->name, var->namesz); 
+    *p += var->namesz;
+    used += var->namesz;
+
+    if ( sizeof(var->datasz) + used > n )
+        return -1;
+
+    memcpy(*p, &var->datasz, sizeof(var->datasz)); 
+    *p += sizeof(var->datasz);
+    used += sizeof(var->datasz);
+
+    if ( var->datasz + used > n )
+        return -1;
+
+    memcpy(*p, var->data, var->datasz); 
+    *p += var->datasz;
+    used += var->datasz;
+
+    return 0;
+}

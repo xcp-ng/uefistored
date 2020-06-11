@@ -1,20 +1,71 @@
 #include "uefitypes.h"
 
 #include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+static UTF16 EFI_PLATFORM_KEY_NAME[] = { 'P', 'K', 0 };
+
+extern
+EFI_STATUS set_variable(
+  void *variable,
+  EFI_GUID *guid,
+  uint32_t attrs,
+  size_t datalen,
+  void *data
+);
 
 extern const EFI_GUID gEfiCertPkcs7Guid;
 extern const EFI_GUID gEfiCertX509Guid;
 extern const EFI_GUID gEfiGlobalVariableGuid;
 
 #define OFFSET_OF(TYPE, Field) ((uint64_t) &(((TYPE *)0)->Field))
+
 EFI_STATUS GetTime (EFI_TIME *Time)
 {
+	Time->Year = 1990;
+	Time->Month = 12;
+	Time->Day = 25;
+	Time->Hour = 12;
+	Time->Minute = 12;
+	Time->Second = 12;
+	Time->Pad1 = 0;
+	Time->Nanosecond = 0;
+	Time->TimeZone = 0;
+	Time->Daylight = 0;
+	Time->Pad2 = 0;
+
+	return EFI_SUCCESS;
 }
 
-typedef unsigned short CHAR16;
+EFI_STATUS ReadFileContent(const char *file, void **data, uint64_t *datasize)
+{
+  uint8_t buf[4096];
+  ssize_t len;
+  int fd;
+
+  fd = open(file, O_RDONLY);
+
+  if ( fd < 0 )
+    return EFI_NOT_FOUND;
+
+  len = read(fd, buf, 4096);
+
+  if ( len < 0 )
+    return EFI_DEVICE_ERROR;
+
+  *data = malloc(len);
+  memcpy(*data, buf, len);
+
+  *datasize = (uint64_t)len;
+  
+  return EFI_SUCCESS;
+}
 
 /**
   Create a time based data payload by concatenating the EFI_VARIABLE_AUTHENTICATION_2
@@ -100,10 +151,6 @@ CreateTimeBasedPayload (
   return EFI_SUCCESS;
 }
 
-EFI_STATUS ReadFileContent(const char *file, void **data, uint64_t *datasize, int flag)
-{
-}
-
 /**
   Generate the PK signature list from the X509 Certificate storing file (.cer)
 
@@ -129,7 +176,7 @@ CreatePkX509SignatureList (
   PkCertData = NULL;
   X509DataSize = 0;
 
-  Status = ReadFileContent (X509File, (void**) &X509Data, &X509DataSize, 0);
+  Status = ReadFileContent (X509File, (void**) &X509Data, &X509DataSize);
   if (EFI_ERROR (Status)) {
     goto ON_EXIT;
   }
@@ -195,7 +242,6 @@ EnrollPlatformKey (
   uint32_t                          Attr;
   uint64_t                           DataSize;
   EFI_SIGNATURE_LIST              *PkCert;
-  uint16_t*                         FilePostFix;
   uint64_t                           NameLength;
 
   if ( FileName == NULL) {
@@ -220,7 +266,7 @@ EnrollPlatformKey (
   }
 
   //
-  // Prase the selected PK file and generature PK certificate list.
+  // Parse the selected PK file and generature PK certificate list.
   //
   Status = CreatePkX509SignatureList (
             FileName,
@@ -242,8 +288,8 @@ EnrollPlatformKey (
     goto ON_EXIT;
   }
 
-#if 0
-  Status = gRT->SetVariable(
+#if 1
+  Status = set_variable(
                   EFI_PLATFORM_KEY_NAME,
                   &gEfiGlobalVariableGuid,
                   Attr,

@@ -1,10 +1,14 @@
 CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
-INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/
-OBJ := mock/XenVariable.o ../src/xenvariable.o ../src/xapi.o \
-       ../src/backends/filedb.o ../src/backends/ramdb.o ../libs/kissdb/kissdb.o ../src/serializer.o \
-       ../src/common.o mock/sys/socket.o
+INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/ -Isrc/edk2/
 
-OBJ += src/test_xenvariable.o src/test_xapi.o src/test_ramdb.o
+SRC := mock/XenVariable.c ../src/xenvariable.c ../src/xapi.c \
+       ../src/backends/filedb.c ../src/backends/ramdb.c ../libs/kissdb/kissdb.c ../src/serializer.c \
+       ../src/common.c mock/sys/socket.c src/test_xenvariable.c src/test_xapi.c src/test_ramdb.c \
+       src/test_auth.c src/edk2/secure_boot.c ../src/uefitypes.c
+
+
+OBJ := $(patsubst %.c,%.o,$(SRC))
+
 
 .PHONY: all
 all: test-nosan test
@@ -16,15 +20,31 @@ all: test-nosan test
 		./test-nosan
 	./$<
 
-test: src/main.c $(OBJ)
+test: src/main.c $(OBJ) keys
 	gcc -o $@ $< $(INC) $(OBJ) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak
 
-test-nosan: src/main.c $(OBJ)
+test-nosan: src/main.c $(OBJ) keys
 	gcc -o $@ $< $(INC) $(OBJ) $(CFLAGS)
 
 %.o: %.c
 	gcc -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
 
 .PHONY: clean
-clean:
-	rm $(OBJ) test
+clean: clean-keys
+	rm $(OBJ) test test-nosan
+
+.PHONY: clean-keys
+clean-keys:
+	yes | rm -r keys
+
+.PHONY: keys
+keys: keys/.done
+	@echo "Keys generated"
+
+keys/.done:
+	@mkdir -p keys
+	@cd keys && ../scripts/create-keys.sh
+	@echo keys/.done
+
+print-%:
+	@:$(info $($*))

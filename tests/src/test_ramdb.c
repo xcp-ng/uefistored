@@ -12,7 +12,7 @@
 #include "test_ramdb.h"
 
 static variable_t var1 = {
-    .name = "RTC",
+    .name =  {'R', 'T', 'C'},
     .namesz =  3,
     .data = { 0xa, 0xb, 0xc, 0xd },
     .datasz = 4,
@@ -20,7 +20,7 @@ static variable_t var1 = {
 };
 
 static variable_t var2 = {
-    .name = "CHEER",
+    .name = {'C', 'H', 'E', 'E', 'R'},
     .namesz =  5,
     .data = { 0xa, 0xb, 0xc, 0xd, 0xf, 0xf },
     .datasz = 6,
@@ -46,10 +46,10 @@ static void test_set_and_get(void)
     memcpy(tmp.name, var1.name, var1.namesz);
     memcpy(&tmp.namesz, &var1.namesz, sizeof(var1.namesz));
 
-    ret = ramdb_set(var1.name, var1.namesz, var1.data, var1.datasz, var1.attrs);
+    ret = ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
-    ret = ramdb_get(var1.name, var1.namesz, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
+    ret = ramdb_get(var1.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( var1.namesz == tmp.namesz );
@@ -68,10 +68,10 @@ static void test_set_and_get2(void)
     memcpy(tmp.name, var1.name, var1.namesz);
     memcpy(&tmp.namesz, &var1.namesz, sizeof(var1.namesz));
 
-    ret = ramdb_set(var1.name, var1.namesz, var1.data, var1.datasz, var1.attrs);
+    ret = ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
-    ret = ramdb_get(tmp.name, tmp.namesz, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
+    ret = ramdb_get(tmp.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( var1.namesz == tmp.namesz );
@@ -83,10 +83,10 @@ static void test_set_and_get2(void)
     memcpy(tmp.name, var2.name, var2.namesz);
     memcpy(&tmp.namesz, &var2.namesz, sizeof(var2.namesz));
 
-    ret = ramdb_set(var2.name, var2.namesz, var2.data, var2.datasz, var2.attrs);
+    ret = ramdb_set(var2.name, var2.data, var2.datasz, var2.attrs);
     test( ret == 0 );
 
-    ret = ramdb_get(tmp.name, tmp.namesz, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
+    ret = ramdb_get(tmp.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( var2.namesz == tmp.namesz );
@@ -101,15 +101,14 @@ static void test_next(void)
     int ret;
 
     variable_t cur, next, after, final;
-    variable_t *p1, *p2;
 
     memset(&cur, 0, sizeof(cur));
     memset(&next, 0, sizeof(next));
     memset(&after, 0, sizeof(after));
     memset(&final, 0, sizeof(final));
 
-    ramdb_set(var1.name, var1.namesz, var1.data, var1.datasz, var1.attrs);
-    ramdb_set(var2.name, var2.namesz, var2.data, var2.datasz, var2.attrs);
+    ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
+    ramdb_set(var2.name, var2.data, var2.datasz, var2.attrs);
 
     ret = ramdb_next(&cur, &next);
     test( ret == 1 );

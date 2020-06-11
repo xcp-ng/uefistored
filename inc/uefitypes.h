@@ -2,6 +2,9 @@
 #define __H_UEFITYPES_
 
 #include <stdint.h>
+#include <uchar.h>
+
+typedef uint16_t UTF16;
 
 //
 // _WIN_CERTIFICATE.wCertificateType

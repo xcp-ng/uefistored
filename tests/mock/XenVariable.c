@@ -7,18 +7,6 @@
 #include "serializer.h"
 #include "XenVariable.h"
 
-#define DEBUG 1
-
-#if DEBUG
-#include <stdio.h>
-#define DPRINTF(...)                 \
-    do {                             \
-        printf(__VA_ARGS__);     \
-    } while ( 0 )
-#else
-#define DPRINTF(...)  do { } while ( 0 )
-#endif
-
 
 #define exec_command(...) do { } while ( 0 )
 #define AcquireSpinLock(...) do { } while( 0 )
@@ -96,7 +84,6 @@ XenGetVariableLocked (
 {
   uint8_t *ptr;
   EFI_STATUS status;
-  uint32_t attr;
 
   if (!VariableName || !VendorGuid || !DataSize)
       return EFI_INVALID_PARAMETER;

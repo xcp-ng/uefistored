@@ -352,40 +352,6 @@ error:
     return ret;
 }
 
-#define VAR_BUF_SZ (4 * PAGE_SIZE)
-
-static int initialize_variables(void)
-{
-    int ret;
-    variable_t variables[512];
-    variable_t *var;
-
-    /* TODO: if there is an error, prevent boot.  If vars are empty, allow boot */
-    ret = xapi_get_efi_vars(variables, 512);
-
-    if ( ret < 0 )
-    {
-        INFO("failed to get vars from xapi, starting with blank DB\n");
-    }
-    else
-    {
-        /* TODO: do this */
-        INFO("Populating DB from XAPI data\n");
-    }
-
-    if ( ret > 0 )
-    {
-        for_each_variable(variables, var) 
-        {
-            char ascii[512];
-            uc2_ascii(var->name, ascii, 512);
-            DEBUG("%s: %s\n", ascii, var->data);
-        }
-    }
-
-    return 0;
-}
-
 char *varstored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int domid, unsigned int *len)
 {
     char stringbuf[0x80];
@@ -976,15 +942,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    /* Initialize UEFI variables */
-    ret = backend_init(BACKEND_RAMDB);
-    if ( ret < 0 )
-    {
-        ERROR("Failed to initialize db: %d\n", ret);
-        goto err;
-    }
-
-
     DEBUG("chroot path: %s\n", root_path);
     
     /* TODO: Containerize varstored */
@@ -1018,7 +975,7 @@ int main(int argc, char **argv)
     }
 #endif
 
-    ret = initialize_variables();
+    ret = xenvariable_init(xapi_get_efi_vars);
 
     if ( ret < 0 )
     {

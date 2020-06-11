@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
+#include "test_auth.h"
 #include "test_xenvariable.h"
 #include "test_ramdb.h"
 #include "test_xapi.h"
@@ -23,9 +24,12 @@ int open_logfile(void)
 int main(void)
 { 
     set_logfd(open_logfile());
+#if 0
     test_xenvariable();
     test_xapi();
     test_ramdb();
+#endif
+    test_auth();
 
     printf("PASSED (%d), FAILED (%d)\n", passcount, failcount);
     return failcount == 0 ? 0 : -1;

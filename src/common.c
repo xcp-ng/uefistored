@@ -23,7 +23,12 @@ void set_logfd(int logfd)
     _logfd = logfd;
 }
 
-uint64_t strlen16(char16_t *str)
+/**
+ * Return the length of a UTF16 string.
+ *
+ * Arg `str` MUST be null-terminated (2 bytes of zero).
+ */
+uint64_t strlen16(UTF16 *str)
 {
     uint64_t len = 0;
     uint8_t *p1;
@@ -37,12 +42,18 @@ uint64_t strlen16(char16_t *str)
 
     while ( true )
     {
+        /* Somthing is wrong if either pointers are null */
         if ( !p1 || !p2 )
             break;
 
+        /* zero pointers means we have reached the null-terminator */
         if ( !(*p1 || *p2) )
             break;
 
+        /*
+         * We are processing two bytes at a time, so jump two bytes and
+         * increment the length
+         */
         p1 += 2;
         p2 += 2;
         len++;
@@ -51,39 +62,32 @@ uint64_t strlen16(char16_t *str)
     return len;
 }
 
-uint64_t strsize16(char16_t *str)
+/**
+ * Returns the size of the string in total bytes.
+ *
+ * Because this is measuring UTF16 strings, the size will always be
+ * double the length.
+ *
+ * Does NOT include null-terminator.
+ */
+uint64_t strsize16(UTF16 *str)
 {
     return strlen16(str) * 2;
 }
 
-void uc2_ascii_safe(void *uc2, size_t uc2_len, char *ascii, size_t len)
+void uc2_ascii_safe(UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)
 {
     int i;
-    int j = 0;
 
-    for (i=0; i<uc2_len && j<(len-1); i++)
-    {
-        char c = *((char*)(uc2+i));
-        if ( c != '\0' )
-            ascii[j++] = c;
-    }
+    for (i=0; i<uc2_len && i<len && uc2[i]; i++)
+        ascii[i] = (char)uc2[i];
 
-    ascii[j++] = '\0';
+    ascii[i++] = '\0';
 }
 
-void uc2_ascii(void *uc2, char *ascii, size_t len)
+void uc2_ascii(UTF16 *uc2, char *ascii, size_t len)
 {
-    int i,j;
-
-    for ( i=0; i<512; i++ )
-    {
-        j = i + 1;
-        
-        if ( ((char*)uc2)[i] == 0 && ((char*)uc2)[j] == 0 )
-            break;
-    }
-
-    uc2_ascii_safe(uc2, (size_t)i, ascii, len);
+    uc2_ascii_safe(uc2, strsize16(uc2), ascii, len);
 }
 
 /**
@@ -100,3 +104,80 @@ void dprint_variable(variable_t *var)
     uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARNAME_SZ);
     DEBUG("Variable(%s)\n", buf);
 }
+
+/**
+ * Returns 0 if a and b are equal, otherwise non-zero.
+ */
+int strcmp16(UTF16 *a, UTF16 *b)
+{
+    size_t a_sz, b_sz;
+
+    a_sz = strsize16(a);
+    b_sz = strsize16(b);
+
+    if ( a_sz != b_sz )
+    {
+        return -1;
+    }
+
+    dprint_vname("a=%s\n", a);
+    dprint_vname("b=%s\n", b);
+
+    return memcmp(a, b, min(a_sz, b_sz));
+}
+
+/**
+ * Copies string `b` to string `a`.
+ *
+ * Adds null-terminator to `a`.  Won't exceed `n`. 
+ */
+int strncpy16(UTF16 *a, UTF16 *b, size_t n)
+{
+    uint8_t *p;
+    size_t b_sz;
+
+    b_sz = strsize16(b);
+    
+    if ( b_sz > n )
+        return -1;
+
+    memcpy(a, b, b_sz);
+
+    p =  (uint8_t*)a;
+    p[b_sz] = 0;
+    p[b_sz + 1] = 0;
+
+    return 0;
+}
+
+void dprint_data(void *data, size_t datalen)
+{
+    uint8_t *p = data;
+    size_t i;
+
+    DPRINTF("DATA: ");
+    for (i=0; i<datalen; i++)
+    {
+        if (i % 8 == 0)
+            DPRINTF("\n%03d: 0x", i);
+        DPRINTF("%02x", p[i]);
+    }
+    DPRINTF("\n");
+}
+
+variable_t *find_variable(UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n)
+{
+    variable_t *var;
+    size_t i;
+
+    for ( i=0; i<n; i++ )
+    {
+        var = &variables[i];
+
+        if ( strcmp16((UTF16*)var->name, name) == 0 )
+            return var;
+    }
+
+    return NULL;
+}
+

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -37,40 +38,30 @@ void ramdb_destroy(void)
     memset(variables, 0, sizeof(variables));
 }
 
-int ramdb_get(void *varname, size_t varname_len,
-              void *dest, size_t dest_len,
+int ramdb_get(UTF16 *name,
+              void *dest, size_t n,
               size_t *len, uint32_t *attrs)
 {
     int cnt;
+    size_t name_len;
     variable_t *var = NULL;
 
-    if ( !varname )
+    if ( !name )
         return -1;
 
     if ( !len )
         return -1;
 
-    cnt = 0;
-    for_each_variable(variables, var)
-    {
-        cnt++;
+    *len = 0;
 
-        if ( varname_len != var->namesz )
-            continue;
+    var = find_variable(name, variables, MAX_VAR_COUNT);
 
-        if ( memcmp(&var->name, varname, var->namesz) == 0 )
-            break;
-    }
-
-    if ( cnt > MAX_VAR_COUNT )
+    if ( !var )
         return VAR_NOT_FOUND;
 
-    if ( var == &variables[MAX_VAR_COUNT])
-        return VAR_NOT_FOUND;
-
-    if ( dest_len < var->datasz )
+    if ( n < var->datasz )
     {
-        ERROR("The dest_len (%lu) passed to %s was too small\n", dest_len, __func__);
+        ERROR("The n (%lu) passed to %s was too small\n", n, __func__);
         return -1;
     }
 
@@ -81,15 +72,18 @@ int ramdb_get(void *varname, size_t varname_len,
     return 0;
 }
 
-int ramdb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attrs)
+int ramdb_set(UTF16 *name, void *val, size_t len, uint32_t attrs)
 {
+    size_t varlen;
     variable_t *var;
 
-    if ( !varname )
+    if ( !name )
         return -1;
 
     if ( len <= 0 )
         return -1;
+
+    varlen = strsize16(name) + 2;
 
     if ( varlen >=  MAX_VARNAME_SZ )
         return -ENOMEM;
@@ -103,7 +97,7 @@ int ramdb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attr
         if ( var->namesz != varlen )
             continue;
 
-        if ( memcmp(var->name, varname, varlen) == 0 )
+        if ( memcmp(var->name, name, varlen) == 0 )
         {
             memcpy(var->data, val, len);
             memcpy(&var->namesz, &varlen, sizeof(var->namesz));
@@ -116,9 +110,15 @@ int ramdb_set(void *varname, size_t varlen, void *val, size_t len, uint32_t attr
     /* Place it in first found empty slot */
     for_each_variable(variables, var)
     {
-        if ( variable_is_empty(var) )
+        if ( var->namesz == 0 )
         {
-            memcpy(var->name, varname, varlen);
+            if ( strncpy16(var->name, name, MAX_VARNAME_SZ) < 0 )
+            {
+                memset(var->name, 0, MAX_VARNAME_SZ * sizeof(UTF16));
+                return -1;
+            }
+                
+            memcpy(var->name, name, varlen);
             memcpy(var->data, val, len);
             memcpy(&var->namesz, &varlen, sizeof(var->namesz));
             memcpy(&var->datasz, &len, sizeof(var->datasz));
@@ -167,8 +167,49 @@ variable_found:
     return 1;
 
 stop_iterator:
-    iter = NULL;
+    iter = 0;
     return 0;
+}
+
+void ramdb_debug(void)
+{
+#if 1
+    variable_t *var;
+
+    for_each_variable(variables, var) 
+    {
+        if ( variable_is_empty(var) )
+            continue;
+
+        char ascii[MAX_VARNAME_SZ];
+        uc2_ascii(var->name, ascii, MAX_VARNAME_SZ);
+
+        switch ( var->datasz )
+        {
+        case 1:
+            DEBUG("%s: 0x%x\n", ascii, *((uint8_t*)var->data));
+            break;
+        case 2:
+            DEBUG("%s: 0x%x\n", ascii, *((uint16_t*)var->data));
+            break;
+        case 4:
+            DEBUG("%s: 0x%x\n", ascii, *((uint32_t*)var->data));
+            break;
+        case 8:
+            DEBUG("%s: 0x%lx\n", ascii, *((uint64_t*)var->data));
+            break;
+        case 16:
+            DEBUG("%s: 0x%llx\n", ascii, *((unsigned long long*)var->data));
+            break;
+        default:
+        {
+            DPRINTF("%s: ", ascii);
+            dprint_data(var->data, var->datasz);
+            break;
+        }
+        }
+    }
+#endif
 }
 
 struct backend ramdb_backend = {
@@ -178,4 +219,5 @@ struct backend ramdb_backend = {
     .set = ramdb_set,
     .destroy = ramdb_destroy,
     .next = ramdb_next,
+    .debug = ramdb_debug,
 };

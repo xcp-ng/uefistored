@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "backends/backend.h"
+#include "backends/ramdb.h"
 #include "xenvariable.h"
 #include "serializer.h"
 #include "UefiMultiPhase.h"
@@ -13,7 +14,9 @@
 
 //#define VALIDATE_WRITES
 
-#define MAX_BUF (SHMEM_PAGES * PAGE_SIZE)
+static const UTF16 SetupMode[] = {'S', 'e', 't', 'u', 'p', 'M', 'o', 'd', 'e', 0, 0};
+
+#define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
 static void dprint_attrs(uint32_t attr)
 {
@@ -98,21 +101,6 @@ static bool isnull(void *mem, size_t len)
     return true;
 }
 
-static void dprint_data(void *data, size_t datalen)
-{
-    uint8_t *p = data;
-    size_t i;
-
-    DPRINTF("DATA: ");
-    for (i=0; i<datalen; i++)
-    {
-        if (i % 8 == 0)
-            DPRINTF("\n");
-        DPRINTF("0x%x ", p[i]);
-    }
-    DPRINTF("\n");
-}
-
 #ifdef VALIDATE_WRITES
 static void validate(void *variable_name, size_t len, void *data, size_t datalen, uint32_t attrs)
 {
@@ -121,7 +109,9 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     uint32_t test_attrs = 0;
     size_t test_datalen;
 
-    ret = backend_get(variable_name, len, test_data, MAX_VARDATA_SZ, &test_datalen, &test_attrs);
+    (void) len;
+
+    ret = ramdb_get(variable_name, test_data, MAX_VARDATA_SZ, &test_datalen, &test_attrs);
     if ( ret != 0 )
     {
         ERROR("Failed to validate variable!\n");
@@ -138,7 +128,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     else
         INFO("Attrs match!\n");
 
-    dprint_vname("Validate: %s\n", variable_name, len);
+    dprint_vname("Validate: %s\n", variable_name);
     DPRINTF("FROM DB: ");
     dprint_data(test_data, test_datalen);
     DPRINTF("FROM OVMF: ");
@@ -149,33 +139,79 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
 #define validate(...) do { } while ( 0 )
 #endif
 
-static void get_variable(void *comm_buf)
+EFI_STATUS get_variable(UTF16 *variable,
+                        EFI_GUID *guid,
+                        uint32_t *attrs,
+                        size_t *size,
+                        void *data)
 {
+    
+    uint8_t tmp[MAX_VARDATA_SZ] = {0};
+    size_t tmpsz;
+    uint32_t tmpattrs;
     int ret;
-    size_t len, namesz;
+
+    if ( !variable )
+        return EFI_INVALID_PARAMETER;
+
+    ret = ramdb_get(variable, tmp, MAX_VARDATA_SZ, &tmpsz, &tmpattrs);
+
+    DEBUG("tmpsz=%lx, size=%lx\n", tmpsz, *size);
+
+    ramdb_debug();
+
+    if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) )
+        return EFI_NOT_FOUND;
+    else if ( tmpsz > *size )
+        return EFI_BUFFER_TOO_SMALL;
+    else if ( ret == VAR_NOT_FOUND )
+        return EFI_NOT_FOUND;
+    else if ( ret < 0 )
+        return EFI_DEVICE_ERROR;
+    /*
+     * This should NEVER happen.  Indicates a varstored bug.  This means we
+     * saved a value into our variables database that is actually larger than
+     * the shared memory between varstored and OVMF XenVariable.  XenVariable's
+     * SetVariable() should prevent this!
+     *
+     * TODO: make this more precise.  Subtract size of other serialized fields.
+     */
+    else if ( tmpsz > MAX_SHARED_OVMF_MEM )
+        return EFI_DEVICE_ERROR;
+
+    memcpy(data, tmp, tmpsz);
+    *size = tmpsz;
+    *attrs = tmpattrs;
+
+    return EFI_SUCCESS;
+}
+
+static void handle_get_variable(void *comm_buf)
+{
+    size_t len;
     EFI_GUID guid;
     uint32_t attrs, version;
     uint64_t buflen;
     uint8_t data[MAX_VARDATA_SZ];
-    char variable_name[MAX_VARNAME_SZ];
-
+    UTF16 variable_name[MAX_VARNAME_SZ];
+    EFI_STATUS status;
     uint8_t *ptr;
 
     ptr = comm_buf;
     version = unserialize_uint32(&ptr);
     if ( version != 1 )
     {
+        ERROR("Unsupported version of XenVariable RPC protocol\n");
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
-        ERROR("Unsupported version of XenVariable RPC protocol\n");
         return;
     }
 
     if ( unserialize_uint32(&ptr) != COMMAND_GET_VARIABLE )
     {
+        ERROR("BUG in varstored, wrong command\n");
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
-        ERROR("BUG in varstored, wrong command\n");
         return;
     }
 
@@ -200,80 +236,46 @@ static void get_variable(void *comm_buf)
         return;
     }
 
-    ret = backend_get(variable_name, len, data, MAX_VARDATA_SZ, &namesz, &attrs);
-    if ( ret == VAR_NOT_FOUND )
-    {
-        dprint_vname("cmd:GET_VARIABLE: %s, not in DB\n", variable_name, len);
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_NOT_FOUND);
-        return;
-    }
-
-    if ( ret < 0 )
-    {
-        dprint_vname("cmd:GET_VARIABLE: %s, varstored error\n", variable_name, len);
-        device_error(comm_buf);
-        return;
-    }
-
-    DEBUG("namesz=%lu\n", namesz);
-
     unserialize_guid(&ptr, &guid);
 
     buflen = unserialize_uint64(&ptr);
-    if ( buflen < namesz )
-    {
-        DPRINTF("cmd:GET_VARIABLE\n");
-        buffer_too_small(comm_buf, buflen, namesz);
-        return;
-    }
 
-    /*
-     * This should NEVER happen.  Indicates a varstored bug.
-     * This means we saved a value into our variables database
-     * that is actually larger than the shared memory between
-     * varstored and OVMF XenVariable.  SetVariable() should prevent this!
-     */
-    if ( namesz > MAX_BUF )
-    {
-        eprint_vname("BUG:cmd:GET_VARIABLE: %s, EFI_DEVICE_ERROR\n", variable_name, len);
-        device_error(comm_buf);
-        return;
-    }
+    status = get_variable(variable_name, &guid, &attrs, &buflen, data);
 
-    dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name, len);
-
-    if ( !(attrs & EFI_VARIABLE_RUNTIME_ACCESS) )
+    if ( status )
     {
-        dprint_vname("cmd:GET_VARIABLE: %s, no runtime access!\n", variable_name, len);
         ptr = comm_buf;
-        serialize_result(&ptr, EFI_NOT_FOUND);
+        dprint_vname("cmd:GET_VARIABLE: %s, ", variable_name);
+        DPRINTF("error=%lu\n", status);
+        serialize_result(&ptr, status);
         return;
     }
+
+    dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name);
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_uint32(&ptr, attrs);
-    serialize_data(&ptr, data, namesz);
+    serialize_data(&ptr, data, buflen);
 }
 
-static void print_set_var(char *variable_name, size_t len, uint32_t attrs)
+static void print_set_var(UTF16 *variable_name, size_t len, uint32_t attrs)
 {
-    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", variable_name, len);
+    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", variable_name);
     dprint_attrs(attrs);
     DPRINTF("\n");
 }
 
-static void set_variable(void *comm_buf)
+static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr;
     EFI_GUID guid;
     size_t len, datalen;
-    int ret;
-    char variable_name[MAX_VARNAME_SZ];
+    UTF16 variable_name[MAX_VARNAME_SZ];
     uint8_t data[MAX_VARDATA_SZ];
     void *dp = data;
     uint32_t attrs, command, version;
+    EFI_STATUS status;
 
     ptr = comm_buf;
     version = unserialize_uint32(&ptr);
@@ -346,19 +348,28 @@ static void set_variable(void *comm_buf)
     }
 #endif
 
-    ret = backend_set(variable_name, len, dp, datalen, attrs);
-    if ( ret < 0 )
-    {
-        ERROR("Failed to set variable in db\n");
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
-        return;
-    }
+    status = set_variable(variable_name, &guid, attrs, datalen, dp);
 
     validate(variable_name, len, dp, datalen, attrs);
 
     ptr = comm_buf;
-    serialize_result(&ptr, EFI_SUCCESS);
+    serialize_result(&ptr, status);
+}
+
+EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
+{
+    int ret;
+
+    ret = ramdb_set(variable, data, datalen, attrs);
+
+    if ( ret < 0 )
+    {
+    
+        ERROR("Failed to set variable in db\n");
+        return EFI_OUT_OF_RESOURCES;
+    }
+
+    return EFI_SUCCESS;
 }
 
 /**
@@ -406,7 +417,7 @@ static void get_next_variable(void *comm_buf)
         /* TODO: does this information get used? */
     }
 
-    ret = backend_next(&current, &next);
+    ret = ramdb_next(&current, &next);
     if ( ret == 0 )
     {
         next_var_not_found(comm_buf);
@@ -458,10 +469,10 @@ void xenvariable_handle_request(void *comm_buf)
     switch ( command )
     {
         case COMMAND_GET_VARIABLE:
-            get_variable(comm_buf);
+            handle_get_variable(comm_buf);
             break;
         case COMMAND_SET_VARIABLE:
-            set_variable(comm_buf);
+            handle_set_variable(comm_buf);
             break;
         case COMMAND_GET_NEXT_VARIABLE:
             get_next_variable(comm_buf);
@@ -477,3 +488,61 @@ void xenvariable_handle_request(void *comm_buf)
             break;
     }
 }
+
+void init_setup_mode(variable_t variables[MAX_VAR_COUNT], size_t n)
+{
+    uint8_t default_setup_mode = 1;
+
+    /* If SetupMode is already set, then we don't mess with up */
+    if ( find_variable(SetupMode, variables, n) )
+        return;
+
+    if ( ramdb_set(SetupMode,
+                   &default_setup_mode,
+                   sizeof(default_setup_mode),
+                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS) < 0 )
+        ERROR("%s:%d: Failed to set SetupMode!\n", __func__, __LINE__);
+    else
+        INFO("%s:%d: set SetupMode to %u!\n", __func__, __LINE__, default_setup_mode);
+}
+
+int xenvariable_init(var_initializer_t init_vars)
+{
+    int ret;
+    variable_t variables[MAX_VAR_COUNT];
+    variable_t *var;
+
+    /* Initialize UEFI variables */
+    ret = ramdb_init();
+    if ( ret < 0 )
+    {
+        ERROR("Failed to initialize db: %d\n", ret);
+        return ret;
+    }
+
+    if ( init_vars )
+    {
+        /* TODO: if there is an error, prevent boot.  If vars are empty, allow boot */
+        ret = init_vars(variables, MAX_VAR_COUNT);
+
+        if ( ret < 0 )
+        {
+            INFO("failed to get vars from xapi, starting with (ALMOST) blank DB\n");
+        }
+
+        if ( ret > 0 )
+        {
+            for_each_variable(variables, var) 
+            {
+                char ascii[MAX_VARNAME_SZ];
+                uc2_ascii(var->name, ascii, MAX_VARNAME_SZ);
+                DEBUG("%s: %s\n", ascii, var->data);
+            }
+        }
+    }
+
+    init_setup_mode(variables, MAX_VAR_COUNT);
+
+    return 0;
+}
+

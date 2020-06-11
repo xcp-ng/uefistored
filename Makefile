@@ -9,7 +9,8 @@ LIB_DEPS :=	\
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 OBJS := src/backends/filedb.o src/common.o src/xenvariable.o    \
         libs/kissdb/kissdb.o src/serializer.o src/xapi.o        \
-        src/backends/ramdb.o
+        src/backends/ramdb.o src/uefitypes.o
+
 INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
 

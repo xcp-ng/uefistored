@@ -8,6 +8,10 @@
 #include <string.h>
 #include <uchar.h>
 
+#include "uefitypes.h"
+
+#define DEBUG_MODE 1
+
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
 #define MAX_VAR_COUNT 512
@@ -25,10 +29,11 @@
 
 typedef struct {
     size_t namesz;
-    uint8_t name[MAX_VARNAME_SZ];
+    UTF16 name[MAX_VARNAME_SZ];
     size_t datasz;
     uint8_t data[MAX_VARDATA_SZ];
     uint32_t attrs;
+    EFI_GUID guid;
 } variable_t;
 
 #define for_each_variable(vars, var) \
@@ -54,8 +59,9 @@ void dprint_variable(variable_t *var);
 
 #define USE_STREAM 1
 
-uint64_t strlen16(char16_t *str);
-uint64_t strsize16(char16_t *str);
+uint64_t strlen16(UTF16 *str);
+uint64_t strsize16(UTF16 *str);
+int strcmp16(UTF16 *a, UTF16 *b);
 
 extern int _logfd;
 
@@ -119,8 +125,8 @@ void set_logfd(int logfd);
 #define TRACE() do { } while ( 0 )
 #endif
 
-void uc2_ascii_safe(void *uc2, size_t uc2_len, char *ascii, size_t len);
-void uc2_ascii(void *uc2, char *ascii, size_t len);
+void uc2_ascii_safe(UTF16 *uc2, size_t uc2_len, char *ascii, size_t len);
+void uc2_ascii(UTF16 *uc2, char *ascii, size_t len);
 bool variable_is_empty(variable_t *);
 
 extern char strbuf[512];
@@ -131,18 +137,24 @@ extern char strbuf[512];
  * WARNING: this only prints ASCII characters correctly.
  * Any char code above 255 will be displayed incorrectly.
  */
-#define dprint_vname(format, vn, vnlen, ...) \
+#define dprint_vname(format, vn, ...) \
 do { \
-    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
+    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
     DEBUG(format, strbuf __VA_ARGS__); \
     memset(strbuf, '\0', 512); \
 } while ( 0 )
 
-#define eprint_vname(format, vn, vnlen, ...) \
+#define eprint_vname(format, vn, ...) \
 do { \
-    uc2_ascii_safe(vn, vnlen, strbuf, 512); \
+    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
     ERROR(format, strbuf __VA_ARGS__); \
     memset(strbuf, '\0', 512); \
 } while( 0 )
+
+
+typedef int (*var_initializer_t)(variable_t *, size_t);
+
+void dprint_data(void *data, size_t datalen);
+variable_t *find_variable(UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n);
 
 #endif

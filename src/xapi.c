@@ -140,7 +140,7 @@ static char *response_body(char *response)
     if ( !body )
         return NULL;
     
-    return body + sizeof("\r\n\r\n") - 1;
+    return body + sizeof("\r\n\r\n") + 1;
 }
 
 int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size)
@@ -334,43 +334,6 @@ static size_t sizeof_var(variable_t *var)
 {
         return var->namesz + sizeof(var->namesz) + 
                 var->datasz + sizeof(var->datasz);
-}
-
-int serialize_var(uint8_t **p, size_t n, variable_t *var)
-{
-    size_t used = 0;
-
-    if ( sizeof(var->namesz) > n )
-        return -1;
-
-    memcpy(*p, &var->namesz, sizeof(var->namesz)); 
-    *p += sizeof(var->namesz);
-    used += sizeof(var->namesz);
-
-    if ( var->namesz + used > n )
-        return -1;
-
-    memcpy(*p, var->name, var->namesz); 
-    *p += var->namesz;
-    used += var->namesz;
-
-    if ( sizeof(var->datasz) + used > n )
-        return -1;
-
-    memcpy(*p, &var->datasz, sizeof(var->datasz)); 
-    *p += sizeof(var->datasz);
-    used += sizeof(var->datasz);
-
-    if ( var->datasz + used > n )
-        return -1;
-
-    memcpy(*p, var->data, var->datasz); 
-    *p += var->datasz;
-    used += var->datasz;
-
-    DEBUG("%s: used=%ld\n", __func__, used);
-
-    return 0;
 }
 
 int from_vars_to_blob(uint8_t *buf, size_t bufsize, variable_t *vars, size_t vars_cnt)

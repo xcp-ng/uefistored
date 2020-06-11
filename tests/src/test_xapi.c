@@ -346,6 +346,11 @@ void test_base64_big_xml(void)
 
 static void test_big_request(void)
 {
+    char buffer[4096*8];
+    char *big_request = BIG_REQUEST;
+    char *base64;
+
+    base64_from_response(buffer, 4096*8, big_request);
 }
 
 void test_xapi(void)
