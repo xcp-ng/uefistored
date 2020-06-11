@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <errno.h>
 
-#include "backends/backend.h"
 #include "backends/filedb.h"
 #include "common.h"
 #include "kissdb/kissdb.h"
@@ -334,12 +333,3 @@ stop_iterator:
     cache_len = 0;
     return  0;
 }
-
-struct backend filedb_backend = {
-    .init = filedb_init,
-    .deinit = filedb_deinit,
-    .get = filedb_get,
-    .set = filedb_set,
-    .destroy = filedb_destroy,
-    .next = filedb_next,
-};

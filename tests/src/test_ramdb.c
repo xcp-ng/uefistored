@@ -4,7 +4,6 @@
 #include "data/bigbase64.h"
 #include "test_common.h"
 #include "test_xapi.h"
-#include "backends/backend.h"
 #include "xapi.h"
 #include "backends/ramdb.h"
 
@@ -65,8 +64,9 @@ static void test_set_and_get2(void)
 
     variable_t tmp;
 
-    memcpy(tmp.name, var1.name, var1.namesz);
-    memcpy(&tmp.namesz, &var1.namesz, sizeof(var1.namesz));
+
+    strncpy16(tmp.name, var1.name, MAX_VARNAME_SZ);
+    tmp.namesz = var1.namesz;
 
     ret = ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
@@ -80,8 +80,9 @@ static void test_set_and_get2(void)
     test( memcmp(tmp.data, var1.data, var1.datasz) == 0 );
     test( var1.attrs == tmp.attrs );
 
-    memcpy(tmp.name, var2.name, var2.namesz);
-    memcpy(&tmp.namesz, &var2.namesz, sizeof(var2.namesz));
+    memset(&tmp, 0, sizeof(tmp));
+    strncpy16(tmp.name, var2.name, MAX_VARNAME_SZ);
+    tmp.namesz = var2.namesz;
 
     ret = ramdb_set(var2.name, var2.data, var2.datasz, var2.attrs);
     test( ret == 0 );

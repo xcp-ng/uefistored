@@ -4,7 +4,7 @@
 #include <uchar.h>
 
 #include "xenvariable.h"
-#include "backends/backend.h"
+#include "backends/ramdb.h"
 #include "mock/XenVariable.h"
 #include "test_common.h"
 #include "UefiMultiPhase.h"
@@ -17,30 +17,30 @@ static void *comm_buf = comm_buf_phys;
 
 static void pre_test(void)
 {
-    backend_init(BACKEND_RAMDB);
+    ramdb_init();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 static void post_test(void)
 {
-    backend_deinit();
-    backend_destroy();
+    ramdb_deinit();
+    ramdb_destroy();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 /* Test Data */
-char rtcnamebytes[] = {
-    0, 'R',
-    0, 'T',
-    0, 'C',
-    0,  0,
+UTF16 rtcnamebytes[] = {
+    'R',
+    'T',
+    'C',
+     0,
 };
 
-char mtcnamebytes[] = {
-    0, 'M',
-    0, 'T',
-    0, 'C',
-    0,  0,
+UTF16 mtcnamebytes[] = {
+    'M',
+    'T',
+    'C',
+     0,
 };
 
 static inline uint64_t getstatus(void *p)
@@ -54,13 +54,11 @@ static inline uint64_t getstatus(void *p)
 
 static void test_nonexistent_variable_returns_not_found(void)
 {
-    uint8_t *ptr;
     char16_t *rtcname = (char16_t*)rtcnamebytes;
     uint8_t guid[16] = {0};
     uint32_t attr;
     uint64_t data;
     uint64_t datasize = sizeof(data);
-    EFI_STATUS status;
 
     comm_buf = comm_buf_phys;
     mock_xenvariable_set_buffer(comm_buf);
@@ -98,7 +96,7 @@ static EFI_STATUS deserialize_xen_get_var_response(
         attr = unserialize_uint32(&ptr);
         if (Attributes)
             *Attributes = attr;
-        unserialize_data(&ptr, Data, DataSize);
+        unserialize_data(&ptr, Data, *DataSize);
         break;
     case EFI_BUFFER_TOO_SMALL:
         *DataSize = unserialize_uintn(&ptr);
@@ -112,8 +110,8 @@ static EFI_STATUS deserialize_xen_get_var_response(
 
 static EFI_STATUS deserialize_xen_get_next_var_response(
      uint64_t             *VariableNameSize,
-     char16_t            *VariableName,
-     EFI_GUID          *VendorGuid
+     char16_t             *VariableName,
+     EFI_GUID             *VendorGuid
   )
 {
   uint8_t *ptr;
@@ -123,7 +121,7 @@ static EFI_STATUS deserialize_xen_get_next_var_response(
   status = unserialize_result(&ptr);
   switch (status) {
   case EFI_SUCCESS:
-    unserialize_data(&ptr, VariableName, VariableNameSize);
+    unserialize_data(&ptr, VariableName, *VariableNameSize);
     VariableName[*VariableNameSize / 2] = '\0';
     *VariableNameSize = sizeof(*VariableName);
     unserialize_guid(&ptr, VendorGuid);
@@ -293,22 +291,6 @@ static void test_empty_get_next_var(void)
 
 #define TEST_VARNAME_BUF_SZ 256
 
-static void print_bytes(void *buf, size_t len, size_t width)
-{
-    uint8_t *p = buf;
-    size_t i;
-
-    for (i=0; i<len; i++)
-    {
-        if ( i % width == 0 )
-        {
-            DPRINTF("\n");
-        }
-        DPRINTF("0x%02x ", p[i]);
-    }
-    DPRINTF("\n");
-}
-
 /**
  * Test that variable store returns EFI_SUCCESS and returns the correct
  * variable name upon GetNextVariableName() being called after setting one
@@ -335,10 +317,22 @@ static void test_success_get_next_var_one(void)
     /* Deserialize response */
     ptr = comm_buf;
     status = unserialize_result(&ptr);
-    unserialize_data(&ptr, buf, &varname_sz);
+    unserialize_data(&ptr, buf, varname_sz);
 
     /* Assertions */
     test(status == EFI_SUCCESS);
+
+    int i;
+    for ( i=0; i<sizeof(rtcnamebytes) / sizeof(rtcnamebytes[0]); i++ )
+    {
+        printf("0x%02x == 0x%02x\n", buf[i], rtcnamebytes[i]);
+    }
+
+    for ( i=0; i<32; i++ )
+    {
+        printf("0x%02x ", ((uint8_t*)comm_buf)[i]);
+    }
+    printf("\n");
     test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 
     XenGetNextVariableName(&varname_sz, buf, &guid);
@@ -376,7 +370,6 @@ static void test_success_get_next_var_two(void)
     char16_t copies[2][TEST_VARNAME_BUF_SZ] = {0};
     uint8_t guid[16];
     uint8_t *ptr;
-    char* p;
 
     /* Setup */
     set_rtc_variable(comm_buf);
@@ -390,7 +383,7 @@ static void test_success_get_next_var_two(void)
 
     ptr = comm_buf;
     unserialize_result(&ptr);
-    unserialize_data(&ptr, &copies[0], &varname_sz);
+    unserialize_data(&ptr, &copies[0], varname_sz);
     memcpy(buf, &copies[0], varname_sz);
 
     memset(comm_buf, 0, 4096);
@@ -401,7 +394,7 @@ static void test_success_get_next_var_two(void)
 
     ptr = comm_buf;
     unserialize_result(&ptr);
-    unserialize_data(&ptr, &copies[1], &varname_sz);
+    unserialize_data(&ptr, &copies[1], varname_sz);
 
     test(contains(copies, rtcnamebytes, sizeof(rtcnamebytes)));
     test(contains(copies, mtcnamebytes, sizeof(mtcnamebytes)));

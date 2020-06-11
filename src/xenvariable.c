@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "backends/backend.h"
 #include "backends/ramdb.h"
 #include "xenvariable.h"
 #include "serializer.h"
@@ -22,24 +21,35 @@ static const UTF16 SecureBoot[] = {'S', 'e', 'c', 'u', 'r', 'e', 'B', 'o', 'o', 
 
 static int set_setup_mode(uint8_t val)
 {
-    if ( ramdb_set(SetupMode,
+
+    int ret = ramdb_set(
+                   SetupMode,
                    &val,
                    sizeof(val),
-                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS) < 0 )
+                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    if ( ret < 0 )
         ERROR("%s:%d: Failed to set SetupMode to %u!\n", __func__, __LINE__, val);
     else
         INFO("%s:%d: set SetupMode to %u!\n", __func__, __LINE__, val);
+
+    return ret;
 }
 
 static int set_secure_boot(uint8_t val)
 {
-    if ( ramdb_set(SecureBoot,
+    int ret;
+
+    ret = ramdb_set(SecureBoot,
                    &val,
                    sizeof(val),
-                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS) < 0 )
+                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+
+    if ( ret < 0 )
         ERROR("%s:%d: Failed to set SecureBoot to %u!\n", __func__, __LINE__, val);
     else
         INFO("%s:%d: set SecureBoot to %u!\n", __func__, __LINE__, val);
+
+    return ret;
 }
 
 static void dprint_attrs(uint32_t attr)
@@ -407,7 +417,7 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
 
     if ( strcmp16(variable, PK) == 0 )
     {
-        if ( handle_set_pk(ret) < 0 );
+        if ( handle_set_pk(ret) < 0 )
             return -1;
     }
     else if ( strcmp16(variable, SecureBoot) == 0 )
@@ -478,9 +488,9 @@ static void get_next_variable(void *comm_buf)
 
     if ( next.namesz > guest_bufsz )
     {
-        WARNING("GetNextVariableName(), %s, buffer too small: namesz: %lu, guest_bufsz: %lu\n",
-                next.name, next.namesz, guest_bufsz);
-        buffer_too_small(comm_buf, guest_bufsz, next.namesz);
+        WARNING("GetNextVariableName(), buffer too small: namesz: %lu, guest_bufsz: %lu\n",
+                next.namesz, guest_bufsz);
+        buffer_too_small(comm_buf, guest_bufsz, strsize16(next.name));
         return;
     }
 
@@ -488,7 +498,7 @@ static void get_next_variable(void *comm_buf)
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
-    serialize_data(&ptr, &next.name, next.namesz);
+    serialize_name(&ptr, next.name);
     serialize_guid(&ptr, &guid);
 }
 

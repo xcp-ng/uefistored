@@ -28,7 +28,7 @@ void set_logfd(int logfd)
  *
  * Arg `str` MUST be null-terminated (2 bytes of zero).
  */
-uint64_t strlen16(UTF16 *str)
+uint64_t strlen16(const UTF16 *str)
 {
     uint64_t len = 0;
     uint8_t *p1;
@@ -70,7 +70,7 @@ uint64_t strlen16(UTF16 *str)
  *
  * Does NOT include null-terminator.
  */
-uint64_t strsize16(UTF16 *str)
+uint64_t strsize16(const UTF16 *str)
 {
     return strlen16(str) * 2;
 }
@@ -108,7 +108,7 @@ void dprint_variable(variable_t *var)
 /**
  * Returns 0 if a and b are equal, otherwise non-zero.
  */
-int strcmp16(UTF16 *a, UTF16 *b)
+int strcmp16(const UTF16 *a, const UTF16 *b)
 {
     size_t a_sz, b_sz;
 
@@ -120,9 +120,6 @@ int strcmp16(UTF16 *a, UTF16 *b)
         return -1;
     }
 
-    dprint_vname("a=%s\n", a);
-    dprint_vname("b=%s\n", b);
-
     return memcmp(a, b, min(a_sz, b_sz));
 }
 
@@ -131,7 +128,7 @@ int strcmp16(UTF16 *a, UTF16 *b)
  *
  * Adds null-terminator to `a`.  Won't exceed `n`. 
  */
-int strncpy16(UTF16 *a, UTF16 *b, size_t n)
+int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
 {
     uint8_t *p;
     size_t b_sz;
@@ -159,13 +156,13 @@ void dprint_data(void *data, size_t datalen)
     for (i=0; i<datalen; i++)
     {
         if (i % 8 == 0)
-            DPRINTF("\n%03d: 0x", i);
+            DPRINTF("\n%02lx: 0x", i);
         DPRINTF("%02x", p[i]);
     }
     DPRINTF("\n");
 }
 
-variable_t *find_variable(UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n)
+variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n)
 {
     variable_t *var;
     size_t i;

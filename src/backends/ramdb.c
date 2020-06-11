@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <errno.h>
 
-#include "backends/backend.h"
 #include "backends/ramdb.h"
 #include "uefitypes.h"
 #include "common.h"
@@ -38,12 +37,10 @@ void ramdb_destroy(void)
     memset(variables, 0, sizeof(variables));
 }
 
-int ramdb_get(UTF16 *name,
+int ramdb_get(const UTF16 *name,
               void *dest, size_t n,
               size_t *len, uint32_t *attrs)
 {
-    int cnt;
-    size_t name_len;
     variable_t *var = NULL;
 
     if ( !name )
@@ -72,7 +69,7 @@ int ramdb_get(UTF16 *name,
     return 0;
 }
 
-int ramdb_set(UTF16 *name, void *val, size_t len, uint32_t attrs)
+int ramdb_set(const UTF16 *name, const void *val, const size_t len, const uint32_t attrs)
 {
     size_t varlen;
     variable_t *var;
@@ -83,9 +80,9 @@ int ramdb_set(UTF16 *name, void *val, size_t len, uint32_t attrs)
     if ( len <= 0 )
         return -1;
 
-    varlen = strsize16(name) + 2;
+    varlen = strlen16(name);
 
-    if ( varlen >=  MAX_VARNAME_SZ )
+    if ( varlen + 2 >=  MAX_VARNAME_SZ )
         return -ENOMEM;
 
     if ( len >=  MAX_VARDATA_SZ )
@@ -97,7 +94,7 @@ int ramdb_set(UTF16 *name, void *val, size_t len, uint32_t attrs)
         if ( var->namesz != varlen )
             continue;
 
-        if ( memcmp(var->name, name, varlen) == 0 )
+        if ( strcmp16(var->name, name) == 0 )
         {
             memcpy(var->data, val, len);
             memcpy(&var->namesz, &varlen, sizeof(var->namesz));
@@ -211,13 +208,3 @@ void ramdb_debug(void)
     }
 #endif
 }
-
-struct backend ramdb_backend = {
-    .init = ramdb_init,
-    .deinit = ramdb_deinit,
-    .get = ramdb_get,
-    .set = ramdb_set,
-    .destroy = ramdb_destroy,
-    .next = ramdb_next,
-    .debug = ramdb_debug,
-};

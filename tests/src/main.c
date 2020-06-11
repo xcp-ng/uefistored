@@ -24,7 +24,7 @@ int open_logfile(void)
 int main(void)
 { 
     set_logfd(open_logfile());
-#if 0
+#if 1
     test_xenvariable();
     test_xapi();
     test_ramdb();

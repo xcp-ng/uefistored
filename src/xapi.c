@@ -18,7 +18,7 @@
 #include "common.h"
 #include "xapi.h"
 #include "serializer.h"
-#include "backends/backend.h"
+#include "backends/ramdb.h"
 
 #define XAPI_CODEC_DEBUG 1
 #define XAPI_DEBUG 0
@@ -307,7 +307,7 @@ static int retrieve_vars(variable_t *vars, size_t n)
 
     while ( cnt < n )
     {
-        ret = backend_next(current, next);
+        ret = ramdb_next(current, next);
 
         /* Error */
         if ( ret < 0 )

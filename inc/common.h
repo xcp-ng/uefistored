@@ -59,9 +59,10 @@ void dprint_variable(variable_t *var);
 
 #define USE_STREAM 1
 
-uint64_t strlen16(UTF16 *str);
-uint64_t strsize16(UTF16 *str);
-int strcmp16(UTF16 *a, UTF16 *b);
+uint64_t strlen16(const UTF16 *str);
+uint64_t strsize16(const UTF16 *str);
+int strcmp16(const UTF16 *a, const UTF16 *b);
+int strncpy16(UTF16 *a, const UTF16 *b, const size_t n);
 
 extern int _logfd;
 
@@ -155,6 +156,6 @@ do { \
 typedef int (*var_initializer_t)(variable_t *, size_t);
 
 void dprint_data(void *data, size_t datalen);
-variable_t *find_variable(UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n);
+variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n);
 
 #endif
