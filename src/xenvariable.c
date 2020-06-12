@@ -412,6 +412,11 @@ static bool pkcs7_cert(void *data, size_t sz)
 
     descriptor = data;
 
+    if ( OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
+         OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertType) +
+         sizeof(EFI_GUID) >= sz )
+         return false;
+
     if ( memcmp(&descriptor->AuthInfo.CertType, &gEfiCertPkcs7Guid, sizeof(EFI_GUID)) != 0 )
         return false;
 
