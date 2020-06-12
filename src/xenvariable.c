@@ -4,12 +4,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <openssl/x509.h>
+
 #include "backends/ramdb.h"
 #include "xenvariable.h"
 #include "serializer.h"
 #include "UefiMultiPhase.h"
 #include "uefitypes.h"
 #include "common.h"
+
+#define _ADDR(x) ((uint64_t)x)
 
 //#define VALIDATE_WRITES
 
@@ -29,8 +33,6 @@ static int set_setup_mode(uint8_t val)
                    EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
     if ( ret < 0 )
         ERROR("%s:%d: Failed to set SetupMode to %u!\n", __func__, __LINE__, val);
-    else
-        INFO("%s:%d: set SetupMode to %u!\n", __func__, __LINE__, val);
 
     return ret;
 }
@@ -46,8 +48,6 @@ static int set_secure_boot(uint8_t val)
 
     if ( ret < 0 )
         ERROR("%s:%d: Failed to set SecureBoot to %u!\n", __func__, __LINE__, val);
-    else
-        INFO("%s:%d: set SecureBoot to %u!\n", __func__, __LINE__, val);
 
     return ret;
 }
@@ -390,31 +390,46 @@ static void handle_set_variable(void *comm_buf)
     serialize_result(&ptr, status);
 }
 
+static inline EFI_SIGNATURE_DATA *pkcert_list_data(EFI_SIGNATURE_LIST *pkcert_list)
+{
+    return (EFI_SIGNATURE_DATA *)
+        (_ADDR(pkcert_list) + sizeof(EFI_SIGNATURE_LIST) + pkcert_list->SignatureHeaderSize);
+}
+
 /**
  * Returns true if data contains a pkcs7 cert type guid, otherwise false.
  */
 static bool pkcs7_cert(void *data, size_t sz)
 {
-    bool result;
-    uint8_t *payload;
-    size_t payload_sz;
+
+    EFI_SIGNATURE_LIST *pkcert_list;
+    EFI_SIGNATURE_DATA *pkcert_data;
+    X509 *cert;
+    uint8_t *x509_data;
+    uint64_t x509_len;
     EFI_VARIABLE_AUTHENTICATION_2 *descriptor;
     size_t descriptor_sz;
 
-    descriptor_sz = OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
-                        OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
     descriptor = data;
-    payload = (uint8_t*)(descriptor + descriptor_sz);
-    payload_sz = sz - descriptor_sz;
-
-    TRACE();
 
     if ( memcmp(&descriptor->AuthInfo.CertType, &gEfiCertPkcs7Guid, sizeof(EFI_GUID)) != 0 )
         return false;
 
-    TRACE();
+    descriptor_sz = OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
+                        OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
+    pkcert_list = (EFI_SIGNATURE_LIST*)(_ADDR(descriptor) + descriptor_sz);
+    pkcert_data = pkcert_list_data(pkcert_list);
 
-    /* TODO: parse PKCS7 Cert here*/
+    if ( memcmp (&pkcert_list->SignatureType, &gEfiCertX509Guid, sizeof(EFI_GUID)) != 0 )
+        return false;
+
+    x509_data = &pkcert_data->SignatureData[0];
+    x509_len = pkcert_list->SignatureSize - sizeof(EFI_SIGNATURE_DATA) + 1;
+
+    cert = d2i_X509(NULL, (unsigned char**) &x509_data, x509_len);
+
+    if ( !cert )
+        return false;
 
     return true;
 }

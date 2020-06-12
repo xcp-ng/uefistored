@@ -5,6 +5,7 @@
  *
  */
 
+#include <openssl/x509.h>
 
 #include "uefitypes.h"
 #include "common.h"
@@ -106,7 +107,8 @@ static void test_setting_pk_turns_setup_mode_off(void)
     int ret;
     EFI_STATUS status;
 
-    EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK.der");
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK.der");
+    printf("status=0x%lx\n", status);
     status = get_variable(SetupMode, &gEfiGlobalVariableGuid, &attrs, &size, &data);
 
     test(!status);
@@ -169,7 +171,7 @@ static void test_bad_guid(void)
     test(status);
 }
 
-static void test_bad_cert_type(void)
+static void test_bad_cert_type_guid(void)
 {
     EFI_GUID cert_guid;
     EFI_STATUS status;
@@ -180,6 +182,43 @@ static void test_bad_cert_type(void)
     status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &cert_guid, "keys/PK.der");
 
     test(status == EFI_SECURITY_VIOLATION);
+}
+
+static void test_bad_cert_but_good_guid(void)
+{
+    EFI_STATUS status;
+
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/bad_cert.txt");
+
+    test(status == EFI_SECURITY_VIOLATION);
+}
+
+static void test_set_pk_ok(void)
+{
+    EFI_STATUS status;
+
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK.der");
+
+    test(status == EFI_SUCCESS);
+}
+
+static void test_x509_decode(void)
+{
+    EFI_STATUS status;
+
+    X509 *cert;
+    uint8_t *x509;
+    uint64_t len;
+    
+    status = ReadFileContent("keys/PK.der", &x509, &len);
+
+    test(!status);
+
+    cert = d2i_X509(NULL, &x509, len);
+
+    free(x509);
+
+    test(cert != NULL);
 }
 
 static void test_bad_attrs(void)
@@ -194,6 +233,9 @@ void test_auth(void)
     DO_TEST(test_secure_boot_var_ro);
     DO_TEST(test_start_with_secure_boot_off);
     DO_TEST(test_bad_guid);
-    DO_TEST(test_bad_cert_type);
+    DO_TEST(test_bad_cert_type_guid);
+    DO_TEST(test_bad_cert_but_good_guid);
     DO_TEST(test_bad_attrs);
+    DO_TEST(test_set_pk_ok);
+    DO_TEST(test_x509_decode);
 }

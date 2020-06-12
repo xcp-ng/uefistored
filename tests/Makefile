@@ -20,7 +20,7 @@ all: test-nosan test
 		./test-nosan
 	./$<
 
-test: src/main.c $(OBJ) keys
+test: src/main.c $(OBJ) keys/.done
 	gcc -o $@ $< $(INC) $(OBJ) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak
 
 test-nosan: src/main.c $(OBJ) keys
@@ -30,12 +30,8 @@ test-nosan: src/main.c $(OBJ) keys
 	gcc -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
 
 .PHONY: clean
-clean: clean-keys
+clean:
 	rm $(OBJ) test test-nosan
-
-.PHONY: clean-keys
-clean-keys:
-	yes | rm -r keys
 
 .PHONY: keys
 keys: keys/.done
@@ -44,7 +40,7 @@ keys: keys/.done
 keys/.done:
 	@mkdir -p keys
 	@cd keys && ../scripts/create-keys.sh
-	@echo keys/.done
+	@touch $@
 
 print-%:
 	@:$(info $($*))

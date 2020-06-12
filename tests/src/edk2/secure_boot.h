@@ -10,4 +10,6 @@ EnrollPlatformKey (
    char*   FileName
   );
 
+EFI_STATUS ReadFileContent(const char *file, void **data, uint64_t *datasize);
+
 #endif // __H_SECURE_BOOT_

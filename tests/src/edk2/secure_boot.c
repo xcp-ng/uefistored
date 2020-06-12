@@ -61,7 +61,7 @@ EFI_STATUS ReadFileContent(const char *file, void **data, uint64_t *datasize)
   memcpy(*data, buf, len);
 
   *datasize = (uint64_t)len;
-  
+
   return EFI_SUCCESS;
 }
 
@@ -147,6 +147,7 @@ CreateTimeBasedPayload (
 
   *DataSize = DescriptorSize + PayloadSize;
   *Data     = NewData;
+
   return EFI_SUCCESS;
 }
 
@@ -220,6 +221,9 @@ ON_EXIT:
     *PkCert = NULL;
   }
 
+  EFI_SIGNATURE_LIST *pkcert_list = *PkCert;
+  EFI_SIGNATURE_DATA *pkcert_data = PkCertData;
+
   return Status;
 }
 
@@ -234,7 +238,7 @@ ON_EXIT:
 **/
 EFI_STATUS
 EnrollPlatformKey (
-   EFI_GUID* guid,
+   EFI_GUID* VariableGuid,
    EFI_GUID *CertTypeGuid,
    char*   FileName
   )
@@ -289,15 +293,14 @@ EnrollPlatformKey (
     goto ON_EXIT;
   }
 
-#if 1
   Status = set_variable(
                   EFI_PLATFORM_KEY_NAME,
-                  guid,
+                  VariableGuid,
                   Attr,
                   DataSize,
                   PkCert
                   );
-#endif
+
   if (EFI_ERROR (Status)) {
     if (Status == EFI_OUT_OF_RESOURCES) {
     }

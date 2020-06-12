@@ -146,15 +146,6 @@ typedef uint64_t RETURN_STATUS;
 #define EFI_MAX_BIT       0x8000000000000000UL
 #define EFIERR(a)         (EFI_MAX_BIT | (a))
 
-#if 0
-typedef struct {
-    uint32_t  Data1;
-    uint16_t  Data2;
-    uint16_t  Data3;
-    uint8_t   Data4[8];
-} EFI_GUID;
-#endif
-
 typedef uint64_t EFI_STATUS;
 //#define EFI_INVALID_PARAMETER EFIERR(2)
 //#define EFI_BUFFER_TOO_SMALL EFIERR(5)
@@ -183,14 +174,6 @@ typedef uint64_t EFI_STATUS;
 /// NOTE: EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS is deprecated and should be considered reserved.
 ///
 #define EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS              0x00000010
-
-typedef struct {
-    uint32_t  data1;
-    uint16_t  data2;
-    uint16_t  data3;
-    uint8_t   data4[8];
-} efi_guid_t;
-
 
 typedef enum command {
     COMMAND_GET_VARIABLE,
