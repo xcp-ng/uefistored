@@ -410,6 +410,9 @@ static bool pkcs7_cert(void *data, size_t sz)
     EFI_VARIABLE_AUTHENTICATION_2 *descriptor;
     size_t descriptor_sz;
 
+    if ( !data )
+        return false;
+
     descriptor = data;
 
     if ( OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
