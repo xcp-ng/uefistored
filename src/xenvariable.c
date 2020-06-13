@@ -399,29 +399,29 @@ static inline EFI_SIGNATURE_DATA *pkcert_list_data(EFI_SIGNATURE_LIST *pkcert_li
 /**
  * Returns true if data contains a pkcs7 cert type guid, otherwise false.
  */
-static bool pkcs7_cert(void *data, size_t sz)
+static X509 *x509_cert(void *data, size_t sz)
 {
 
     EFI_SIGNATURE_LIST *pkcert_list;
     EFI_SIGNATURE_DATA *pkcert_data;
-    X509 *cert;
     uint8_t *x509_data;
     uint64_t x509_len;
     EFI_VARIABLE_AUTHENTICATION_2 *descriptor;
     size_t descriptor_sz;
+    int ret;
 
     if ( !data )
-        return false;
+        return NULL;
 
     descriptor = data;
 
     if ( OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
          OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertType) +
          sizeof(EFI_GUID) >= sz )
-         return false;
+         return NULL;
 
     if ( memcmp(&descriptor->AuthInfo.CertType, &gEfiCertPkcs7Guid, sizeof(EFI_GUID)) != 0 )
-        return false;
+        return NULL;
 
     descriptor_sz = OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
                         OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
@@ -429,17 +429,12 @@ static bool pkcs7_cert(void *data, size_t sz)
     pkcert_data = pkcert_list_data(pkcert_list);
 
     if ( memcmp (&pkcert_list->SignatureType, &gEfiCertX509Guid, sizeof(EFI_GUID)) != 0 )
-        return false;
+        return NULL;
 
     x509_data = &pkcert_data->SignatureData[0];
     x509_len = pkcert_list->SignatureSize - sizeof(EFI_SIGNATURE_DATA) + 1;
 
-    cert = d2i_X509(NULL, (unsigned char**) &x509_data, x509_len);
-
-    if ( !cert )
-        return false;
-
-    return true;
+    return d2i_X509(NULL, (unsigned char**) &x509_data, x509_len);
 }
 
 /**
@@ -447,9 +442,12 @@ static bool pkcs7_cert(void *data, size_t sz)
  */
 static EFI_STATUS handle_set_pk(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
 {
+    X509 *x509;
     int ret;
 
-    if ( !pkcs7_cert(data, datalen) ) 
+    x509 = x509_cert(data, datalen);
+
+    if ( !x509 ) 
         return EFI_SECURITY_VIOLATION;
 
     ret = ramdb_set(variable, data, datalen, attrs);
