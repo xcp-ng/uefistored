@@ -15,4 +15,10 @@ UTF16 SECURE_BOOT_MODE_NAME[] = {'S', 'e', 'c', 'u', 'r', 'e',
                             'B', 'o', 'o', 't',
                             'M', 'o', 'd', 'e', '\0'};
 
+UTF16 DB_NAME[] = { 'd', 'b', '\0' };
+UTF16 DBX_NAME[] = { 'd', 'b', 'x', '\0' };
+UTF16 DBT_NAME[] = { 'd', 'b', 't', '\0' };
+
 UTF16 CUSTOM_MODE_NAME[] = { 'C', 'u', 's', 't', 'o', 'm', 'M', 'o', 'd', 'e', '\0' };
+
+

@@ -19,6 +19,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 **/
 
 #include "InternalCryptLib.h"
+#include "CryptRsaBasic.h"
 
 #include <openssl/bn.h>
 #include <openssl/rsa.h>

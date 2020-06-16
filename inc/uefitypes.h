@@ -215,17 +215,17 @@ typedef enum command {
 /// Varialbe name with guid EFI_IMAGE_SECURITY_DATABASE_GUID
 /// for the authorized signature database.
 ///
-#define EFI_IMAGE_SECURITY_DATABASE       L"db"
+#define EFI_IMAGE_SECURITY_DATABASE       DB_NAME
 ///
 /// Varialbe name with guid EFI_IMAGE_SECURITY_DATABASE_GUID
 /// for the forbidden signature database.
 ///
-#define EFI_IMAGE_SECURITY_DATABASE1      L"dbx"
+#define EFI_IMAGE_SECURITY_DATABASE1      DBX_NAME
 ///
 /// Variable name with guid EFI_IMAGE_SECURITY_DATABASE_GUID
 /// for the timestamp signature database.
 ///
-#define EFI_IMAGE_SECURITY_DATABASE2      L"dbt"
+#define EFI_IMAGE_SECURITY_DATABASE2      DBT_NAME
 
 //***********************************************************************
 // Signature Database

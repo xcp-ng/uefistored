@@ -36,11 +36,13 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 #include "auth_service.h"
 #include "common.h"
+#include "CryptRsaBasic.h"
 #include "CryptSha256.h"
 #include "uefitypes.h"
 #include "varnames.h"
 #include "uefi_guids.h"
 #include "pkcs7_verify.h"
+#include "backends/ramdb.h"
 
 void  *mHashCtx = NULL;
 
@@ -110,12 +112,11 @@ AuthServiceInternalFindVariable(UTF16 *VariableName,
     int ret;
     uint32_t tmpattrs;
     uint8_t data[MAX_VARDATA_SZ];
-    variable_t *var;
 
     if ( !VariableName || !VendorGuid )
         return EFI_DEVICE_ERROR;
 
-    ret = ramdb_get(VariableName, data, MAX_VARDATA_SZ, &len, &attrs);
+    ret = ramdb_get(VariableName, data, MAX_VARDATA_SZ, &len, &tmpattrs);
 
     if ( ret == VAR_NOT_FOUND )
         return EFI_NOT_FOUND;
@@ -437,7 +438,6 @@ FilterSignatureList(void *Data, uint64_t DataSize, void *NewData,
 	bool IsNewCert;
 	uint8_t *TempData;
 	uint64_t TempDataSize;
-	EFI_STATUS Status;
 
 	if (*NewDataSize == 0) {
 		return EFI_SUCCESS;
@@ -605,10 +605,10 @@ AuthServiceInternalUpdateVariableWithTimeStamp(UTF16 *VariableName,
 	if (!EFI_ERROR(FindStatus) &&
 	    ((Attributes & EFI_VARIABLE_APPEND_WRITE) != 0)) {
 		if ((CompareGuid(VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
-		     ((strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
-		      (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE1) ==
+		     ((strcmp16(VariableName, DB_NAME) == 0) ||
+		      (strcmp16(VariableName, DBX_NAME) ==
 		       0) ||
-		      (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE2) ==
+		      (strcmp16(VariableName, DBT_NAME) ==
 		       0))) ||
 		    (CompareGuid(VendorGuid, &gEfiGlobalVariableGuid) &&
 		     (strcmp16(VariableName, KEK_NAME) == 0))) {
@@ -829,9 +829,9 @@ CheckSignatureListFormat(UTF16 *VariableName, EFI_GUID *VendorGuid,
 	} else if ((CompareGuid(VendorGuid, &gEfiGlobalVariableGuid) &&
 		    (strcmp16(VariableName, KEK_NAME) == 0)) ||
 		   (CompareGuid(VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
-		    ((strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
-		     (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
-		     (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE2) ==
+		    ((strcmp16(VariableName, DB_NAME) == 0) ||
+		     (strcmp16(VariableName, DBX_NAME) == 0) ||
+		     (strcmp16(VariableName, DBT_NAME) ==
 		      0)))) {
 		IsPk = false;
 	} else {

@@ -31,5 +31,9 @@ extern UTF16 SETUP_MODE_NAME[];
 #define SETUP_MODE                        1
 #define USER_MODE                         0
 
+extern UTF16 DB_NAME[];
+extern UTF16 DBX_NAME[];
+extern UTF16 DBT_NAME[];
+
 
 #endif // __H_VAR_NAMES_
