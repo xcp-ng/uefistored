@@ -45,4 +45,15 @@ GetCertsFromDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
 	       uint32_t Attributes, uint8_t **CertData,
 	       uint32_t *CertDataSize);
 
+EFI_STATUS
+CheckSignatureListFormat(UTF16 *VariableName, EFI_GUID *VendorGuid,
+			 void *Data, uint64_t DataSize);
+
+EFI_STATUS
+CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
+					  uint64_t SignerCertSize,
+					  uint8_t *TopLevelCert,
+					  uint64_t TopLevelCertSize,
+					  uint8_t *Sha256Digest);
+
 #endif // __H_AUTH_SERVICE_H

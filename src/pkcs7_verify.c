@@ -726,15 +726,15 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 	//
 	// Initialize Chained & Untrusted stack
 	//
-	CtxChain = X509_STORE_CTX_get0_chain(CertCtx);
-	CtxCert = X509_STORE_CTX_get0_cert(CertCtx);
+	CtxChain = X509_STORE_CTX_get1_chain(CertCtx);
+	CtxCert = CertCtx->cert;
 	if (CtxChain == NULL) {
 		if (((CtxChain = sk_X509_new_null()) == NULL) ||
 		    (!sk_X509_push(CtxChain, CtxCert))) {
 			goto _Error;
 		}
 	}
-	CtxUntrusted = X509_STORE_CTX_get0_untrusted(CertCtx);
+	CtxUntrusted = CertCtx->untrusted;
 	if (CtxUntrusted != NULL) {
 		(void) sk_X509_delete_ptr(CtxUntrusted, Signer);
 	}

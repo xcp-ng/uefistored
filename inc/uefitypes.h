@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef char CHAR8;
 typedef uint16_t CHAR16;
@@ -16,6 +17,7 @@ typedef uint8_t UINT8;
 typedef uint32_t UINT32;
 typedef int32_t INT32;
 typedef uint64_t UINTN;
+typedef int64_t INTN;
 
 typedef bool BOOLEAN;
 typedef void VOID;

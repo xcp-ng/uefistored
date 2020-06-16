@@ -11,7 +11,8 @@ OBJS := src/backends/filedb.o src/common.o src/xenvariable.o    \
         libs/kissdb/kissdb.o src/serializer.o src/xapi.o        \
         src/auth_service.o src/auth.o        \
         src/pkcs7_verify.o  src/CryptSha256.o     \
-        src/backends/ramdb.o src/uefitypes.o src/uefi_guids.o src/varnames.o
+        src/backends/ramdb.o src/uefitypes.o src/uefi_guids.o src/varnames.o \
+        src/CryptX509.c
 
 INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2

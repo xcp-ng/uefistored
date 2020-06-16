@@ -28,6 +28,7 @@
 
 #include "xenvariable.h"
 #include "xapi.h"
+#include "backends/ramdb.h"
 #include "common.h"
 
 #define IOREQ_SERVER_TYPE 0

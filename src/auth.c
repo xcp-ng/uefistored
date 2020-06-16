@@ -357,7 +357,7 @@ EFI_STATUS verify_timebased_payload(UTF16 *name, EFI_GUID *vendor_guid,
         // check hash of signer cert common_name + top-level issuer tbs_certificate against data in cert_db
         //
         cert_data_ptr = (EFI_CERT_DATA *)(signer_certs + 1);
-        status = CalculatePrivAuthVarSignChainSha256Digest(
+        status = CalculatePrivAuthVarSignChainSHA256Digest(
                    cert_data_ptr->CertDataBuffer,
                    ReadUnaligned32 ((uint32_t *)&(cert_data_ptr->CertDataLength)),
                    top_level_cert,
@@ -446,7 +446,7 @@ exit:
         return EFI_SECURITY_VIOLATION;
     }
 
-    status = check_signature_list_format(name, vendor_guid, payload_ptr, payload_size);
+    status = CheckSignatureListFormat(name, vendor_guid, payload_ptr, payload_size);
 
     if ( status )
     {
