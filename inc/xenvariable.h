@@ -18,4 +18,6 @@ EFI_STATUS get_variable(UTF16 *variable,
                         size_t *size,
                         void *data);
 
+int xenvariable_deinit(void);
+
 #endif // __H_XENVARIABLE_

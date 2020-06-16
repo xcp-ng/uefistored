@@ -72,7 +72,7 @@ uint64_t strlen16(const UTF16 *str)
  */
 uint64_t strsize16(const UTF16 *str)
 {
-    return strlen16(str) * 2;
+    return strlen16(str) * sizeof(UTF16);
 }
 
 void uc2_ascii_safe(UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)

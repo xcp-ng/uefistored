@@ -29,6 +29,7 @@ static void post_test(void)
 {
 	ramdb_destroy();
 	ramdb_deinit();
+    xenvariable_deinit();
 }
 
 /**
@@ -226,6 +227,31 @@ static void test_bad_attrs(void)
     test(0);
 }
 
+/**
+ * Test that the correct timestamp parts are zero.
+ */
+static void test_timestamp_zero_parts(void)
+{
+    test(0);
+}
+
+/**
+ * Test that resetting the PK with a payload signed
+ * with a different key fails.
+ */
+static void test_invalid_pk_reassign(void)
+{
+    EFI_STATUS status;
+
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK.der");
+
+    test(status == EFI_SUCCESS);
+
+    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK2.der");
+
+    test(status == EFI_SECURITY_VIOLATION);
+}
+
 void test_auth(void)
 {
     DO_TEST(test_start_in_setup_mode);
@@ -238,4 +264,6 @@ void test_auth(void)
     DO_TEST(test_bad_attrs);
     DO_TEST(test_set_pk_ok);
     DO_TEST(test_x509_decode);
+    DO_TEST(test_timestamp_zero_parts);
+    DO_TEST(test_invalid_pk_reassign);
 }

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include <openssl/x509.h>
+#include <openssl/evp.h>
 
 #include "backends/ramdb.h"
 #include "xenvariable.h"
@@ -12,6 +13,8 @@
 #include "UefiMultiPhase.h"
 #include "uefitypes.h"
 #include "common.h"
+
+static EVP_PKEY *pk_pubkey;
 
 #define _ADDR(x) ((uint64_t)x)
 
@@ -396,32 +399,26 @@ static inline EFI_SIGNATURE_DATA *pkcert_list_data(EFI_SIGNATURE_LIST *pkcert_li
         (_ADDR(pkcert_list) + sizeof(EFI_SIGNATURE_LIST) + pkcert_list->SignatureHeaderSize);
 }
 
-/**
- * Returns true if data contains a pkcs7 cert type guid, otherwise false.
- */
-static X509 *x509_cert(void *data, size_t sz)
+int to_signature_data(uint8_t **signature_data, uint64_t *signature_len, void *data, size_t sz)
 {
-
     EFI_SIGNATURE_LIST *pkcert_list;
     EFI_SIGNATURE_DATA *pkcert_data;
-    uint8_t *x509_data;
-    uint64_t x509_len;
     EFI_VARIABLE_AUTHENTICATION_2 *descriptor;
     size_t descriptor_sz;
     int ret;
 
     if ( !data )
-        return NULL;
+        return -1;
 
     descriptor = data;
 
     if ( OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
          OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertType) +
          sizeof(EFI_GUID) >= sz )
-         return NULL;
+         return -1;
 
     if ( memcmp(&descriptor->AuthInfo.CertType, &gEfiCertPkcs7Guid, sizeof(EFI_GUID)) != 0 )
-        return NULL;
+        return -1;
 
     descriptor_sz = OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
                         OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
@@ -429,28 +426,63 @@ static X509 *x509_cert(void *data, size_t sz)
     pkcert_data = pkcert_list_data(pkcert_list);
 
     if ( memcmp (&pkcert_list->SignatureType, &gEfiCertX509Guid, sizeof(EFI_GUID)) != 0 )
-        return NULL;
+        return -1;
 
-    x509_data = &pkcert_data->SignatureData[0];
-    x509_len = pkcert_list->SignatureSize - sizeof(EFI_SIGNATURE_DATA) + 1;
+    *signature_data = &pkcert_data->SignatureData[0];
+    *signature_len = pkcert_list->SignatureSize - sizeof(EFI_SIGNATURE_DATA) + 1;
 
-    return d2i_X509(NULL, (unsigned char**) &x509_data, x509_len);
+    return 0;
 }
 
 /**
- * Handle the special case of setting the PK.
+ * Returns a X509 cert on success, otherwise NULL.
  */
-static EFI_STATUS handle_set_pk(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
+static X509 *x509_cert(void *data, size_t sz, bool sigdata_is_signed, EVP_PKEY *pkey)
 {
-    X509 *x509;
+    int ret;
+    uint8_t *signature_data;
+    uint64_t signature_data_len;
+
+    ret = to_signature_data(&signature_data, &signature_data_len, data, sz);
+
+    if ( ret < 0 )
+        return NULL;
+
+    if ( sigdata_is_signed )
+    {
+        if ( !pkey )
+            return NULL;
+    }
+
+    return d2i_X509(NULL, (unsigned char**) &signature_data, signature_data_len);
+}
+
+
+EFI_STATUS enroll_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
+{
+    X509 *cert;
     int ret;
 
-    x509 = x509_cert(data, datalen);
+    cert = x509_cert(data, datalen, false, NULL);
 
-    if ( !x509 ) 
+    if ( !cert ) 
         return EFI_SECURITY_VIOLATION;
 
-    ret = ramdb_set(variable, data, datalen, attrs);
+    if ( pk_pubkey )
+    {
+        ERROR("BUG: enrolling pk, but pk_pubkey already exists!\n");
+        return EFI_DEVICE_ERROR;
+    }
+
+    pk_pubkey = X509_get_pubkey(cert);
+
+    if ( !pk_pubkey )
+    {
+        ERROR("failed to extract and alloc PK keypair!\n");
+        return EFI_DEVICE_ERROR;
+    }
+
+    ret = ramdb_set(PK, data, datalen, attrs);
 
     /* If it was successful, then try seting SetupMode to 0 */
     if ( !ret )
@@ -460,10 +492,36 @@ static EFI_STATUS handle_set_pk(UTF16 *variable, EFI_GUID *guid, uint32_t attrs,
 }
 
 /**
+ * Handle the special case of setting the PK.
+ */
+static EFI_STATUS handle_set_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
+{
+    X509 *x509;
+    int ret;
+
+    if ( !guid || !data )
+        return EFI_DEVICE_ERROR;
+
+    if ( ramdb_exists(PK) == VAR_NOT_FOUND )
+        return enroll_pk(guid, attrs, datalen, data);
+
+    if ( !pk_pubkey )
+    {
+        ERROR("BUG: PK variable exists, but varstored-ng has no key pair for PK saved\n");
+        return EFI_DEVICE_ERROR;
+    }
+
+    return EFI_DEVICE_ERROR;
+}
+
+/**
  * Returns true if variable is read-only, otherwise false.
  */
 static bool is_ro(UTF16 *variable)
 {
+    if ( !variable )
+        return false;
+
     /* TODO: simply save and use the attrs */
     return strcmp16(variable, SecureBoot) == 0;
 }
@@ -479,7 +537,7 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
         return EFI_WRITE_PROTECTED;
 
     if ( strcmp16(variable, PK) == 0 )
-        return handle_set_pk(variable, guid, attrs, datalen, data);
+        return handle_set_pk(guid, attrs, datalen, data);
 
     ret = ramdb_set(variable, data, datalen, attrs);
 
@@ -667,3 +725,10 @@ int xenvariable_init(var_initializer_t init_vars)
     return 0;
 }
 
+int xenvariable_deinit(void)
+{
+    if ( pk_pubkey )
+        EVP_PKEY_free(pk_pubkey);
+
+    pk_pubkey = NULL;
+}

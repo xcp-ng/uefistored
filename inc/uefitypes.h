@@ -4,7 +4,23 @@
 #include <stdint.h>
 #include <uchar.h>
 
+typedef char CHAR8;
+typedef uint16_t CHAR16;
+
+typedef uint8_t UTF8;
 typedef uint16_t UTF16;
+
+typedef uint16_t UINT16;
+typedef uint8_t UINT8;
+typedef uint32_t UINT32;
+typedef uint64_t UINTN;
+
+typedef bool BOOLEAN;
+typedef void VOID;
+#define CONST const
+
+#define IN
+#define OUT
 
 #define OFFSET_OF(TYPE, Field) ((uint64_t) &(((TYPE *)0)->Field))
 
@@ -266,6 +282,15 @@ typedef struct _WIN_CERTIFICATE {
   //UINT8 bCertificate[ANYSIZE_ARRAY];
 } WIN_CERTIFICATE;
 
+//
+// WIN_CERTIFICATE_UEFI_GUID.CertData
+// 
+typedef struct _EFI_CERT_BLOCK_RSA_2048_SHA256 {
+  EFI_GUID  HashType;
+  UINT8     PublicKey[256];
+  UINT8     Signature[256];
+} EFI_CERT_BLOCK_RSA_2048_SHA256;
+
 typedef struct _WIN_CERTIFICATE_UEFI_GUID {
   WIN_CERTIFICATE   Hdr;
   EFI_GUID          CertType;
@@ -334,8 +359,265 @@ typedef struct {
   WIN_CERTIFICATE_UEFI_GUID   AuthInfo;
  } EFI_VARIABLE_AUTHENTICATION_2;
 
-extern const EFI_GUID gEfiCertPkcs7Guid;
-extern const EFI_GUID gEfiCertX509Guid;
-extern const EFI_GUID gEfiGlobalVariableGuid;
+extern EFI_GUID gEfiCertPkcs7Guid;
+extern EFI_GUID gEfiCertX509Guid;
+extern EFI_GUID gEfiGlobalVariableGuid;
+extern EFI_GUID gEfiCertDbGuid;
+extern EFI_GUID gEfiVendorKeysNvGuid;
+
+typedef struct {
+    UTF16        *VariableName;
+    EFI_GUID      *VendorGuid;
+    uint32_t        Attributes;
+    uint64_t         DataSize;
+    void          *Data;
+    uint32_t        PubKeyIndex;
+    uint64_t        MonotonicCount;
+    EFI_TIME      *TimeStamp;
+} AUTH_VARIABLE_INFO;
+
+typedef enum {
+    AuthVarTypePk,
+    AuthVarTypeKek,
+    AuthVarTypePriv,
+    AuthVarTypePayload
+} AUTHVAR_TYPE; 
+
+///
+///  "certdb" variable stores the signer's certificates for non PK/KEK/DB/DBX
+/// variables with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS|EFI_VARIABLE_NON_VOLATILE set.
+///  "certdbv" variable stores the signer's certificates for non PK/KEK/DB/DBX
+/// variables with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
+///
+/// GUID: gEfiCertDbGuid
+///
+/// We need maintain atomicity.
+///
+/// Format:
+/// +----------------------------+
+/// | UINT32                     | <-- CertDbListSize, including this UINT32
+/// +----------------------------+
+/// | AUTH_CERT_DB_DATA          | <-- First CERT
+/// +----------------------------+
+/// | ........                   |
+/// +----------------------------+
+/// | AUTH_CERT_DB_DATA          | <-- Last CERT
+/// +----------------------------+
+///
+#define EFI_CERT_DB_NAME                 L"certdb"
+#define EFI_CERT_DB_VOLATILE_NAME        L"certdbv"
+
+#pragma pack(1)
+typedef struct {
+  EFI_GUID    VendorGuid;
+  uint32_t      CertNodeSize;
+  uint32_t      NameSize;
+  uint32_t      CertDataSize;
+  /// CHAR16  VariableName[NameSize];
+  /// UINT8   CertData[CertDataSize];
+} AUTH_CERT_DB_DATA;
+#pragma pack()
+
+#pragma pack(1)
+
+typedef struct {
+    uint32_t    CertDataLength;       // The length in bytes of X.509 certificate.
+    uint8_t     CertDataBuffer[0];    // The X.509 certificate content (DER).
+} EFI_CERT_DATA;
+
+typedef struct {
+    uint8_t             CertNumber;   // Number of X.509 certificate.
+    //EFI_CERT_DATA   CertArray[];  // An array of X.509 certificate.
+} EFI_CERT_STACK;
+
+#pragma pack()           
+
+extern UTF16 KEK[];
+extern UTF16 PK[];
+extern UTF16 CERT_DB[];
+extern UTF16 CERT_DBV[];
+extern UTF16 VENDOR_KEYS[];
+extern UTF16 VENDOR_KEYS_NV[];
+#define VENDOR_KEYS_VALID             1
+#define VENDOR_KEYS_MODIFIED          0
+
+extern UTF16 SECURE_BOOT_ENABLE[];
+#define SECURE_BOOT_ENABLE               1
+#define SECURE_BOOT_DISABLE              0
+
+
+#define SHA256_DIGEST_SIZE  32
+
+///
+/// Size of AuthInfo prior to the data payload.
+///
+#define AUTHINFO_SIZE ((OFFSET_OF (EFI_VARIABLE_AUTHENTICATION, AuthInfo)) + \
+                       (OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData)) + \
+                       sizeof (EFI_CERT_BLOCK_RSA_2048_SHA256))
+
+#define AUTHINFO2_SIZE(VarAuth2) ((OFFSET_OF (EFI_VARIABLE_AUTHENTICATION_2, AuthInfo)) + \
+                                  (UINTN) ((EFI_VARIABLE_AUTHENTICATION_2 *) (VarAuth2))->AuthInfo.Hdr.dwLength)
+
+#define OFFSET_OF_AUTHINFO2_CERT_DATA ((OFFSET_OF (EFI_VARIABLE_AUTHENTICATION_2, AuthInfo)) + \
+                                       (OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData)))
+
+#define TWO_BYTE_ENCODE 0x82
+
+
+///
+/// Struct to record signature requirement defined by UEFI spec.
+/// For SigHeaderSize and SigDataSize, ((UINT32) ~0) means NO exact length requirement for this field.
+///
+typedef struct {
+  EFI_GUID    SigType;
+  // Expected SignatureHeader size in Bytes.
+  UINT32      SigHeaderSize;
+  // Expected SignatureData size in Bytes.
+  UINT32      SigDataSize;
+} EFI_SIGNATURE_ITEM;
+
+///
+/// This identifies a signature containing a SHA-256 hash. The SignatureHeader size shall
+/// always be 0. The SignatureSize shall always be 16 (size of SignatureOwner component) +
+/// 32 bytes.
+///
+#define EFI_CERT_SHA256_GUID \
+  { \
+    0xc1c41626, 0x504c, 0x4092, {0xac, 0xa9, 0x41, 0xf9, 0x36, 0x93, 0x43, 0x28} \
+  }
+
+///
+/// This identifies a signature containing an RSA-2048 key. The key (only the modulus
+/// since the public key exponent is known to be 0x10001) shall be stored in big-endian
+/// order.
+/// The SignatureHeader size shall always be 0. The SignatureSize shall always be 16 (size
+/// of SignatureOwner component) + 256 bytes.
+///
+#define EFI_CERT_RSA2048_GUID \
+  { \
+    0x3c5766e8, 0x269c, 0x4e34, {0xaa, 0x14, 0xed, 0x77, 0x6e, 0x85, 0xb3, 0xb6} \
+  }
+
+///
+/// This identifies a signature containing a RSA-2048 signature of a SHA-256 hash.  The
+/// SignatureHeader size shall always be 0. The SignatureSize shall always be 16 (size of
+/// SignatureOwner component) + 256 bytes.
+///
+#define EFI_CERT_RSA2048_SHA256_GUID \
+  { \
+    0xe2b36190, 0x879b, 0x4a3d, {0xad, 0x8d, 0xf2, 0xe7, 0xbb, 0xa3, 0x27, 0x84} \
+  }
+
+///
+/// This identifies a signature containing a SHA-1 hash.  The SignatureSize shall always
+/// be 16 (size of SignatureOwner component) + 20 bytes.
+///
+#define EFI_CERT_SHA1_GUID \
+  { \
+    0x826ca512, 0xcf10, 0x4ac9, {0xb1, 0x87, 0xbe, 0x1, 0x49, 0x66, 0x31, 0xbd} \
+  }
+
+///
+/// TThis identifies a signature containing a RSA-2048 signature of a SHA-1 hash.  The
+/// SignatureHeader size shall always be 0. The SignatureSize shall always be 16 (size of
+/// SignatureOwner component) + 256 bytes.
+///
+#define EFI_CERT_RSA2048_SHA1_GUID \
+  { \
+    0x67f8444f, 0x8743, 0x48f1, {0xa3, 0x28, 0x1e, 0xaa, 0xb8, 0x73, 0x60, 0x80} \
+  }
+
+///
+/// This identifies a signature based on an X.509 certificate. If the signature is an X.509
+/// certificate then verification of the signature of an image should validate the public
+/// key certificate in the image using certificate path verification, up to this X.509
+/// certificate as a trusted root.  The SignatureHeader size shall always be 0. The
+/// SignatureSize may vary but shall always be 16 (size of the SignatureOwner component) +
+/// the size of the certificate itself.
+/// Note: This means that each certificate will normally be in a separate EFI_SIGNATURE_LIST.
+///
+#define EFI_CERT_X509_GUID \
+  { \
+    0xa5c059a1, 0x94e4, 0x4aa7, {0x87, 0xb5, 0xab, 0x15, 0x5c, 0x2b, 0xf0, 0x72} \
+  }
+
+///
+/// This identifies a signature containing a SHA-224 hash. The SignatureHeader size shall
+/// always be 0. The SignatureSize shall always be 16 (size of SignatureOwner component) +
+/// 28 bytes.
+///
+#define EFI_CERT_SHA224_GUID \
+  { \
+    0xb6e5233, 0xa65c, 0x44c9, {0x94, 0x7, 0xd9, 0xab, 0x83, 0xbf, 0xc8, 0xbd} \
+  }
+
+///
+/// This identifies a signature containing a SHA-384 hash. The SignatureHeader size shall
+/// always be 0. The SignatureSize shall always be 16 (size of SignatureOwner component) +
+/// 48 bytes.
+///
+#define EFI_CERT_SHA384_GUID \
+  { \
+    0xff3e5307, 0x9fd0, 0x48c9, {0x85, 0xf1, 0x8a, 0xd5, 0x6c, 0x70, 0x1e, 0x1} \
+  }
+
+///
+/// This identifies a signature containing a SHA-512 hash. The SignatureHeader size shall
+/// always be 0. The SignatureSize shall always be 16 (size of SignatureOwner component) +
+/// 64 bytes.
+///
+#define EFI_CERT_SHA512_GUID \
+  { \
+    0x93e0fae, 0xa6c4, 0x4f50, {0x9f, 0x1b, 0xd4, 0x1e, 0x2b, 0x89, 0xc1, 0x9a} \
+  }
+
+///
+/// This identifies a signature containing the SHA256 hash of an X.509 certificate's
+/// To-Be-Signed contents, and a time of revocation. The SignatureHeader size shall
+/// always be 0. The SignatureSize shall always be 16 (size of the SignatureOwner component)
+/// + 48 bytes for an EFI_CERT_X509_SHA256 structure. If the TimeOfRevocation is non-zero,
+/// the certificate should be considered to be revoked from that time and onwards, and
+/// otherwise the certificate shall be considered to always be revoked.
+///
+#define EFI_CERT_X509_SHA256_GUID \
+  { \
+    0x3bd2a492, 0x96c0, 0x4079, {0xb4, 0x20, 0xfc, 0xf9, 0x8e, 0xf1, 0x03, 0xed } \
+  }
+
+///
+/// This identifies a signature containing the SHA384 hash of an X.509 certificate's
+/// To-Be-Signed contents, and a time of revocation. The SignatureHeader size shall
+/// always be 0. The SignatureSize shall always be 16 (size of the SignatureOwner component)
+/// + 64 bytes for an EFI_CERT_X509_SHA384 structure. If the TimeOfRevocation is non-zero,
+/// the certificate should be considered to be revoked from that time and onwards, and
+/// otherwise the certificate shall be considered to always be revoked.
+///
+#define EFI_CERT_X509_SHA384_GUID \
+  { \
+    0x7076876e, 0x80c2, 0x4ee6, {0xaa, 0xd2, 0x28, 0xb3, 0x49, 0xa6, 0x86, 0x5b } \
+  }
+
+///
+/// This identifies a signature containing the SHA512 hash of an X.509 certificate's
+/// To-Be-Signed contents, and a time of revocation. The SignatureHeader size shall
+/// always be 0. The SignatureSize shall always be 16 (size of the SignatureOwner component)
+/// + 80 bytes for an EFI_CERT_X509_SHA512 structure. If the TimeOfRevocation is non-zero,
+/// the certificate should be considered to be revoked from that time and onwards, and
+/// otherwise the certificate shall be considered to always be revoked.
+///
+#define EFI_CERT_X509_SHA512_GUID \
+  { \
+    0x446dbf63, 0x2502, 0x4cda, {0xbc, 0xfa, 0x24, 0x65, 0xd2, 0xb0, 0xfe, 0x9d } \
+  }
+
+///
+/// This identifies a signature containing a DER-encoded PKCS #7 version 1.5 [RFC2315]
+/// SignedData value.
+///
+#define EFI_CERT_TYPE_PKCS7_GUID \
+  { \
+    0x4aafd29d, 0x68df, 0x49ee, {0x8a, 0xa9, 0x34, 0x7d, 0x37, 0x56, 0x65, 0xa7} \
+  }
+
 
 #endif // __H_UEFITYPES_
