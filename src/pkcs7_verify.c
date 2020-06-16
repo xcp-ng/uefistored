@@ -30,6 +30,24 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <openssl/x509_vfy.h>
 #include <openssl/pkcs7.h>
 
+#if OPENSSL_VERSION_NUMBER < 0x10100005L
+STACK_OF(X509) *X509_STORE_CTX_get0_chain(const X509_STORE_CTX *ctx)
+{
+    return ctx->chain;
+}
+
+X509 *X509_STORE_CTX_get0_cert(const X509_STORE_CTX *ctx)
+{
+    return ctx->cert;
+}  
+
+STACK_OF(X509) *X509_STORE_CTX_get0_untrusted(const X509_STORE_CTX *ctx)
+{
+    return ctx->untrusted;
+}
+
+#endif
+
 uint8_t mOidValue[9] = { 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02 };
 
 /**
@@ -726,15 +744,15 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 	//
 	// Initialize Chained & Untrusted stack
 	//
-	CtxChain = X509_STORE_CTX_get1_chain(CertCtx);
-	CtxCert = CertCtx->cert;
+	CtxChain = X509_STORE_CTX_get0_chain(CertCtx);
+	CtxCert = X509_STORE_CTX_get0_cert(CertCtx);
 	if (CtxChain == NULL) {
 		if (((CtxChain = sk_X509_new_null()) == NULL) ||
 		    (!sk_X509_push(CtxChain, CtxCert))) {
 			goto _Error;
 		}
 	}
-	CtxUntrusted = CertCtx->untrusted;
+    CtxUntrusted = X509_STORE_CTX_get0_untrusted(CertCtx);
 	if (CtxUntrusted != NULL) {
 		(void) sk_X509_delete_ptr(CtxUntrusted, Signer);
 	}

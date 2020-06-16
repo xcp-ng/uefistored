@@ -45,6 +45,8 @@ typedef enum {
   RsaKeyQInv    ///< The CRT coefficient (== 1/q mod p)
 } RSA_KEY_TAG;
 
+#if OPENSSL_VERSION_NUMBER <  0x10100005L
+
 static inline int RSA_set0_key(RSA *r, BIGNUM *n, BIGNUM *e, BIGNUM *d)
 {
     /* If the fields n and e in r are NULL, the corresponding input
@@ -148,6 +150,7 @@ static inline void RSA_get0_crt_params(const RSA *r,
     if (iqmp != NULL)
         *iqmp = r->iqmp;
 }
+#endif
 
 ///
 /// MD4 digest size in bytes
