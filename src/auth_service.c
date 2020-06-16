@@ -38,6 +38,8 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "common.h"
 #include "CryptSha256.h"
 #include "uefitypes.h"
+#include "varnames.h"
+#include "uefi_guids.h"
 #include "pkcs7_verify.h"
 
 void  *mHashCtx = NULL;
@@ -283,7 +285,11 @@ AuthServiceInternalUpdateVariable(UTF16 *VariableName,
 	AuthVariableInfo.DataSize = DataSize;
 	AuthVariableInfo.Attributes = Attributes;
 
-	return mAuthVarLibContextIn->UpdateVariable(&AuthVariableInfo);
+
+    assert(0);
+
+//	return mAuthVarLibContextIn->UpdateVariable(&AuthVariableInfo);
+    return -1;
 }
 
 /**
@@ -323,7 +329,7 @@ DeleteCertsFromDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		//
 		// Get variable "certdb".
 		//
-		DbName = CERT_DB;
+		DbName = CERT_DB_NAME;
 		VarAttr = EFI_VARIABLE_NON_VOLATILE |
 			  EFI_VARIABLE_RUNTIME_ACCESS |
 			  EFI_VARIABLE_BOOTSERVICE_ACCESS |
@@ -332,7 +338,7 @@ DeleteCertsFromDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		//
 		// Get variable "certdbv".
 		//
-		DbName = CERT_DBV;
+		DbName = CERT_DBV_NAME;
 		VarAttr = EFI_VARIABLE_RUNTIME_ACCESS |
 			  EFI_VARIABLE_BOOTSERVICE_ACCESS |
 			  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
@@ -482,7 +488,7 @@ FilterSignatureList(void *Data, uint64_t DataSize, void *NewData,
 						//
 						// Iterate each Signature Data in this Signature List.
 						//
-						if (CompareMem(
+						if (memcmp(
 							    NewCert, Cert,
 							    CertList->SignatureSize) ==
 						    0) {
@@ -599,13 +605,13 @@ AuthServiceInternalUpdateVariableWithTimeStamp(UTF16 *VariableName,
 	if (!EFI_ERROR(FindStatus) &&
 	    ((Attributes & EFI_VARIABLE_APPEND_WRITE) != 0)) {
 		if ((CompareGuid(VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
-		     ((StrCmp(VariableName, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
-		      (StrCmp(VariableName, EFI_IMAGE_SECURITY_DATABASE1) ==
+		     ((strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
+		      (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE1) ==
 		       0) ||
-		      (StrCmp(VariableName, EFI_IMAGE_SECURITY_DATABASE2) ==
+		      (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE2) ==
 		       0))) ||
 		    (CompareGuid(VendorGuid, &gEfiGlobalVariableGuid) &&
-		     (StrCmp(VariableName, KEK) == 0))) {
+		     (strcmp16(VariableName, KEK_NAME) == 0))) {
 			//
 			// For variables with formatted as EFI_SIGNATURE_LIST, the driver shall not perform an append of
 			// EFI_SIGNATURE_DATA values that are already part of the existing variable value.
@@ -622,7 +628,9 @@ AuthServiceInternalUpdateVariableWithTimeStamp(UTF16 *VariableName,
 	AuthVariableInfo.DataSize = DataSize;
 	AuthVariableInfo.Attributes = Attributes;
 	AuthVariableInfo.TimeStamp = TimeStamp;
-	return mAuthVarLibContextIn->UpdateVariable(&AuthVariableInfo);
+//	return mAuthVarLibContextIn->UpdateVariable(&AuthVariableInfo);
+    assert(0);
+    return -1;
 }
 
 /**
@@ -639,9 +647,9 @@ bool
 NeedPhysicallyPresent(UTF16 *VariableName, EFI_GUID *VendorGuid)
 {
 	if ((CompareGuid(VendorGuid, &gEfiSecureBootEnableDisableGuid) &&
-	     (StrCmp(VariableName, EFI_SECURE_BOOT_ENABLE_NAME) == 0)) ||
+	     (strcmp16(VariableName, SECURE_BOOT_NAME) == 0)) ||
 	    (CompareGuid(VendorGuid, &gEfiCustomModeEnableGuid) &&
-	     (StrCmp(VariableName, EFI_CUSTOM_MODE_NAME) == 0))) {
+	     (strcmp16(VariableName, CUSTOM_MODE_NAME) == 0))) {
 		return true;
 	}
 
@@ -662,7 +670,7 @@ InCustomMode(void)
 	void *Data;
 	uint64_t DataSize;
 
-	Status = AuthServiceInternalFindVariable(EFI_CUSTOM_MODE_NAME,
+	Status = AuthServiceInternalFindVariable(CUSTOM_MODE_NAME,
 						 &gEfiCustomModeEnableGuid,
 						 &Data, &DataSize, NULL);
 	if (!EFI_ERROR(Status) && (*(uint8_t *)Data == CUSTOM_SECURE_BOOT_MODE)) {
@@ -692,7 +700,7 @@ UpdatePlatformMode(uint32_t Mode)
 	uint64_t VariableDataSize;
 
 	Status = AuthServiceInternalFindVariable(
-		EFI_SETUP_MODE_NAME, &gEfiGlobalVariableGuid, &Data, &DataSize, NULL);
+		SETUP_MODE_NAME, &gEfiGlobalVariableGuid, &Data, &DataSize, NULL);
 	if (EFI_ERROR(Status)) {
 		return Status;
 	}
@@ -704,6 +712,11 @@ UpdatePlatformMode(uint32_t Mode)
 	mPlatformMode = (uint8_t)Mode;
 	memcpy(Data, &mPlatformMode, sizeof(uint8_t));
 
+    /*
+     * TODO: is it possible to determine that we are at Runtime from
+     * inside the vars service? I do not think so.
+     */
+#if 0
 	if (mAuthVarLibContextIn->AtRuntime()) {
 		//
 		// SecureBoot Variable indicates whether the platform firmware is operating
@@ -712,13 +725,14 @@ UpdatePlatformMode(uint32_t Mode)
 		//
 		return Status;
 	}
+#endif
 
 	//
 	// Check "SecureBoot" variable's existence.
 	// If it doesn't exist, firmware has no capability to perform driver signing verification,
 	// then set "SecureBoot" to 0.
 	//
-	Status = AuthServiceInternalFindVariable(EFI_SECURE_BOOT_MODE_NAME,
+	Status = AuthServiceInternalFindVariable(SECURE_BOOT_MODE_NAME,
 						 &gEfiGlobalVariableGuid, &Data,
 						 &DataSize, NULL);
 	//
@@ -739,7 +753,7 @@ UpdatePlatformMode(uint32_t Mode)
 	}
 
 	Status = AuthServiceInternalUpdateVariable(
-		EFI_SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid,
+		SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid,
 		&SecureBootMode, sizeof(uint8_t),
 		EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	if (EFI_ERROR(Status)) {
@@ -750,7 +764,7 @@ UpdatePlatformMode(uint32_t Mode)
 	// Check "SecureBootEnable" variable's existence. It can enable/disable secure boot feature.
 	//
 	Status = AuthServiceInternalFindVariable(
-		EFI_SECURE_BOOT_ENABLE_NAME, &gEfiSecureBootEnableDisableGuid,
+		SECURE_BOOT_NAME, &gEfiSecureBootEnableDisableGuid,
 		&Data, &DataSize, NULL);
 
 	if (SecureBootMode == SECURE_BOOT_MODE_ENABLE) {
@@ -772,7 +786,7 @@ UpdatePlatformMode(uint32_t Mode)
 	}
 
 	Status = AuthServiceInternalUpdateVariable(
-		EFI_SECURE_BOOT_ENABLE_NAME, &gEfiSecureBootEnableDisableGuid,
+		SECURE_BOOT_NAME, &gEfiSecureBootEnableDisableGuid,
 		&SecureBootEnable, VariableDataSize,
 		EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS);
 	return Status;
@@ -810,14 +824,14 @@ CheckSignatureListFormat(UTF16 *VariableName, EFI_GUID *VendorGuid,
 	assert(VariableName != NULL && VendorGuid != NULL && Data != NULL);
 
 	if (CompareGuid(VendorGuid, &gEfiGlobalVariableGuid) &&
-	    (StrCmp(VariableName, PK) == 0)) {
+	    (strcmp16(VariableName, PK_NAME) == 0)) {
 		IsPk = true;
 	} else if ((CompareGuid(VendorGuid, &gEfiGlobalVariableGuid) &&
-		    (StrCmp(VariableName, KEK) == 0)) ||
+		    (strcmp16(VariableName, KEK_NAME) == 0)) ||
 		   (CompareGuid(VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
-		    ((StrCmp(VariableName, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
-		     (StrCmp(VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
-		     (StrCmp(VariableName, EFI_IMAGE_SECURITY_DATABASE2) ==
+		    ((strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
+		     (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
+		     (strcmp16(VariableName, EFI_IMAGE_SECURITY_DATABASE2) ==
 		      0)))) {
 		IsPk = false;
 	} else {
@@ -937,7 +951,7 @@ VendorKeyIsModified(void)
 	mVendorKeyState = VENDOR_KEYS_MODIFIED;
 
 	Status = AuthServiceInternalUpdateVariable(
-		VENDOR_KEYS_NV, &gEfiVendorKeysNvGuid,
+		VENDOR_KEYS_NV_NAME, &gEfiVendorKeysNvGuid,
 		&mVendorKeyState, sizeof(uint8_t),
 		EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
 			EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS);
@@ -946,7 +960,7 @@ VendorKeyIsModified(void)
 	}
 
 	return AuthServiceInternalUpdateVariable(
-		VENDOR_KEYS, &gEfiGlobalVariableGuid,
+		VENDOR_KEYS_NAME, &gEfiGlobalVariableGuid,
 		&mVendorKeyState, sizeof(uint8_t),
 		EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
 }
@@ -1439,12 +1453,12 @@ GetCertsFromDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		//
 		// Get variable "certdb".
 		//
-		DbName = CERT_DB;
+		DbName = CERT_DB_NAME;
 	} else {
 		//
 		// Get variable "certdbv".
 		//
-		DbName = CERT_DBV;
+		DbName = CERT_DBV_NAME;
 	}
 
 	//
@@ -1521,7 +1535,7 @@ InsertCertsToDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		//
 		// Get variable "certdb".
 		//
-		DbName = CERT_DB;
+		DbName = CERT_DB_NAME;
 		VarAttr = EFI_VARIABLE_NON_VOLATILE |
 			  EFI_VARIABLE_RUNTIME_ACCESS |
 			  EFI_VARIABLE_BOOTSERVICE_ACCESS |
@@ -1530,7 +1544,7 @@ InsertCertsToDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		//
 		// Get variable "certdbv".
 		//
-		DbName = CERT_DBV;
+		DbName = CERT_DBV_NAME;
 		VarAttr = EFI_VARIABLE_RUNTIME_ACCESS |
 			  EFI_VARIABLE_BOOTSERVICE_ACCESS |
 			  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
@@ -1658,7 +1672,7 @@ CleanCertsFromDb(void)
 		// Get latest variable "certdb"
 		//
 		Status = AuthServiceInternalFindVariable(
-                             CERT_DB,
+                             CERT_DB_NAME,
 			     &gEfiCertDbGuid,
 			     (void **)&Data,
 			     &DataSize,
@@ -1873,7 +1887,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		if (SigDataSize >= (13 + sizeof(mSha256OidValue))) {
 			if (((*(SigData + 1) & TWO_BYTE_ENCODE) !=
 			     TWO_BYTE_ENCODE) ||
-			    (CompareMem(SigData + 13, &mSha256OidValue,
+			    (memcmp(SigData + 13, &mSha256OidValue,
 					sizeof(mSha256OidValue)) != 0)) {
 				return EFI_SECURITY_VIOLATION;
 			}
@@ -1945,7 +1959,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		// in SignedData. If not, return error immediately.
 		//
 		Status =
-			AuthServiceInternalFindVariable(PK,
+			AuthServiceInternalFindVariable(PK_NAME,
 							&gEfiGlobalVariableGuid,
 							&Data, &DataSize, NULL);
 		if (EFI_ERROR(Status)) {
@@ -1958,7 +1972,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 					      CertList->SignatureHeaderSize);
 		if ((TopLevelCertSize != (CertList->SignatureSize -
 					  (sizeof(EFI_SIGNATURE_DATA) - 1))) ||
-		    (CompareMem(Cert->SignatureData, TopLevelCert,
+		    (memcmp(Cert->SignatureData, TopLevelCert,
 				TopLevelCertSize) != 0)) {
 			VerifyStatus = false;
 			goto Exit;
@@ -1976,7 +1990,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		// Get KEK database from variable.
 		//
 		Status = AuthServiceInternalFindVariable(
-			KEK, &gEfiGlobalVariableGuid,
+			KEK_NAME, &gEfiGlobalVariableGuid,
 			&Data, &DataSize, NULL);
 		if (EFI_ERROR(Status)) {
 			return Status;
@@ -2070,7 +2084,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 					TopLevelCert, TopLevelCertSize,
 					Sha256Digest);
 				if (EFI_ERROR(Status) ||
-				    CompareMem(Sha256Digest, CertsInCertDb,
+				    memcmp(Sha256Digest, CertsInCertDb,
 					       CertsSizeinDb) != 0)
                 {
 					goto Exit;
@@ -2082,7 +2096,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 				// Keep backward compatible with previous solution which saves whole signer certs stack in CertDb
 				//
 				if ((CertStackSize != CertsSizeinDb) ||
-				    (CompareMem(SignerCerts, CertsInCertDb,
+				    (memcmp(SignerCerts, CertsInCertDb,
 						CertsSizeinDb) != 0)) {
 					goto Exit;
 				}

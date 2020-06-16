@@ -20,10 +20,14 @@ THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
+#include <stdbool.h>
+#include <stdint.h>
+#include <uefitypes.h>
 
 #include <openssl/objects.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <openssl/x509_vfy.h>
 #include <openssl/pkcs7.h>
 
 uint8_t mOidValue[9] = { 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02 };
@@ -62,7 +66,7 @@ bool WrapPkcs7Data(const uint8_t *P7Data, uint64_t P7Length, bool *WrapFlag,
 	//
 	Wrapped = false;
 	if ((P7Data[4] == 0x06) && (P7Data[5] == 0x09)) {
-		if (CompareMem(P7Data + 6, mOidValue, sizeof(mOidValue)) == 0) {
+		if (memcmp(P7Data + 6, mOidValue, sizeof(mOidValue)) == 0) {
 			if ((P7Data[15] == 0xA0) && (P7Data[16] == 0x82)) {
 				Wrapped = true;
 			}
@@ -107,7 +111,7 @@ bool WrapPkcs7Data(const uint8_t *P7Data, uint64_t P7Length, bool *WrapFlag,
 		//
 		// Part4: OID value -- 0x2A 0x86 0x48 0x86 0xF7 0x0D 0x01 0x07 0x02.
 		//
-		CopyMem(SignedData + 6, mOidValue, sizeof(mOidValue));
+		memcpy(SignedData + 6, mOidValue, sizeof(mOidValue));
 
 		//
 		// Part5: 0xA0, 0x82.
@@ -124,7 +128,7 @@ bool WrapPkcs7Data(const uint8_t *P7Data, uint64_t P7Length, bool *WrapFlag,
 		//
 		// Part7: P7Data.
 		//
-		CopyMem(SignedData + 19, P7Data, P7Length);
+		memcpy(SignedData + 19, P7Data, P7Length);
 	}
 
 	*WrapFlag = Wrapped;
@@ -336,14 +340,14 @@ bool pkcs7_get_signers(const uint8_t *P7Data, uint64_t P7Length,
 		}
 
 		if (OldBuf != NULL) {
-			CopyMem(CertBuf, OldBuf, OldSize);
+			memcpy(CertBuf, OldBuf, OldSize);
 			free(OldBuf);
 			OldBuf = NULL;
 		}
 
 		WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
 				 (uint32_t)SingleCertSize);
-		CopyMem(CertBuf + OldSize + sizeof(uint32_t), SingleCert,
+		memcpy(CertBuf + OldSize + sizeof(uint32_t), SingleCert,
 			SingleCertSize);
 
 		free(SingleCert);
@@ -362,7 +366,7 @@ bool pkcs7_get_signers(const uint8_t *P7Data, uint64_t P7Length,
 			goto _Exit;
 		}
 
-		CopyMem(*TrustedCert, CertBuf + OldSize + sizeof(uint32_t),
+		memcpy(*TrustedCert, CertBuf + OldSize + sizeof(uint32_t),
 			*CertLength);
 		*CertStack = CertBuf;
 		*StackLength = BufferSize;
@@ -541,13 +545,13 @@ Pkcs7GetSigners (
     }
 
     if (OldBuf != NULL) {
-      CopyMem (CertBuf, OldBuf, OldSize);
+      memcpy (CertBuf, OldBuf, OldSize);
       free (OldBuf);
       OldBuf = NULL;
     }
 
     WriteUnaligned32 ((uint32_t *) (CertBuf + OldSize), (uint32_t) SingleCertSize);
-    CopyMem (CertBuf + OldSize + sizeof (uint32_t), SingleCert, SingleCertSize);
+    memcpy (CertBuf + OldSize + sizeof (uint32_t), SingleCert, SingleCertSize);
 
     free (SingleCert);
     SingleCert = NULL;
@@ -565,7 +569,7 @@ Pkcs7GetSigners (
       goto _Exit;
     }
 
-    CopyMem (*TrustedCert, CertBuf + OldSize + sizeof (uint32_t), *CertLength);
+    memcpy (*TrustedCert, CertBuf + OldSize + sizeof (uint32_t), *CertLength);
     *CertStack   = CertBuf;
     *StackLength = BufferSize;
     Status = true;
@@ -602,25 +606,6 @@ _Exit:
 
   return Status;
 }
-
-/**
-  Wrap function to use free() to free allocated memory for certificates.
-
-  @param[in]  Certs        Pointer to the certificates to be freed.
-
-**/
-void
-Pkcs7FreeSigners (
-  uint8_t        *Certs
-  )
-{
-  if (Certs == NULL) {
-    return;
-  }
-
-  free (Certs);
-}
-
 
 /**
   Retrieves all embedded certificates from PKCS#7 signed data as described in "PKCS #7:
@@ -686,7 +671,7 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 	OldBuf = NULL;
 	Signers = NULL;
 
-	ZeroMem(&CertCtx, sizeof(CertCtx));
+	memset(&CertCtx, 0, sizeof(CertCtx));
 
 	//
 	// Parameter Checking
@@ -823,14 +808,14 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 				goto _Error;
 			}
 			if (OldBuf != NULL) {
-				CopyMem(CertBuf, OldBuf, OldSize);
+				memcpy(CertBuf, OldBuf, OldSize);
 				free(OldBuf);
 				OldBuf = NULL;
 			}
 
 			WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
 					 (uint32_t)CertSize);
-			CopyMem(CertBuf + OldSize + sizeof(uint32_t),
+			memcpy(CertBuf + OldSize + sizeof(uint32_t),
 				SingleCert, CertSize);
 
 			free(SingleCert);
@@ -869,14 +854,14 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 				goto _Error;
 			}
 			if (OldBuf != NULL) {
-				CopyMem(CertBuf, OldBuf, OldSize);
+				memcpy(CertBuf, OldBuf, OldSize);
 				free(OldBuf);
 				OldBuf = NULL;
 			}
 
 			WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
 					 (uint32_t)CertSize);
-			CopyMem(CertBuf + OldSize + sizeof(uint32_t),
+			memcpy(CertBuf + OldSize + sizeof(uint32_t),
 				SingleCert, CertSize);
 
 			free(SingleCert);
@@ -1072,8 +1057,8 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
 	// Allow partial certificate chains, terminated by a non-self-signed but
 	// still trusted intermediate certificate. Also disable time checks.
 	//
-	X509_STORE_set_flags(CertStore, X509_V_FLAG_PARTIAL_CHAIN |
-						X509_V_FLAG_NO_CHECK_TIME);
+	X509_STORE_set_flags(CertStore, X509_V_FLAG_PARTIAL_CHAIN &
+						~X509_V_FLAG_USE_CHECK_TIME);
 
 	//
 	// OpenSSL PKCS7 Verification by default checks for SMIME (email signing) and
@@ -1189,12 +1174,12 @@ bool Pkcs7GetAttachedContent(const uint8_t *P7Data, uint64_t P7Length,
 		OctStr = Pkcs7->d.sign->contents->d.data;
 		if ((OctStr->length > 0) && (OctStr->data != NULL)) {
 			*ContentSize = OctStr->length;
-			*Content = AllocatePool(*ContentSize);
+			*Content = malloc(*ContentSize);
 			if (*Content == NULL) {
 				*ContentSize = 0;
 				goto _Exit;
 			}
-			CopyMem(*Content, OctStr->data, *ContentSize);
+			memcpy(*Content, OctStr->data, *ContentSize);
 		}
 	}
 	Status = true;

@@ -14,6 +14,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 #include "CryptSha256.h"
 #include "uefitypes.h"
+#include <stdbool.h>
 #include <openssl/sha.h>
 
 /**
@@ -37,12 +38,12 @@ Sha256GetContextSize (
   Initializes user-supplied memory pointed by Sha256Context as SHA-256 hash context for
   subsequent use.
 
-  If Sha256Context is NULL, then return FALSE.
+  If Sha256Context is NULL, then return false.
 
   @param[out]  Sha256Context  Pointer to SHA-256 context being initialized.
 
-  @retval TRUE   SHA-256 context initialization succeeded.
-  @retval FALSE  SHA-256 context initialization failed.
+  @retval true   SHA-256 context initialization succeeded.
+  @retval false  SHA-256 context initialization failed.
 
 **/
 BOOLEAN
@@ -54,7 +55,7 @@ Sha256Init (
   // Check input parameters.
   //
   if (Sha256Context == NULL) {
-    return FALSE;
+    return false;
   }
 
   //
@@ -66,14 +67,14 @@ Sha256Init (
 /**
   Makes a copy of an existing SHA-256 context.
 
-  If Sha256Context is NULL, then return FALSE.
-  If NewSha256Context is NULL, then return FALSE.
+  If Sha256Context is NULL, then return false.
+  If NewSha256Context is NULL, then return false.
 
   @param[in]  Sha256Context     Pointer to SHA-256 context being copied.
   @param[out] NewSha256Context  Pointer to new SHA-256 context.
 
-  @retval TRUE   SHA-256 context copy succeeded.
-  @retval FALSE  SHA-256 context copy failed.
+  @retval true   SHA-256 context copy succeeded.
+  @retval false  SHA-256 context copy failed.
 
 **/
 BOOLEAN
@@ -86,12 +87,12 @@ Sha256Duplicate (
   // Check input parameters.
   //
   if (Sha256Context == NULL || NewSha256Context == NULL) {
-    return FALSE;
+    return false;
   }
 
-  CopyMem (NewSha256Context, Sha256Context, sizeof (SHA256_CTX));
+  memcpy (NewSha256Context, Sha256Context, sizeof (SHA256_CTX));
 
-  return TRUE;
+  return true;
 }
 
 /**
@@ -102,14 +103,14 @@ Sha256Duplicate (
   SHA-256 context should be already correctly initialized by Sha256Init(), and should not be finalized
   by Sha256Final(). Behavior with invalid context is undefined.
 
-  If Sha256Context is NULL, then return FALSE.
+  If Sha256Context is NULL, then return false.
 
   @param[in, out]  Sha256Context  Pointer to the SHA-256 context.
   @param[in]       Data           Pointer to the buffer containing the data to be hashed.
   @param[in]       DataSize       Size of Data buffer in bytes.
 
-  @retval TRUE   SHA-256 data digest succeeded.
-  @retval FALSE  SHA-256 data digest failed.
+  @retval true   SHA-256 data digest succeeded.
+  @retval false  SHA-256 data digest failed.
 
 **/
 BOOLEAN
@@ -123,14 +124,14 @@ Sha256Update (
   // Check input parameters.
   //
   if (Sha256Context == NULL) {
-    return FALSE;
+    return false;
   }
 
   //
   // Check invalid parameters, in case that only DataLength was checked in OpenSSL
   //
   if (Data == NULL && DataSize != 0) {
-    return FALSE;
+    return false;
   }
 
   //
@@ -148,15 +149,15 @@ Sha256Update (
   SHA-256 context should be already correctly initialized by Sha256Init(), and should not be
   finalized by Sha256Final(). Behavior with invalid SHA-256 context is undefined.
 
-  If Sha256Context is NULL, then return FALSE.
-  If HashValue is NULL, then return FALSE.
+  If Sha256Context is NULL, then return false.
+  If HashValue is NULL, then return false.
 
   @param[in, out]  Sha256Context  Pointer to the SHA-256 context.
   @param[out]      HashValue      Pointer to a buffer that receives the SHA-256 digest
                                   value (32 bytes).
 
-  @retval TRUE   SHA-256 digest computation succeeded.
-  @retval FALSE  SHA-256 digest computation failed.
+  @retval true   SHA-256 digest computation succeeded.
+  @retval false  SHA-256 digest computation failed.
 
 **/
 BOOLEAN
@@ -169,7 +170,7 @@ Sha256Final (
   // Check input parameters.
   //
   if (Sha256Context == NULL || HashValue == NULL) {
-    return FALSE;
+    return false;
   }
 
   //
@@ -184,16 +185,16 @@ Sha256Final (
   This function performs the SHA-256 message digest of a given data buffer, and places
   the digest value into the specified memory.
 
-  If this interface is not supported, then return FALSE.
+  If this interface is not supported, then return false.
 
   @param[in]   Data        Pointer to the buffer containing the data to be hashed.
   @param[in]   DataSize    Size of Data buffer in bytes.
   @param[out]  HashValue   Pointer to a buffer that receives the SHA-256 digest
                            value (32 bytes).
 
-  @retval TRUE   SHA-256 digest computation succeeded.
-  @retval FALSE  SHA-256 digest computation failed.
-  @retval FALSE  This interface is not supported.
+  @retval true   SHA-256 digest computation succeeded.
+  @retval false  SHA-256 digest computation failed.
+  @retval false  This interface is not supported.
 
 **/
 BOOLEAN
@@ -207,18 +208,18 @@ Sha256HashAll (
   // Check input parameters.
   //
   if (HashValue == NULL) {
-    return FALSE;
+    return false;
   }
   if (Data == NULL && DataSize != 0) {
-    return FALSE;
+    return false;
   }
 
   //
   // OpenSSL SHA-256 Hash Computation.
   //
   if (SHA256 (Data, DataSize, HashValue) == NULL) {
-    return FALSE;
+    return false;
   } else {
-    return TRUE;
+    return true;
   }
 }

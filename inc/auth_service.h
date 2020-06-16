@@ -28,4 +28,21 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		       AUTHVAR_TYPE AuthVarType, EFI_TIME *OrgTimeStamp,
 		       uint8_t **VarPayloadPtr, uint64_t *VarPayloadSize);
 
+EFI_STATUS
+AuthServiceInternalFindVariable(UTF16 *VariableName,
+				const EFI_GUID *VendorGuid, void **Data,
+				uint64_t *DataSize, 
+                uint32_t *attrs);
+
+EFI_STATUS
+InsertCertsToDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
+		uint32_t Attributes, uint8_t *SignerCert,
+		uint64_t SignerCertSize, uint8_t *TopLevelCert,
+		uint64_t TopLevelCertSize);
+
+EFI_STATUS
+GetCertsFromDb(UTF16 *VariableName, EFI_GUID *VendorGuid,
+	       uint32_t Attributes, uint8_t **CertData,
+	       uint32_t *CertDataSize);
+
 #endif // __H_AUTH_SERVICE_H

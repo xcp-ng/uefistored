@@ -1,8 +1,9 @@
 #ifndef __H_UEFITYPES_
 #define __H_UEFITYPES_
 
+#include <stdbool.h>
 #include <stdint.h>
-#include <uchar.h>
+#include <stdlib.h>
 
 typedef char CHAR8;
 typedef uint16_t CHAR16;
@@ -13,6 +14,7 @@ typedef uint16_t UTF16;
 typedef uint16_t UINT16;
 typedef uint8_t UINT8;
 typedef uint32_t UINT32;
+typedef int32_t INT32;
 typedef uint64_t UINTN;
 
 typedef bool BOOLEAN;
@@ -223,12 +225,6 @@ typedef enum command {
 ///
 #define EFI_IMAGE_SECURITY_DATABASE2      L"dbt"
 
-#define SECURE_BOOT_MODE_ENABLE           1
-#define SECURE_BOOT_MODE_DISABLE          0
-
-#define SETUP_MODE                        1
-#define USER_MODE                         0
-
 //***********************************************************************
 // Signature Database
 //***********************************************************************
@@ -359,11 +355,6 @@ typedef struct {
   WIN_CERTIFICATE_UEFI_GUID   AuthInfo;
  } EFI_VARIABLE_AUTHENTICATION_2;
 
-extern EFI_GUID gEfiCertPkcs7Guid;
-extern EFI_GUID gEfiCertX509Guid;
-extern EFI_GUID gEfiGlobalVariableGuid;
-extern EFI_GUID gEfiCertDbGuid;
-extern EFI_GUID gEfiVendorKeysNvGuid;
 
 typedef struct {
     UTF16        *VariableName;
@@ -382,6 +373,8 @@ typedef enum {
     AuthVarTypePriv,
     AuthVarTypePayload
 } AUTHVAR_TYPE; 
+
+typedef AUTHVAR_TYPE auth_var_t;
 
 ///
 ///  "certdb" variable stores the signer's certificates for non PK/KEK/DB/DBX
@@ -619,5 +612,30 @@ typedef struct {
     0x4aafd29d, 0x68df, 0x49ee, {0x8a, 0xa9, 0x34, 0x7d, 0x37, 0x56, 0x65, 0xa7} \
   }
 
+
+static inline bool CompareGuid(EFI_GUID *a, EFI_GUID *b)
+{
+    return memcmp(a, b, sizeof(EFI_GUID)) == 0;
+}
+
+static inline void WriteUnaligned32(uint32_t *dest, uint32_t val)
+{
+    memcpy(dest, &val, sizeof(*dest));
+}
+
+static inline uint32_t ReadUnaligned32(uint32_t *src)
+{
+    uint32_t val;
+
+    memcpy(&val, src, sizeof(val));
+
+    return val;
+}
+
+static inline bool UserPhysicalPresent(void)
+{
+    /* Always True for OVMF */
+    return true;
+}
 
 #endif // __H_UEFITYPES_

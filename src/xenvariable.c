@@ -12,6 +12,8 @@
 #include "serializer.h"
 #include "UefiMultiPhase.h"
 #include "uefitypes.h"
+#include "uefi_guids.h"
+#include "varnames.h"
 #include "common.h"
 
 static EVP_PKEY *pk_pubkey;
@@ -20,9 +22,6 @@ static EVP_PKEY *pk_pubkey;
 
 //#define VALIDATE_WRITES
 
-static const UTF16 SetupMode[] = {'S', 'e', 't', 'u', 'p', 'M', 'o', 'd', 'e', 0, 0};
-static const UTF16 PK[] = {'P', 'K', 0};
-static const UTF16 SecureBoot[] = {'S', 'e', 'c', 'u', 'r', 'e', 'B', 'o', 'o', 't', 0};
 
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
@@ -30,12 +29,12 @@ static int set_setup_mode(uint8_t val)
 {
 
     int ret = ramdb_set(
-                   SetupMode,
+                   SETUP_MODE_NAME,
                    &val,
                    sizeof(val),
                    EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
     if ( ret < 0 )
-        ERROR("%s:%d: Failed to set SetupMode to %u!\n", __func__, __LINE__, val);
+        ERROR("%s:%d: Failed to set SETUP_MODE_NAME to %u!\n", __func__, __LINE__, val);
 
     return ret;
 }
@@ -44,13 +43,13 @@ static int set_secure_boot(uint8_t val)
 {
     int ret;
 
-    ret = ramdb_set(SecureBoot,
+    ret = ramdb_set(SECURE_BOOT_NAME,
                    &val,
                    sizeof(val),
                    EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
 
     if ( ret < 0 )
-        ERROR("%s:%d: Failed to set SecureBoot to %u!\n", __func__, __LINE__, val);
+        ERROR("%s:%d: Failed to set SECURE_BOOT_NAME to %u!\n", __func__, __LINE__, val);
 
     return ret;
 }
@@ -482,9 +481,9 @@ EFI_STATUS enroll_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
         return EFI_DEVICE_ERROR;
     }
 
-    ret = ramdb_set(PK, data, datalen, attrs);
+    ret = ramdb_set(PK_NAME, data, datalen, attrs);
 
-    /* If it was successful, then try seting SetupMode to 0 */
+    /* If it was successful, then try seting SETUP_MODE_NAME to 0 */
     if ( !ret )
         return set_setup_mode(0);
 
@@ -502,7 +501,7 @@ static EFI_STATUS handle_set_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, 
     if ( !guid || !data )
         return EFI_DEVICE_ERROR;
 
-    if ( ramdb_exists(PK) == VAR_NOT_FOUND )
+    if ( ramdb_exists(PK_NAME) == VAR_NOT_FOUND )
         return enroll_pk(guid, attrs, datalen, data);
 
     if ( !pk_pubkey )
@@ -523,7 +522,7 @@ static bool is_ro(UTF16 *variable)
         return false;
 
     /* TODO: simply save and use the attrs */
-    return strcmp16(variable, SecureBoot) == 0;
+    return strcmp16(variable, SECURE_BOOT_NAME) == 0;
 }
 
 EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
@@ -536,7 +535,7 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
     if ( is_ro(variable) )
         return EFI_WRITE_PROTECTED;
 
-    if ( strcmp16(variable, PK) == 0 )
+    if ( strcmp16(variable, PK_NAME) == 0 )
         return handle_set_pk(guid, attrs, datalen, data);
 
     ret = ramdb_set(variable, data, datalen, attrs);
@@ -669,8 +668,8 @@ void xenvariable_handle_request(void *comm_buf)
 
 void init_setup_mode(variable_t variables[MAX_VAR_COUNT], size_t n)
 {
-    /* If SetupMode is already set, then we don't mess with it */
-    if ( find_variable(SetupMode, variables, n) )
+    /* If SETUP_MODE_NAME is already set, then we don't mess with it */
+    if ( find_variable(SETUP_MODE_NAME, variables, n) )
         return;
 
     set_setup_mode(1);
@@ -678,7 +677,7 @@ void init_setup_mode(variable_t variables[MAX_VAR_COUNT], size_t n)
 
 void init_secure_boot(variable_t variables[MAX_VAR_COUNT], size_t n)
 {
-    if ( find_variable(SecureBoot, variables, n) )
+    if ( find_variable(SECURE_BOOT_NAME, variables, n) )
         return;
 
     set_secure_boot(0);

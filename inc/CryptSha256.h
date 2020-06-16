@@ -1,6 +1,8 @@
 #ifndef __H_CRYPT_SHA256_
 #define __H_CRYPT_SHA256_
 
+#include "uefitypes.h"
+
 UINTN
 Sha256GetContextSize (
   VOID
