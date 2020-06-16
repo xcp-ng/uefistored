@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 **/
 
 #include "InternalCryptLib.h"
+#include "CryptX509.h"
 #include <stdarg.h> 
 #include <openssl/evp.h>
 #include <openssl/x509.h>

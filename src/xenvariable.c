@@ -404,7 +404,6 @@ int to_signature_data(uint8_t **signature_data, uint64_t *signature_len, void *d
     EFI_SIGNATURE_DATA *pkcert_data;
     EFI_VARIABLE_AUTHENTICATION_2 *descriptor;
     size_t descriptor_sz;
-    int ret;
 
     if ( !data )
         return -1;
@@ -453,7 +452,7 @@ static X509 *x509_cert(void *data, size_t sz, bool sigdata_is_signed, EVP_PKEY *
             return NULL;
     }
 
-    return d2i_X509(NULL, (unsigned char**) &signature_data, signature_data_len);
+    return d2i_X509(NULL, (const unsigned char**) &signature_data, signature_data_len);
 }
 
 
@@ -495,9 +494,6 @@ EFI_STATUS enroll_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
  */
 static EFI_STATUS handle_set_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
 {
-    X509 *x509;
-    int ret;
-
     if ( !guid || !data )
         return EFI_DEVICE_ERROR;
 
@@ -730,4 +726,6 @@ int xenvariable_deinit(void)
         EVP_PKEY_free(pk_pubkey);
 
     pk_pubkey = NULL;
+
+    return 0;
 }

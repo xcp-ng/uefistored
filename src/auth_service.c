@@ -37,6 +37,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "auth_service.h"
 #include "common.h"
 #include "CryptRsaBasic.h"
+#include "CryptX509.h"
 #include "CryptSha256.h"
 #include "uefitypes.h"
 #include "varnames.h"
@@ -1232,16 +1233,15 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 		uint64_t DataSize, uint32_t Attributes)
 {
 	EFI_STATUS Status;
-	AUTH_VARIABLE_INFO OrgVariableInfo;
+	AUTH_VARIABLE_INFO *OrgVariableInfo = NULL;
 
 	Status = EFI_SUCCESS;
 
-	memset(&OrgVariableInfo, 0, sizeof(OrgVariableInfo));
 	Status = AuthServiceInternalFindVariable(VariableName, VendorGuid,
-                                             &OrgVariableInfo, NULL, NULL);
+                                             (void**)&OrgVariableInfo, NULL, NULL);
 
 	if ((!EFI_ERROR(Status)) &&
-	    IsDeleteAuthVariable(OrgVariableInfo.Attributes, Data, DataSize,
+	    IsDeleteAuthVariable(OrgVariableInfo->Attributes, Data, DataSize,
 				 Attributes) &&
 	    UserPhysicalPresent()) {
 		//
@@ -1257,6 +1257,7 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 						   Attributes);
 		}
 
+        free(OrgVariableInfo);
 		return Status;
 	}
 
@@ -1265,6 +1266,7 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 		//
 		// This variable is protected, only physical present user could modify its value.
 		//
+        free(OrgVariableInfo);
 		return EFI_SECURITY_VIOLATION;
 	}
 
@@ -1273,25 +1275,28 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 		//
 		// Reject Counter Based Auth Variable processing request.
 		//
+        free(OrgVariableInfo);
 		return EFI_UNSUPPORTED;
 	} else if ((Attributes &
 		    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) != 0) {
 		//
 		// Process Time-based Authenticated variable.
 		//
+        free(OrgVariableInfo);
 		return VerifyTimeBasedPayloadAndUpdate(VariableName, VendorGuid,
 						       Data, DataSize,
 						       Attributes,
 						       AuthVarTypePriv, NULL);
 	}
 
-	if ((OrgVariableInfo.Data != NULL) &&
-	    ((OrgVariableInfo.Attributes &
+	if ((OrgVariableInfo->Data != NULL) &&
+	    ((OrgVariableInfo->Attributes &
 	      (EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS |
 	       EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) != 0)) {
 		//
 		// If the variable is already write-protected, it always needs authentication before update.
 		//
+        free(OrgVariableInfo);
 		return EFI_WRITE_PROTECTED;
 	}
 
@@ -1300,6 +1305,7 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 	//
 	Status = AuthServiceInternalUpdateVariable(VariableName, VendorGuid,
 						   Data, DataSize, Attributes);
+    free(OrgVariableInfo);
 	return Status;
 }
 
@@ -1369,7 +1375,7 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
 	Status = X509GetCommonName(SignerCert, SignerCertSize, CertCommonName,
 				   &CertCommonNameSize);
 	if (EFI_ERROR(Status)) {
-		DEBUG("%s Get SignerCert CommonName failed with status %x\n",
+		DEBUG("%s Get SignerCert CommonName failed with status %lx\n",
 		       __func__, Status);
 		return EFI_ABORTED;
 	}

@@ -151,8 +151,6 @@ int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_s
     if ( !plaintext || n == 0 || !encoded || encoded_size == 0 )
         return -1;
 
-    DEBUG("n=%lu, encoded_size=%lu, encoded=%lu\n", n, encoded_size, encoded);
-
     BIO *mem, *b64;
 
     b64 = BIO_new(BIO_f_base64());
@@ -328,12 +326,6 @@ static int retrieve_vars(variable_t *vars, size_t n)
 
     DEBUG("%s: return cnt=%lu\n", __func__, cnt);
     return cnt;
-}
-
-static size_t sizeof_var(variable_t *var)
-{
-        return var->namesz + sizeof(var->namesz) + 
-                var->datasz + sizeof(var->datasz);
 }
 
 int from_vars_to_blob(uint8_t *buf, size_t bufsize, variable_t *vars, size_t vars_cnt)

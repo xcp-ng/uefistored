@@ -1,5 +1,9 @@
 #include <stdlib.h>
 #include <stdint.h>
+
+#include "common.h"
+#include "auth_service.h"
+#include "pkcs7_verify.h"
 #include "uefitypes.h"
 #include "varnames.h"
 #include "uefi_guids.h"
@@ -217,7 +221,7 @@ EFI_STATUS verify_timebased_payload(UTF16 *name, EFI_GUID *vendor_guid,
         // verify that the signature has been made with the current platform key (no chaining for pk).
         // first, get signer's certificates from signed_data.
         //
-        verify_status = pkcs7_get_signers(
+        verify_status = Pkcs7GetSigners(
                          sig_data,
                          sig_data_size,
                          &signer_certs,
@@ -236,8 +240,8 @@ EFI_STATUS verify_timebased_payload(UTF16 *name, EFI_GUID *vendor_guid,
                    PK_NAME,
                    &gEfiGlobalVariableGuid,
                    &data,
-                   &data_size
-                   );
+                   &data_size,
+                   NULL);
         if ( status )
         {
           verify_status = false;
@@ -273,8 +277,8 @@ EFI_STATUS verify_timebased_payload(UTF16 *name, EFI_GUID *vendor_guid,
                    KEK_NAME,
                    &gEfiGlobalVariableGuid,
                    &data,
-                   &data_size
-                   );
+                   &data_size,
+                   NULL);
         if ( status )
           return status;
 
