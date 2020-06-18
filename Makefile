@@ -7,12 +7,15 @@ LIB_DEPS :=	\
 	xentoolcore
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-OBJS := src/backends/filedb.o src/common.o src/xenvariable.o    \
-        libs/kissdb/kissdb.o src/serializer.o src/xapi.o        \
-        src/auth_service.o src/auth.o        \
-        src/pkcs7_verify.o  src/CryptSha256.o     \
-        src/backends/ramdb.o src/uefitypes.o src/uefi_guids.o src/varnames.o \
-        src/CryptX509.c
+
+SRCS := src/backends/filedb.c src/common.c src/xenvariable.c                    \
+        libs/kissdb/kissdb.c src/serializer.c src/xapi.c                        \
+        src/auth_service.c src/auth.c                                           \
+        src/pkcs7_verify.c  src/CryptSha256.c                                   \
+        src/backends/ramdb.c src/uefitypes.c src/uefi_guids.c src/varnames.c    \
+        src/CryptX509.c src/CryptRsaBasic.c
+
+OBJS := $(patsubst %.c,%.o,$(SRCS))
 
 INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
@@ -28,7 +31,12 @@ varstored: src/main.c $(OBJS)
 .PHONY: clean
 clean:
 	rm varstored $(OBJS)
-	$(MAKE) -C tests/
+	$(MAKE) clean -C tests/
+
+.PHONY: clean-test
+clean-test:
+	$(MAKE) clean -C tests/
+
 
 .PHONY: tools
 tools:
@@ -40,6 +48,6 @@ test:
 
 .PHONY: test-nosan
 test-nosan:
-	$(MAKE) -C tests/
+	$(MAKE) test-nosan -C tests/
 
 include Env.mk
