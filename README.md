@@ -36,3 +36,26 @@ GetVariable request has been served and the response is ready for processing.
     OVFM memory page that XenVariable uses.  XenVariable communicates
     the location of this page to varstored-ng using port IO caught by
     a IOREQ server initialized by varstored-ng.
+
+## UEFI Notes
+
+### Authenticated Variables
+
+When a variable is to be authenticated using `EFI_VARIABLE_AUTHENTICATION_2` it
+must be packaged into an `EFI_VARIABLE_AUTHENTICATION_2` decriptor (define by
+the `C struct of the same name).  It's timestamp must be set and its CertType
+must be set to `EFI_CERT_TYPE_PKCS7_GUID`.  The variable name, guid,
+attributes, timestamp, and new value must be hashed with the SHA256 algorithm
+and then the hash must be signed with an RSA 2048-bit key.  A DER-encoded
+PKCS#7 v1.5 SignedData must be constructed according to UEFI 2.3.1 Errata C
+section 7.2.1[1] which contains the signed hash and information the crypto
+algorithms used.  It _will not_ contain the actual variable data.  This PKCS#7
+v1.5 SignedData must be assigned to the `AuthInfo.CertData` member of the
+`EFI_VARIABLE_AUTHENTICATION_2` descriptor.  Concatenate this discriptor with
+the new variable data and pass it as the `Data` parameter to `SetVariable()`.
+
+
+[1] https://uefi.org/sites/default/files/resources/UEFI_2_3_1_C.pdf
+
+
+
