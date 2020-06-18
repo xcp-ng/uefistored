@@ -56,4 +56,9 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
 					  uint64_t TopLevelCertSize,
 					  uint8_t *Sha256Digest);
 
+EFI_STATUS
+ProcessVarWithPk(UTF16 *VariableName, EFI_GUID *VendorGuid,
+		 void *Data, uint64_t DataSize,
+		 uint32_t Attributes, bool IsPk);
+
 #endif // __H_AUTH_SERVICE_H

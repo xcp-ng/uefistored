@@ -15,6 +15,7 @@
 #include "uefi_guids.h"
 #include "varnames.h"
 #include "common.h"
+#include "auth_service.h"
 
 static EVP_PKEY *pk_pubkey;
 
@@ -506,7 +507,7 @@ static EFI_STATUS handle_set_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, 
         return EFI_DEVICE_ERROR;
     }
 
-    return EFI_DEVICE_ERROR;
+    return ProcessVarWithPk(PK_NAME, guid, data, datalen, attrs, true);
 }
 
 /**

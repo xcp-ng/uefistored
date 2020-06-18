@@ -64,6 +64,23 @@ const uint8_t mRsaE[] = { 0x01, 0x00, 0x01 };
 const uint8_t mSha256OidValue[] = { 0x60, 0x86, 0x48, 0x01, 0x65,
 				  0x03, 0x04, 0x02, 0x01 };
 
+static void _show(const char *func, const char *string, void *data, size_t n)
+{
+    size_t i;
+    uint16_t *p = data;
+
+    printf("%s:%s", func, string);
+    for ( i=0; i<n; i++ )
+    {
+        if ( i % 8 == 0 )
+            printf("\n");
+        printf("0x%04x ", p[i]);
+    }
+    printf("\n\n");
+}
+
+#define show(string, data, n) _show(__func__, string, data, n)
+
 //
 // Requirement for different signature type which have been defined in UEFI spec.
 // These data are used to perform SignatureList format check while setting PK/KEK variable.
@@ -83,6 +100,14 @@ EFI_SIGNATURE_ITEM mSupportSigItem[] = {
 	{ EFI_CERT_X509_SHA384_GUID, 0, 64 },
 	{ EFI_CERT_X509_SHA512_GUID, 0, 80 }
 };
+
+EFI_TIME *to_timestamp(void *data, size_t sz)
+{
+    if ( sz < sizeof(EFI_VARIABLE_AUTHENTICATION_2) )
+        return NULL;
+
+    return &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp;
+}
 
 /**
   Finds variable in storage blocks of volatile and non-volatile storage areas.
@@ -124,7 +149,6 @@ AuthServiceInternalFindVariable(UTF16 *VariableName,
     else if ( ret < 0 )
         return EFI_DEVICE_ERROR;
 
-    
     if ( Data )
     {
         *Data = malloc(len);
@@ -136,7 +160,7 @@ AuthServiceInternalFindVariable(UTF16 *VariableName,
     if ( attrs )
         *attrs = tmpattrs;
 
-	return EFI_SUCCESS;
+    return EFI_SUCCESS;
 }
 
 /**
@@ -287,11 +311,7 @@ AuthServiceInternalUpdateVariable(UTF16 *VariableName,
 	AuthVariableInfo.DataSize = DataSize;
 	AuthVariableInfo.Attributes = Attributes;
 
-
-    assert(0);
-
-//	return mAuthVarLibContextIn->UpdateVariable(&AuthVariableInfo);
-    return -1;
+    return ramdb_set(VariableName, Data, DataSize, Attributes) < 0 ? EFI_DEVICE_ERROR : EFI_SUCCESS;
 }
 
 /**
@@ -629,9 +649,8 @@ AuthServiceInternalUpdateVariableWithTimeStamp(UTF16 *VariableName,
 	AuthVariableInfo.DataSize = DataSize;
 	AuthVariableInfo.Attributes = Attributes;
 	AuthVariableInfo.TimeStamp = TimeStamp;
-//	return mAuthVarLibContextIn->UpdateVariable(&AuthVariableInfo);
-    assert(0);
-    return -1;
+
+    return ramdb_set(VariableName, Data, DataSize, Attributes) < 0 ? EFI_DEVICE_ERROR : EFI_SUCCESS;
 }
 
 /**
@@ -1032,7 +1051,8 @@ ProcessVarWithPk(UTF16 *VariableName, EFI_GUID *VendorGuid,
 			VariableName, VendorGuid, Payload, PayloadSize,
 			Attributes,
 			&((EFI_VARIABLE_AUTHENTICATION_2 *)Data)->TimeStamp);
-		if (EFI_ERROR(Status)) {
+
+        if (EFI_ERROR(Status)) {
 			return Status;
 		}
 
@@ -1233,15 +1253,31 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 		uint64_t DataSize, uint32_t Attributes)
 {
 	EFI_STATUS Status;
-	AUTH_VARIABLE_INFO *OrgVariableInfo = NULL;
+    void *Buffer;
+    size_t BufferSize;
+    uint32_t TempAttributes;
+    EFI_TIME *TimeStamp;
+	AUTH_VARIABLE_INFO OrgVariableInfo;
 
 	Status = EFI_SUCCESS;
 
 	Status = AuthServiceInternalFindVariable(VariableName, VendorGuid,
-                                             (void**)&OrgVariableInfo, NULL, NULL);
+                                             &Buffer, &BufferSize, &TempAttributes);
+
+	if (EFI_ERROR(Status)) {
+        return Status;
+    }
+
+    OrgVariableInfo.VariableName = VariableName;
+    OrgVariableInfo.VendorGuid = VendorGuid;
+    OrgVariableInfo.Attributes = Attributes;
+    OrgVariableInfo.DataSize = DataSize;
+    OrgVariableInfo.Data = Buffer;
+
+//    OrgVariableInfo.TimeStamp = get_time_stamp(VariableName, VendorGuid);
 
 	if ((!EFI_ERROR(Status)) &&
-	    IsDeleteAuthVariable(OrgVariableInfo->Attributes, Data, DataSize,
+	    IsDeleteAuthVariable(OrgVariableInfo.Attributes, Data, DataSize,
 				 Attributes) &&
 	    UserPhysicalPresent()) {
 		//
@@ -1257,7 +1293,7 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 						   Attributes);
 		}
 
-        free(OrgVariableInfo);
+        free(Data);
 		return Status;
 	}
 
@@ -1266,7 +1302,7 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 		//
 		// This variable is protected, only physical present user could modify its value.
 		//
-        free(OrgVariableInfo);
+        free(Data);
 		return EFI_SECURITY_VIOLATION;
 	}
 
@@ -1275,28 +1311,28 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 		//
 		// Reject Counter Based Auth Variable processing request.
 		//
-        free(OrgVariableInfo);
+        free(Data);
 		return EFI_UNSUPPORTED;
 	} else if ((Attributes &
 		    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) != 0) {
 		//
 		// Process Time-based Authenticated variable.
 		//
-        free(OrgVariableInfo);
+        free(Data);
 		return VerifyTimeBasedPayloadAndUpdate(VariableName, VendorGuid,
 						       Data, DataSize,
 						       Attributes,
 						       AuthVarTypePriv, NULL);
 	}
 
-	if ((OrgVariableInfo->Data != NULL) &&
-	    ((OrgVariableInfo->Attributes &
+	if ((OrgVariableInfo.Data != NULL) &&
+	    ((OrgVariableInfo.Attributes &
 	      (EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS |
 	       EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) != 0)) {
 		//
 		// If the variable is already write-protected, it always needs authentication before update.
 		//
-        free(OrgVariableInfo);
+        free(Data);
 		return EFI_WRITE_PROTECTED;
 	}
 
@@ -1305,7 +1341,7 @@ ProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid, void *Data,
 	//
 	Status = AuthServiceInternalUpdateVariable(VariableName, VendorGuid,
 						   Data, DataSize, Attributes);
-    free(OrgVariableInfo);
+    free(Data);
 	return Status;
 }
 
@@ -1778,7 +1814,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 		       AUTHVAR_TYPE AuthVarType, EFI_TIME *OrgTimeStamp,
 		       uint8_t **VarPayloadPtr, uint64_t *VarPayloadSize)
 {
-	EFI_VARIABLE_AUTHENTICATION_2 *CertData;
+	EFI_VARIABLE_AUTHENTICATION_2 *DescriptorData;
 	uint8_t *SigData;
 	uint32_t SigDataSize;
 	uint8_t *PayloadPtr;
@@ -1812,7 +1848,7 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 	//     storage or PK payload on PK init
 	//
 	VerifyStatus = false;
-	CertData = NULL;
+	DescriptorData = NULL;
 	NewData = NULL;
 	Attr = Attributes;
 	SignerCerts = NULL;
@@ -1828,23 +1864,23 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 	// variable value. The authentication descriptor is not part of the variable data and is not
 	// returned by subsequent calls to GetVariable().
 	//
-	CertData = (EFI_VARIABLE_AUTHENTICATION_2 *)Data;
+	DescriptorData = (EFI_VARIABLE_AUTHENTICATION_2 *)Data;
 
 	//
 	// Verify that Pad1, Nanosecond, TimeZone, Daylight and Pad2 components of the
 	// TimeStamp value are set to zero.
 	//
-	if ((CertData->TimeStamp.Pad1 != 0) ||
-	    (CertData->TimeStamp.Nanosecond != 0) ||
-	    (CertData->TimeStamp.TimeZone != 0) ||
-	    (CertData->TimeStamp.Daylight != 0) ||
-	    (CertData->TimeStamp.Pad2 != 0)) {
+	if ((DescriptorData->TimeStamp.Pad1 != 0) ||
+	    (DescriptorData->TimeStamp.Nanosecond != 0) ||
+	    (DescriptorData->TimeStamp.TimeZone != 0) ||
+	    (DescriptorData->TimeStamp.Daylight != 0) ||
+	    (DescriptorData->TimeStamp.Pad2 != 0)) {
 		return EFI_SECURITY_VIOLATION;
 	}
 
 	if ((OrgTimeStamp != NULL) &&
 	    ((Attributes & EFI_VARIABLE_APPEND_WRITE) == 0)) {
-		if (AuthServiceInternalCompareTimeStamp(&CertData->TimeStamp,
+		if (AuthServiceInternalCompareTimeStamp(&DescriptorData->TimeStamp,
 							OrgTimeStamp)) {
 			//
 			// TimeStamp check fail, suspicious replay attack, return EFI_SECURITY_VIOLATION.
@@ -1857,22 +1893,25 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 	// wCertificateType should be WIN_CERT_TYPE_EFI_GUID.
 	// Cert type should be EFI_CERT_TYPE_PKCS7_GUID.
 	//
-	if ((CertData->AuthInfo.Hdr.wCertificateType !=
+	if ((DescriptorData->AuthInfo.Hdr.wCertificateType !=
 	     WIN_CERT_TYPE_EFI_GUID) ||
-	    !CompareGuid(&CertData->AuthInfo.CertType, &gEfiCertPkcs7Guid)) {
+	    !CompareGuid(&DescriptorData->AuthInfo.CertType, &gEfiCertPkcs7Guid)) {
 		//
 		// Invalid AuthInfo type, return EFI_SECURITY_VIOLATION.
 		//
 		return EFI_SECURITY_VIOLATION;
 	}
 
+
 	//
-	// Find out Pkcs7 SignedData which follows the EFI_VARIABLE_AUTHENTICATION_2 descriptor.
+	// SigData is the DER-encoded Pkcs7 SignedData which follows the EFI_VARIABLE_AUTHENTICATION_2 descriptor.
 	// AuthInfo.Hdr.dwLength is the length of the entire certificate, including the length of the header.
 	//
-	SigData = CertData->AuthInfo.CertData;
-	SigDataSize = CertData->AuthInfo.Hdr.dwLength -
+	SigData = DescriptorData->AuthInfo.CertData;
+	SigDataSize = DescriptorData->AuthInfo.Hdr.dwLength -
 		      (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
+
+    show("SigData", SigData, 32);
 
 	//
 	// SignedData.digestAlgorithms shall contain the digest algorithm used when preparing the
@@ -1942,12 +1981,13 @@ VerifyTimeBasedPayload(UTF16 *VariableName, EFI_GUID *VendorGuid,
 	Buffer += Length;
 
 	Length = sizeof(EFI_TIME);
-	memcpy(Buffer, &CertData->TimeStamp, Length);
+	memcpy(Buffer, &DescriptorData->TimeStamp, Length);
 	Buffer += Length;
 
 	memcpy(Buffer, PayloadPtr, PayloadSize);
 
 	if (AuthVarType == AuthVarTypePk) {
+        printf("%s:%d: SigDataSize=%lu\n", __func__, __LINE__, SigDataSize);
 		//
 		// Verify that the signature has been made with the current Platform Key (no chaining for PK).
 		// First, get signer's certificates from SignedData.
@@ -2206,6 +2246,7 @@ VerifyTimeBasedPayloadAndUpdate(UTF16 *VariableName,
 				AUTHVAR_TYPE AuthVarType,
 				bool *VarDel)
 {
+    EFI_TIME *TimeStamp;
 	EFI_STATUS Status;
 	EFI_STATUS FindStatus;
 	uint8_t *PayloadPtr;
@@ -2214,17 +2255,36 @@ VerifyTimeBasedPayloadAndUpdate(UTF16 *VariableName,
 	AUTH_VARIABLE_INFO OrgVariableInfo;
 	bool IsDel;
     size_t len;
+    void *OldData;
+    size_t *OldDataSize;
+    
+    /* Retrieve data for variable */
+	FindStatus = AuthServiceInternalFindVariable(
+		VariableName, VendorGuid, &OldData, &OldDataSize, NULL);
+
+    if ( EFI_ERROR(FindStatus) )
+    {
+        return FindStatus;
+    }
 
 	memset(&OrgVariableInfo, 0, sizeof(OrgVariableInfo));
-	FindStatus = AuthServiceInternalFindVariable(
-		VariableName, VendorGuid, (void*)&OrgVariableInfo, &len, NULL);
+
+    TimeStamp = to_timestamp(OldData, OldDataSize);
+
+    if ( !TimeStamp )
+    {
+        DEBUG("%s: could not find timestamp in varstore\n", __func__);
+    }
+
+    OrgVariableInfo.TimeStamp = TimeStamp;
 
 	Status = VerifyTimeBasedPayload(
 		VariableName, VendorGuid, Data, DataSize, Attributes,
 		AuthVarType,
-		(!EFI_ERROR(FindStatus)) ? OrgVariableInfo.TimeStamp : NULL,
+		TimeStamp,
 		&PayloadPtr, &PayloadSize);
-	if (EFI_ERROR(Status)) {
+
+	if ( Status ) {
 		return Status;
 	}
 

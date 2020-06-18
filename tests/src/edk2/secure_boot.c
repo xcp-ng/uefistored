@@ -6,8 +6,27 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+
+static void _show(const char *func, const char *string, void *data, size_t n)
+{
+    size_t i;
+    uint16_t *p = data;
+
+    printf("%s:%s", func, string);
+    for ( i=0; i<n; i++ )
+    {
+        if ( i % 8 == 0 )
+            printf("\n");
+        printf("0x%04x ", p[i]);
+    }
+    printf("\n\n");
+}
+
+#define show(string, data, n) _show(__func__, string, data, n)
 
 static UTF16 EFI_PLATFORM_KEY_NAME[] = { 'P', 'K', 0 };
 
@@ -24,21 +43,21 @@ extern const EFI_GUID gEfiCertPkcs7Guid;
 extern const EFI_GUID gEfiCertX509Guid;
 extern const EFI_GUID gEfiGlobalVariableGuid;
 
-EFI_STATUS GetTime (EFI_TIME *Time)
+EFI_STATUS GetTime (EFI_TIME *Time, uint8_t seconds)
 {
-	Time->Year = 1990;
-	Time->Month = 12;
-	Time->Day = 25;
-	Time->Hour = 12;
-	Time->Minute = 12;
-	Time->Second = 12;
-	Time->Pad1 = 0;
-	Time->Nanosecond = 0;
-	Time->TimeZone = 0;
-	Time->Daylight = 0;
-	Time->Pad2 = 0;
+    Time->Year = 1990;
+    Time->Month = 12;
+    Time->Day = 25;
+    Time->Hour = 12;
+    Time->Minute = 12;
+    Time->Second = seconds;
+    Time->Pad1 = 0;
+    Time->Nanosecond = 0;
+    Time->TimeZone = 0;
+    Time->Daylight = 0;
+    Time->Pad2 = 0;
 
-	return EFI_SUCCESS;
+    return EFI_SUCCESS;
 }
 
 EFI_STATUS ReadFileContent(const char *file, void **data, uint64_t *datasize)
@@ -87,7 +106,9 @@ EFI_STATUS
 CreateTimeBasedPayload (
   uint64_t      *DataSize,
   uint8_t      **Data,
-  EFI_GUID *CertTypeGuid
+  EFI_GUID *CertTypeGuid,
+  uint8_t seconds,
+  uint64_t SigDataSize
   )
 {
   EFI_STATUS                        Status;
@@ -110,6 +131,7 @@ CreateTimeBasedPayload (
   //
   Payload     = *Data;
   PayloadSize = *DataSize;
+  printf("%s: ds=%lu\n", __func__, *DataSize);
 
   DescriptorSize = OFFSET_OF (EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) + OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
   NewData = (uint8_t *) malloc (DescriptorSize + PayloadSize);
@@ -124,7 +146,7 @@ CreateTimeBasedPayload (
   DescriptorData = (EFI_VARIABLE_AUTHENTICATION_2 *) (NewData);
 
   memset (&Time, 0, sizeof (EFI_TIME));
-  Status = GetTime (&Time);
+  Status = GetTime (&Time, seconds);
   if (EFI_ERROR (Status)) {
     free (NewData);
     return Status;
@@ -136,7 +158,8 @@ CreateTimeBasedPayload (
   Time.Pad2       = 0;
   memcpy (&DescriptorData->TimeStamp, &Time, sizeof (EFI_TIME));
 
-  DescriptorData->AuthInfo.Hdr.dwLength         = OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
+  DescriptorData->AuthInfo.Hdr.dwLength = 
+    OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData) + SigDataSize;
   DescriptorData->AuthInfo.Hdr.wRevision        = 0x0200;
   DescriptorData->AuthInfo.Hdr.wCertificateType = WIN_CERT_TYPE_EFI_GUID;
   memcpy (&DescriptorData->AuthInfo.CertType, CertTypeGuid, sizeof(EFI_GUID));
@@ -147,6 +170,18 @@ CreateTimeBasedPayload (
 
   *DataSize = DescriptorSize + PayloadSize;
   *Data     = NewData;
+
+  printf("dwLength=%u, off=0x%02lx\n",
+    DescriptorData->AuthInfo.Hdr.dwLength,
+    ((uint64_t)&DescriptorData->AuthInfo.Hdr.dwLength) -
+    ((uint64_t)(DescriptorData))
+  );
+
+  uint8_t *SigData = DescriptorData->AuthInfo.CertData;
+  show("SigData", SigData, 32);
+  printf("%s: SigDataSize=%lu\n", __func__, SigDataSize);
+  printf("%s: DataSize=%lu\n", __func__, *DataSize);
+  printf("%s: OFF_OF=%lu\n", __func__, (OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData)));
 
   return EFI_SUCCESS;
 }
@@ -164,7 +199,8 @@ CreateTimeBasedPayload (
 EFI_STATUS
 CreatePkX509SignatureList (
     const char                  *X509File,
-    EFI_SIGNATURE_LIST          **PkCert
+    EFI_SIGNATURE_LIST          **PkCert,
+    uint64_t *X509SizeOut
   )
 {
   EFI_STATUS              Status;
@@ -181,6 +217,9 @@ CreatePkX509SignatureList (
     goto ON_EXIT;
   }
   assert (X509Data != NULL);
+  *X509SizeOut = X509DataSize;
+
+  show("X509Data", X509Data, 32);
 
   //
   // Allocate space for PK certificate list and initialize it.
@@ -210,6 +249,10 @@ CreatePkX509SignatureList (
   //
   memcpy (&(PkCertData->SignatureData[0]), X509Data, X509DataSize);
 
+
+  printf("(*PkCert)->SignatureSize=%u\n", (*PkCert)->SignatureSize);
+  show("*PkCert", *PkCert, 32);
+
 ON_EXIT:
 
   if (X509Data != NULL) {
@@ -221,8 +264,8 @@ ON_EXIT:
     *PkCert = NULL;
   }
 
-  EFI_SIGNATURE_LIST *pkcert_list = *PkCert;
-  EFI_SIGNATURE_DATA *pkcert_data = PkCertData;
+//  EFI_SIGNATURE_LIST *pkcert_list = *PkCert;
+//  EFI_SIGNATURE_DATA *pkcert_data = PkCertData;
 
   return Status;
 }
@@ -240,7 +283,8 @@ EFI_STATUS
 EnrollPlatformKey (
    EFI_GUID* VariableGuid,
    EFI_GUID *CertTypeGuid,
-   char*   FileName
+   char*   FileName,
+   uint8_t seconds
   )
 {
   EFI_STATUS                      Status;
@@ -248,6 +292,7 @@ EnrollPlatformKey (
   uint64_t                           DataSize;
   EFI_SIGNATURE_LIST              *PkCert;
   uint64_t                           NameLength;
+  uint64_t  SigDataSize;
 
   if ( FileName == NULL) {
     return EFI_INVALID_PARAMETER;
@@ -269,13 +314,13 @@ EnrollPlatformKey (
   if (NameLength <= 4) {
     return EFI_INVALID_PARAMETER;
   }
-
   //
   // Parse the selected PK file and generature PK certificate list.
   //
   Status = CreatePkX509SignatureList (
             FileName,
-            &PkCert
+            &PkCert,
+            &SigDataSize
             );
   if (Status) {
     goto ON_EXIT;
@@ -288,10 +333,12 @@ EnrollPlatformKey (
   Attr = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS
           | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
   DataSize = PkCert->SignatureListSize;
-  Status = CreateTimeBasedPayload (&DataSize, (uint8_t**) &PkCert, CertTypeGuid);
+  Status = CreateTimeBasedPayload (&DataSize, (uint8_t**) &PkCert, CertTypeGuid, seconds, 0);
   if (EFI_ERROR (Status)) {
     goto ON_EXIT;
   }
+
+  show("PkCert", PkCert, 32);
 
   Status = set_variable(
                   EFI_PLATFORM_KEY_NAME,

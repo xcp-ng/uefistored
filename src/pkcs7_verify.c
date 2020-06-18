@@ -24,11 +24,14 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <stdint.h>
 #include <uefitypes.h>
 
+#include <openssl/err.h>
 #include <openssl/objects.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/pkcs7.h>
+
+#include "common.h"
 
 #if OPENSSL_VERSION_NUMBER < 0x10100005L
 STACK_OF(X509) *X509_STORE_CTX_get0_chain(const X509_STORE_CTX *ctx)
@@ -79,10 +82,13 @@ bool WrapPkcs7Data(const uint8_t *P7Data, uint64_t P7Length, bool *WrapFlag,
 	bool Wrapped;
 	uint8_t *SignedData;
 
+    if ( !P7Data || !WrapFlag || !WrapData || !WrapDataSize )
+        return false;
+
 	//
 	// Check whether input P7Data is a wrapped ContentInfo structure or not.
 	//
-	Wrapped = false;
+    Wrapped = false;
 	if ((P7Data[4] == 0x06) && (P7Data[5] == 0x09)) {
 		if (memcmp(P7Data + 6, mOidValue, sizeof(mOidValue)) == 0) {
 			if ((P7Data[15] == 0xA0) && (P7Data[16] == 0x82)) {
@@ -496,6 +502,24 @@ Pkcs7GetSigners (
     return false;
   }
 
+  if ( P7Length == 0 )
+  {
+    ERROR("P7Length is 0!\n");
+    return false;
+  }
+
+  TRACE();
+
+    printf("P7Length=0x%02lx\n", P7Length);
+  int i;
+  for (i=0; i<P7Length; i++)
+  {
+    printf("0x%02x ", P7Data[i]);
+    if ( i % 8 == 0 )
+        printf("\n");
+  }
+  printf("\n");
+
   Status = WrapPkcs7Data (P7Data, P7Length, &Wrapped, &SignedData, &SignedDataSize);
   if (!Status) {
     return Status;
@@ -518,6 +542,7 @@ Pkcs7GetSigners (
   Temp = SignedData;
   Pkcs7 = d2i_PKCS7 (NULL, (const unsigned char **) &Temp, (int) SignedDataSize);
   if (Pkcs7 == NULL) {
+    ERROR("err=0x%02lx, %s\n", ERR_get_error(), ERR_lib_error_string(ERR_get_error()));
     goto _Exit;
   }
 
