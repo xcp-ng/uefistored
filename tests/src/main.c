@@ -8,6 +8,7 @@
 #include "test_ramdb.h"
 #include "test_xapi.h"
 #include "test_common.h"
+#include "test_crypt.h"
 #include "common.h"
 
 #define LOGFILE "test_logfile.txt"
@@ -24,12 +25,13 @@ int open_logfile(void)
 int main(void)
 { 
     set_logfd(open_logfile());
-#if 1
+#if 0
     test_xenvariable();
     test_xapi();
     test_ramdb();
-#endif
     test_auth();
+#endif
+    test_crypt();
 
     printf("PASSED (%d), FAILED (%d)\n", passcount, failcount);
     return failcount == 0 ? 0 : -1;

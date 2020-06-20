@@ -7,7 +7,8 @@ SRC := mock/XenVariable.c ../src/xenvariable.c ../src/xapi.c \
     src/test_xapi.c src/test_ramdb.c  src/test_auth.c src/edk2/secure_boot.c \
     ../src/uefitypes.c ../src/uefi_guids.c ../src/varnames.c \
     ../src/auth_service.c ../src/pkcs7_verify.c ../src/CryptRsaBasic.c \
-    ../src/CryptX509.c ../src/CryptSha256.c
+    ../src/CryptX509.c ../src/CryptSha256.c ../src/crypt/pkcs7_signed_data.c \
+    src/test_crypt.c
 
 OBJ := $(patsubst %.c,%.o,$(SRC))
 

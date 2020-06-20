@@ -10,11 +10,168 @@
 #include <openssl/sha.h>
 #include <openssl/objects.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <openssl/pkcs7.h>
 
 #include "uefitypes.h"
 
 int PKCS7_final_nodata(PKCS7 *p7, int flags);
+
+uint64_t certificate_get_signers(const unsigned char *buf, size_t buf_sz,
+                                 PKCS7 **pkcs7, STACK_OF(X509) **signer_stack_out)
+
+{
+    PKCS7 *pkcs7_obj;
+    STACK_OF(X509) *signer_stack;
+
+    pkcs7_obj = d2i_PKCS7(NULL, &buf, buf_sz);
+
+    if ( !pkcs7_obj )
+        return EFI_SECURITY_VIOLATION;
+
+    if ( OBJ_obj2nid(pkcs7_obj->type) != NID_pkcs7_signed )
+    {
+        PKCS7_free(*pkcs7);
+        return EFI_SECURITY_VIOLATION;
+    }
+
+    signer_stack = PKCS7_get0_signers(*pkcs7, NULL, PKCS7_BINARY);
+    if ( !signer_stack )
+    {
+        PKCS7_free(*pkcs7);
+        return EFI_SECURITY_VIOLATION;
+    }
+
+    *pkcs7 = pkcs7_obj;
+    *signer_stack_out = signer_stack;
+
+    return 0;
+}
+
+int verify_callback(int ok, X509_STORE_CTX *ctx)
+{
+    X509_STORE *ts;
+    X509_OBJECT *match, *x;
+    int ret, num, i;
+    void *val;
+  
+    ret = X509_STORE_CTX_get_error(ctx);
+
+    if ( ret == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
+         ret == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT )
+    {
+        x = X509_OBJECT_new();
+        if ( !x )
+          return 0;
+
+        X509_OBJECT_set1_X509(x, X509_STORE_CTX_get_current_cert(ctx));
+
+#if OPENSSL_VERSION_NUMBER < 0x10100005L
+        CRYPTO_w_lock(0xb);
+#endif
+        ts = X509_STORE_CTX_get0_store(ctx);
+        match = X509_OBJECT_retrieve_match(X509_STORE_get0_objects(ts), x);
+        if ( !match )
+        {
+            ret = 0;
+            goto unlock;
+        }
+
+        num = sk_X509_num(X509_STORE_CTX_get0_chain(ctx));
+
+        if ( ret == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY )
+        {
+            while ( i != num && 0 < num )
+            {
+                val = sk_X509_value(X509_STORE_CTX_get0_chain(ctx), i);
+                X509_OBJECT_set1_X509(x, val);
+//                *(void **)&x->data = val;
+                match = X509_OBJECT_retrieve_match(X509_STORE_get0_objects(ts), x);
+                if ( !match )
+                    goto unlock;
+                i++;
+
+            }
+        }
+    }
+
+    if ( ret == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE ||
+       ret == X509_V_ERR_CERT_UNTRUSTED || 
+       ret < X509_V_ERR_CRL_NOT_YET_VALID )
+    ret = 1;
+
+unlock:
+#if OPENSSL_VERSION_NUMBER < 0x10100005L
+    CRYPTO_w_unlock(0xb);
+#endif
+
+    free(x);
+    return ret;
+}
+
+uint64_t verify_authvar(unsigned char *dest, int dest_sz,
+                   X509 *x509_cert, const unsigned char *src, size_t src_sz)
+{
+    uint64_t ret;
+    PKCS7 *p7;
+    X509_STORE *ctx = NULL;
+    BIO *b = NULL;
+
+    p7 = d2i_PKCS7(NULL, &src, src_sz);
+    if ( !p7 || (OBJ_obj2nid(p7->type) != NID_pkcs7_signed) )
+    {
+        ret = EFI_SECURITY_VIOLATION;
+        goto err;
+    }
+
+    ctx = X509_STORE_new();
+    if ( !ctx )
+    {
+        ret = EFI_DEVICE_ERROR;
+        goto err;
+    }
+
+    X509_STORE_set_verify_cb(ctx, verify_callback);
+
+    ret = X509_STORE_add_cert(ctx, x509_cert);
+    if ( !ret )
+    {
+        ret = EFI_SECURITY_VIOLATION;
+        goto err;
+    }
+
+    b = BIO_new(BIO_s_mem());
+    if ( !b )
+    {
+        ret = EFI_SECURITY_VIOLATION;
+        goto err;
+    }
+
+    ret = BIO_write(b, dest, (int)dest_sz);
+    if ( ret != src_sz )
+    {
+        ret = EFI_SECURITY_VIOLATION;
+        goto err;
+    }
+
+    X509_STORE_set_flags(ctx, X509_V_FLAG_PARTIAL_CHAIN);
+    X509_STORE_set_purpose(ctx, X509_PURPOSE_ANY);
+
+    ret = PKCS7_verify(p7, NULL, ctx, b, NULL, 0x80);
+    if ( ret != 1 )
+    {
+        ret = EFI_SECURITY_VIOLATION;
+        goto err;
+    }
+
+    ret = 0;
+
+err:
+    BIO_free(b);
+    X509_STORE_free(ctx);
+    PKCS7_free(p7);
+    return ret;
+}
 
 PKCS7 *PKCS7_sign_nodata(X509 *signcert, EVP_PKEY *pkey, STACK_OF(X509) *certs, int flags)
 {
@@ -86,26 +243,6 @@ int PKCS7_final_nodata(PKCS7 *p7, int flags)
 
 }
 
-EFI_STATUS GetTime (EFI_TIME *Time, uint8_t seconds)
-{
-    Time->Year = 1990;
-    Time->Month = 12;
-    Time->Day = 25;
-    Time->Hour = 12;
-    Time->Minute = 12;
-    Time->Second = seconds;
-    Time->Pad1 = 0;
-    Time->Nanosecond = 0;
-    Time->TimeZone = 0;
-    Time->Daylight = 0;
-    Time->Pad2 = 0;
-
-    return EFI_SUCCESS;
-}
-
-static UTF16 name[] = {'F', 'o', 'o', 0 };
-static UTF16 data[] = {'B', 'a', 'r', 0 };
-
 int sha256_hash(unsigned char hash[SHA256_DIGEST_LENGTH], char *string)
 {
     SHA256_CTX sha256;
@@ -160,7 +297,6 @@ pkcs7_sign(
   EVP_PKEY *key = NULL;
   BIO *data_bio = NULL;
   PKCS7 *pkcs7 = NULL;
-  uint8_t *rsa_context;
   uint8_t *p7_data;
   uint32_t p7_data_size;
   uint8_t *tmp;
@@ -174,11 +310,13 @@ pkcs7_sign(
 
   status = -1;
 
+#if 0
   if ( EVP_add_digest(EVP_md5()) == 0 )
     goto err;
 
   if ( EVP_add_digest(EVP_sha1()) == 0 )
     goto err;
+#endif
 
   if ( EVP_add_digest(EVP_sha256()) == 0 )
     goto err;
@@ -193,6 +331,10 @@ pkcs7_sign(
   printf("%s:%d\n", __func__, __LINE__);
 #endif
 
+
+  //pkcs7 = PKCS7_sign(sign_cert, key,
+  //                   other_certs, p7_data,
+  //                   PKCS7_BINARY | PKCS7_NOATTR | PKCS7_DETACHED);
   pkcs7 = PKCS7_sign_nodata((X509*)sign_cert, key,
             (STACK_OF(X509)*)other_certs,
             PKCS7_BINARY | PKCS7_NOATTR | PKCS7_DETACHED);
@@ -242,78 +384,4 @@ err:
     PKCS7_free(pkcs7);
 
   return status;
-}
-
-int main(void)
-{
-    int ret;
-    EVP_PKEY *pkey = NULL;
-    EFI_GUID guid = gEfiGlobalVariableGuid;
-    EFI_GUID pkcs7 = EFI_CERT_TYPE_PKCS7_GUID;
-    EFI_TIME timestamp;
-    EFI_VARIABLE_AUTHENTICATION_2 descriptor;
-    uint8_t *concatenated, *p;
-    unsigned char hash[SHA256_DIGEST_LENGTH] = {0};
-    size_t namesz, datasz;
-	uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
-		| EFI_VARIABLE_RUNTIME_ACCESS
-		| EFI_VARIABLE_BOOTSERVICE_ACCESS
-		| EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
-
-	ERR_load_crypto_strings();
-	OpenSSL_add_all_digests();
-	OpenSSL_add_all_ciphers();
-
-    GetTime(&descriptor.TimeStamp, 0);
-    memcpy(&descriptor.AuthInfo.CertType, &pkcs7, sizeof(EFI_GUID));
-
-    namesz = sizeof(name);
-    datasz = sizeof(data);
-
-    concatenated = malloc(namesz + datasz +
-                          sizeof(EFI_GUID) +
-                          sizeof(attributes) +
-                          sizeof(EFI_TIME));
-                          
-    p = concatenated;
-    memcpy(p, name, namesz);
-    p += namesz;
-    memcpy(p, &guid, sizeof(EFI_GUID));
-    p += sizeof(EFI_GUID);
-    memcpy(p, &attributes, sizeof(attributes));
-    p += sizeof(attributes);
-    memcpy(p, &descriptor.TimeStamp, sizeof(EFI_TIME));
-    p += sizeof(EFI_TIME);
-    memcpy(p, data, datasz);
-    p += datasz;
-
-    sha256_hash(hash, concatenated);
-
-    printf("%s:%d\n", __func__, __LINE__);
-    pkey = get_rsa_key();
-    if ( !pkey )
-    {
-        fprintf(stderr, "No key!\n");
-        return -1;
-    }
-
-    printf("%s:%d\n", __func__, __LINE__);
-    uint8_t buf[] = { 0, 1, 2, 3 };
-    uint8_t *signed_data;
-    uint32_t signed_data_size;
-    uint8_t *sign_cert;
-    ret = pkcs7_sign(buf, sizeof(buf), sign_cert, NULL, &signed_data, &signed_data_size);
-    printf("%s:%d, pkcs7_sign=%d\n", __func__, __LINE__, ret);
-
-    int i;
-    for ( i=0; i<16; i++ )
-        printf("0x%02x ", buf[i]);
-    printf("\n");
-
-    printf("%s:%d\n", __func__, __LINE__);
-    free(concatenated);
-    EVP_PKEY_free(pkey);
-    printf("%s:%d\n", __func__, __LINE__);
-
-    return 0;
 }
