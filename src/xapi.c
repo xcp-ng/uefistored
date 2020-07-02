@@ -140,7 +140,7 @@ static char *response_body(char *response)
     if ( !body )
         return NULL;
     
-    return body + sizeof("\r\n\r\n") + 1;
+    return body + 4;
 }
 
 int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size)
