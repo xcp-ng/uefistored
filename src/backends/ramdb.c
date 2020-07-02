@@ -81,15 +81,35 @@ int ramdb_get(const UTF16 *name,
     return 0;
 }
 
+int ramdb_remove(const UTF16 *name)
+{
+    size_t varlen;
+    variable_t *var;
+
+    varlen = strlen16(name);
+
+    for_each_variable(variables, var)
+    {
+        if ( var->namesz != varlen )
+            continue;
+
+        if ( strcmp16(var->name, name) == 0 )
+        {
+            memset(var, 0, sizeof(*var));
+            return 0;
+        }
+    }
+
+    /* Not found */
+    return 0;
+}
+
 int ramdb_set(const UTF16 *name, const void *val, const size_t len, const uint32_t attrs)
 {
     size_t varlen;
     variable_t *var;
 
     if ( !name )
-        return -1;
-
-    if ( len <= 0 )
         return -1;
 
     varlen = strlen16(name);
@@ -99,6 +119,10 @@ int ramdb_set(const UTF16 *name, const void *val, const size_t len, const uint32
 
     if ( len >=  MAX_VARDATA_SZ )
         return -ENOMEM;
+
+    /* As specified by the UEFI spec */
+    if ( len == 0 || attrs == 0 )
+        return ramdb_remove(name);
 
     /* If it already exists, replace it */
     for_each_variable(variables, var)
