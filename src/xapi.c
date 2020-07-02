@@ -546,8 +546,6 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     }
 
 
-    DEBUG("body: %s\n", body);
-
     body_len = strlen(body);
 
     hdr_len = create_header(body_len, buffer, n);
@@ -591,7 +589,7 @@ static int send_request(char *message, char *buf, size_t bufsz)
     if ( ret < 0 )
     {
         close(fd);
-        ERROR("connect() failed: %d\n", ret);
+        ERROR("connect() failed: %d, %s\n", errno, strerror(errno));
         return ret;
     }
 
