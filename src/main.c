@@ -58,7 +58,7 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
 char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = {0};
 
-static char root_path[PATH_MAX];
+static char *root_path;
 
 #define UNUSED(var) ((void)var);
 
@@ -78,6 +78,54 @@ static char root_path[PATH_MAX];
 
 #define UNIMPLEMENTED(opt)                                      \
         ERROR(opt " option not implemented!\n")
+
+static char *pidfile;
+
+static int write_pidfile(void)
+{
+    int fd, ret;
+    size_t len;
+    char pidstr[21];
+
+    if ( !pidfile )
+    {
+        ERROR("No pidfile set\n");
+        return -1;
+    }
+
+    ret = snprintf(pidstr, sizeof(pidstr), "%u", getpid());
+
+    if ( ret < 0 )
+    {
+        ERROR("pidstr snprintf failed\n");
+        return -1;
+    }
+
+    len = (size_t)ret;
+
+    fd = open(pidfile, O_RDWR | O_CREAT );
+
+    if ( fd < 0 )
+    {
+        ERROR("Could not open pidfile: %s, %s\n", pidfile, strerror(errno));
+        return -1;
+    }
+
+    if ( write(fd, pidstr, len) < 0 )
+    {
+        ERROR("Failed to write pidfile\n");
+        ret = -1;
+        goto done;
+    }
+
+    ret = 0;
+
+done:
+
+    close(fd);
+
+    return ret;
+}
 
 static int xen_map_ioreq_server(
                                 xenforeignmemory_handle *fmem,
@@ -209,18 +257,18 @@ void handle_ioreq(struct ioreq *ioreq)
     }
 }
 
-void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
+int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
 {
     if ( ioreq->type > 8 )
     {
         ERROR("UNKNOWN (%02x)", ioreq->type);
-        return;
+        return -1;
     }
 
     if ( ioreq->type != IOREQ_TYPE_PIO )
     {
         ERROR("Not PIO ioreq type, 0x%02x\n", ioreq->type);
-        return;
+        return -1;
     }
 
     assert( ioreq->state < 16 );
@@ -232,8 +280,8 @@ void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
 #endif
     if ( ioreq->state != STATE_IOREQ_READY )
     {
-        ERROR("IO request not ready\n");
-        return;
+        ERROR("IO request not ready, state=0x%02x\n", ioreq->state);
+        return -1;
     }
 
 
@@ -241,6 +289,8 @@ void handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
     handle_ioreq(ioreq);
     ioreq->state = STATE_IORESP_READY;
     xenevtchn_notify(xce, port);
+
+    return 0;
 }
 
 int setup_portio(xendevicemodel_handle *dmod,
@@ -387,8 +437,6 @@ void handler_loop(xenevtchn_handle *xce,
     pollfd.fd = xenevtchn_fd(xce);
     pollfd.events = POLLIN | POLLERR | POLLHUP;
 
-    DEBUG("bufioreq_local_port=%d\n", bufioreq_local_port);
-
     while ( true )
     {
         ret = poll(&pollfd, 1, -1);
@@ -484,8 +532,7 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
         return -1;
     }
 
-    handle_pio(xce, port, p);
-    return 0;
+    return handle_pio(xce, port, p);
 }
 
 static void cleanup(void)
@@ -595,11 +642,6 @@ static int install_sighandlers(void)
     return ret;
 }
 
-static int load_vars_into_db(variable_t *variables, size_t sz)
-{
-    return 0;
-}
-
 int main(int argc, char **argv)
 {
     xc_dominfo_t domain_info;
@@ -608,7 +650,6 @@ int main(int argc, char **argv)
     bool secureboot_enabled;
     bool enforcement_level;
     int logfd;
-    bool root_path_set = false;
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     int ret;
@@ -711,13 +752,11 @@ int main(int argc, char **argv)
             break;
 
         case 'c':
-            strncpy(root_path, optarg, PATH_MAX);
-            DEBUG("root_path=%s\n", root_path);
-            root_path_set = true;
+            root_path = optarg;
             break;
 
         case 'i':
-            UNIMPLEMENTED("pid");
+            pidfile = optarg;
             break;
 
         case 'b':
@@ -740,7 +779,7 @@ int main(int argc, char **argv)
 
 #warning "TODO: implement signal handlers in order to tear down resources upon SIGKILL, etc..."
 
-    if ( !root_path_set )
+    if ( !root_path )
     {
         snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
     }
@@ -921,6 +960,39 @@ int main(int argc, char **argv)
     enforcement_level = varstored_xs_read_bool(xsh, "/local/domain/%u/platform/auth-enforce", domid);
     INFO("Authenticated variables: %s\n", enforcement_level ? "enforcing" : "permissive");
 
+    if ( write_pidfile() < 0 )
+    {
+        ERROR("failed to write pidfile\n");
+        goto err;
+    }
+
+    DEBUG("chroot path: %s\n", root_path);
+    
+    /* TODO: Containerize varstored */
+    ret = chroot(root_path);
+    if ( ret < 0 )
+    {
+        ERROR("chroot to dir %s failed!\n", root_path);
+        goto err;
+    }
+
+    ret = xapi_connect();
+    if ( ret < 0 )
+    {
+        ERROR("failed to connect XAPI database\n");
+        goto err;
+    }
+
+    ret = xenvariable_init(xapi_get_efi_vars);
+
+    if ( ret < 0 )
+    {
+        ERROR("Error in variable db initialization\n");
+        goto err;
+    }
+
+    INFO("Starting handler loop!\n");
+
     /* Store the varstored pid in XenStore to signal to XAPI that varstored is alive */
     ret =  snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid", domid);
     if ( ret < 0 )
@@ -942,49 +1014,9 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    DEBUG("chroot path: %s\n", root_path);
-    
-    /* TODO: Containerize varstored */
-    ret = chroot(root_path);
-    if ( ret < 0 )
-    {
-        ERROR("chroot to dir %s failed!\n", root_path);
-        goto err;
-    }
 
-#if 0
-    ret = xapi_connect();
-    if ( ret < 0 )
-    {
-        ERROR("failed to connect XAPI database\n");
-        goto err;
-    }
+    DEBUG("Set %s to %s for dom %u\n", pidalive, pidstr, domid);
 
-    ret = xapi_efi_vars(variables, MAX_VAR_COUNT);
-    if ( ret < 0 )
-    {
-        ERROR("failed to retrieve variables\n");
-        goto err;
-    }
-
-    ret = load_vars_into_db(variables, MAX_VAR_COUNT);
-    if ( ret < 0 )
-    {
-        ERROR("failed to load vars into db\n");
-        goto err;
-    }
-#endif
-
-    ret = xenvariable_init(xapi_get_efi_vars);
-
-    if ( ret < 0 )
-    {
-        ERROR("Error in variable db initialization\n");
-        goto err;
-    }
-    
-
-    INFO("Starting handler loop!\n");
     handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports, vcpu_count, shared_iopage);
 
     return 0;
