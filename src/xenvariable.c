@@ -90,13 +90,12 @@ static void device_error(void *comm_buf)
     serialize_result(&ptr, EFI_DEVICE_ERROR);
 }
 
-static void buffer_too_small(void *comm_buf, size_t bufsz, size_t namesz)
+static void buffer_too_small(void *comm_buf, size_t required_size)
 {
     uint8_t *ptr = comm_buf;
-    WARNING("EFI_BUFFER_TOO_SMALL, given bufsz: %lu, requires bufsz: %lu\n", bufsz, namesz);
 
     serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
-    serialize_uintn(&ptr, (uint64_t)namesz);
+    serialize_uintn(&ptr, (uint64_t)required_size);
 }
 
 static void dprint_next_var(variable_t *curr, variable_t *next)
@@ -149,9 +148,15 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     (void) len;
 
     ret = ramdb_get(variable_name, test_data, MAX_VARDATA_SZ, &test_datalen, &test_attrs);
-    if ( ret != 0 )
+
+    if ( datalen == 0 && ret == VAR_NOT_FOUND )
     {
-        ERROR("Failed to validate variable!\n");
+        DEBUG("Variable successfully deleted!\n");
+        return;
+    }
+    else if ( ret != 0 )
+    {
+        ERROR("%s: failed to get variable with ramdb_get(), ret=%d!\n", __func__, ret);
         return;
     }
 
@@ -193,18 +198,23 @@ EFI_STATUS get_variable(UTF16 *variable,
 
     ret = ramdb_get(variable, tmp, MAX_VARDATA_SZ, &tmpsz, &tmpattrs);
 
-    DEBUG("tmpsz=%lx, size=%lx\n", tmpsz, *size);
+    //ramdb_debug();
 
-    ramdb_debug();
-
-    if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) )
+    if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) || ret == VAR_NOT_FOUND )
+    {
+        DEBUG("tmpattrs=0x%02x, ret=%d\n", tmpattrs, ret);
         return EFI_NOT_FOUND;
+    }
     else if ( tmpsz > *size )
+    {
+        DEBUG("%s: EFI_BUFFER_TOO_SMALL: tmpsz=%lu, *size=%lu\n", __func__, tmpsz, *size);
+        *size = tmpsz;
         return EFI_BUFFER_TOO_SMALL;
-    else if ( ret == VAR_NOT_FOUND )
-        return EFI_NOT_FOUND;
+    }
     else if ( ret < 0 )
+    {
         return EFI_DEVICE_ERROR;
+    }
     /*
      * This should NEVER happen.  Indicates a varstored bug.  This means we
      * saved a value into our variables database that is actually larger than
@@ -279,14 +289,20 @@ static void handle_get_variable(void *comm_buf)
 
     status = get_variable(variable_name, &guid, &attrs, &buflen, data);
 
-    if ( status )
+    if ( status == EFI_BUFFER_TOO_SMALL )
+    {
+        buffer_too_small(comm_buf, buflen);
+        return;
+    }
+    else if ( status )
     {
         ptr = comm_buf;
         dprint_vname("cmd:GET_VARIABLE: %s, ", variable_name);
-        DPRINTF("error=%lu\n", status);
+        DPRINTF("error=0x%02lx\n", status);
         serialize_result(&ptr, status);
         return;
     }
+
 
     dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name);
 
@@ -302,6 +318,13 @@ static void print_set_var(UTF16 *variable_name, size_t len, uint32_t attrs)
     dprint_attrs(attrs);
     DPRINTF("\n");
 }
+
+static bool name_eq(void *vn, size_t vnlen, const char *comp)
+{
+    uc2_ascii_safe(vn, vnlen, strbuf, 512);
+    return memcmp(strbuf, comp, vnlen / 2) == 0;
+}
+
 
 static void handle_set_variable(void *comm_buf)
 {
@@ -349,15 +372,7 @@ static void handle_set_variable(void *comm_buf)
 
     print_set_var(variable_name, len, attrs);
 
-    if ( datalen == 0 )
-    {
-        ERROR("UEFI error: datalen == 0\n");
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_SECURITY_VIOLATION);
-        return;
-    }
-
-#if 0
+#if 1
     if (name_eq(variable_name, len, "XV_DEBUG_UINTN"))
     {
         DEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
@@ -381,6 +396,11 @@ static void handle_set_variable(void *comm_buf)
     else if (name_eq(variable_name, len, "XV_DEBUG_STR"))
     {
         print_uc2("XV_DEBUG_STR:", data);
+        return;
+    }
+    else if (name_eq(variable_name, len, "XV_DEBUG_ASCII"))
+    {
+        DEBUG("XV_DEBUG_ASCII: %s\n", (char*)data);
         return;
     }
 #endif
@@ -490,6 +510,24 @@ EFI_STATUS enroll_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
     return EFI_DEVICE_ERROR;
 }
 
+static void __log_data(uint8_t *data, size_t n)
+{
+    size_t i;
+
+    DPRINTF("%s:%u: PK data\n", __func__, __LINE__);
+
+    for ( i=0; i<n; i++ )
+    {
+        if ( i % 32 == 0 )
+        {
+            DPRINTF("\n");
+        }
+
+        DPRINTF("0x%02x ", data[i]);
+    }
+    DPRINTF("\n");
+}
+
 /**
  * Handle the special case of setting the PK.
  */
@@ -497,6 +535,8 @@ static EFI_STATUS handle_set_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, 
 {
     if ( !guid || !data )
         return EFI_DEVICE_ERROR;
+
+    __log_data((uint8_t*)data, datalen);
 
     if ( ramdb_exists(PK_NAME) == VAR_NOT_FOUND )
         return enroll_pk(guid, attrs, datalen, data);
@@ -507,7 +547,8 @@ static EFI_STATUS handle_set_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, 
         return EFI_DEVICE_ERROR;
     }
 
-    return ProcessVarWithPk(PK_NAME, guid, data, datalen, attrs, true);
+    /* Unimplemented */
+    return EFI_DEVICE_ERROR; //ProcessVarWithPk(PK_NAME, guid, data, datalen, attrs, true);
 }
 
 /**
@@ -534,6 +575,17 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
 
     if ( strcmp16(variable, PK_NAME) == 0 )
         return handle_set_pk(guid, attrs, datalen, data);
+
+    DEBUG("TEST!: datalen=%lu\n", datalen);
+    uc2_ascii_safe(variable, strsize16(variable), strbuf, 512);
+    DPRINTF("TEST: variable=%s\n", strbuf);
+
+#if 0
+    if ( datalen == 0 )
+    {
+        return EFI_SUCCESS;
+    }
+#endif
 
     ret = ramdb_set(variable, data, datalen, attrs);
 
@@ -608,7 +660,7 @@ static void get_next_variable(void *comm_buf)
     {
         WARNING("GetNextVariableName(), buffer too small: namesz: %lu, guest_bufsz: %lu\n",
                 next.namesz, guest_bufsz);
-        buffer_too_small(comm_buf, guest_bufsz, strsize16(next.name));
+        buffer_too_small(comm_buf, strsize16(next.name));
         return;
     }
 
