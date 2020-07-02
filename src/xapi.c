@@ -751,7 +751,7 @@ static bool success(char *body)
 
     len = strlen(body);
 
-    doc = xmlReadMemory(body, len+1, "dummy.xml", 0, 0);
+    doc = xmlReadMemory(body, len + 1, "dummy.xml", 0, 0);
 
     if ( !doc )
     {
