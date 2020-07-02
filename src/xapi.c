@@ -1242,10 +1242,3 @@ free_b64:
     return ret;
 }
 
-int xapi_efi_vars(variable_t *variables, size_t sz)
-{
-    (void)variables;
-    (void)sz;
-
-    return 0;
-}
