@@ -9,11 +9,11 @@ LIB_DEPS :=	\
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 
 SRCS := src/backends/filedb.c src/common.c src/xenvariable.c                    \
-        libs/kissdb/kissdb.c src/serializer.c src/xapi.c                        \
-        src/auth_service.c src/auth.c                                           \
-        src/pkcs7_verify.c  src/CryptSha256.c                                   \
+        src/serializer.c src/xapi.c                                             \
         src/backends/ramdb.c src/uefitypes.c src/uefi_guids.c src/varnames.c    \
-        src/CryptX509.c src/CryptRsaBasic.c
+        src/pkcs7_verify.c  src/CryptSha256.c
+        #src/auth_service.c src/auth.c                                           \
+        #src/CryptX509.c src/CryptRsaBasic.c
 
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 

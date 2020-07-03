@@ -34,19 +34,19 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "common.h"
 
 #if OPENSSL_VERSION_NUMBER < 0x10100005L
-STACK_OF(X509) *X509_STORE_CTX_get0_chain(const X509_STORE_CTX *ctx)
+STACK_OF(X509) * X509_STORE_CTX_get0_chain(const X509_STORE_CTX *ctx)
 {
-    return ctx->chain;
+	return ctx->chain;
 }
 
 X509 *X509_STORE_CTX_get0_cert(const X509_STORE_CTX *ctx)
 {
-    return ctx->cert;
-}  
+	return ctx->cert;
+}
 
-STACK_OF(X509) *X509_STORE_CTX_get0_untrusted(const X509_STORE_CTX *ctx)
+STACK_OF(X509) * X509_STORE_CTX_get0_untrusted(const X509_STORE_CTX *ctx)
 {
-    return ctx->untrusted;
+	return ctx->untrusted;
 }
 
 #endif
@@ -82,13 +82,13 @@ bool WrapPkcs7Data(const uint8_t *P7Data, uint64_t P7Length, bool *WrapFlag,
 	bool Wrapped;
 	uint8_t *SignedData;
 
-    if ( !P7Data || !WrapFlag || !WrapData || !WrapDataSize )
-        return false;
+	if (!P7Data || !WrapFlag || !WrapData || !WrapDataSize)
+		return false;
 
 	//
 	// Check whether input P7Data is a wrapped ContentInfo structure or not.
 	//
-    Wrapped = false;
+	Wrapped = false;
 	if ((P7Data[4] == 0x06) && (P7Data[5] == 0x09)) {
 		if (memcmp(P7Data + 6, mOidValue, sizeof(mOidValue)) == 0) {
 			if ((P7Data[15] == 0xA0) && (P7Data[16] == 0x82)) {
@@ -372,7 +372,7 @@ bool pkcs7_get_signers(const uint8_t *P7Data, uint64_t P7Length,
 		WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
 				 (uint32_t)SingleCertSize);
 		memcpy(CertBuf + OldSize + sizeof(uint32_t), SingleCert,
-			SingleCertSize);
+		       SingleCertSize);
 
 		free(SingleCert);
 		SingleCert = NULL;
@@ -391,7 +391,7 @@ bool pkcs7_get_signers(const uint8_t *P7Data, uint64_t P7Length,
 		}
 
 		memcpy(*TrustedCert, CertBuf + OldSize + sizeof(uint32_t),
-			*CertLength);
+		       *CertLength);
 		*CertStack = CertBuf;
 		*StackLength = BufferSize;
 		Status = true;
@@ -472,182 +472,182 @@ void Pkcs7FreeSigners(uint8_t *Certs)
   @retval  false           Error occurs during the operation.
 
 **/
-bool
-Pkcs7GetSigners (
-  const uint8_t  *P7Data,
-  uint64_t        P7Length,
-  uint8_t        **CertStack,
-  uint64_t        *StackLength,
-  uint8_t        **TrustedCert,
-  uint64_t        *CertLength
-  )
+bool Pkcs7GetSigners(const uint8_t *P7Data, uint64_t P7Length,
+		     uint8_t **CertStack, uint64_t *StackLength,
+		     uint8_t **TrustedCert, uint64_t *CertLength)
 {
-  PKCS7 *Pkcs7;
-  bool Status;
-  uint8_t *SignedData;
-  const uint8_t *Temp;
-  uint64_t SignedDataSize;
-  bool Wrapped;
-  STACK_OF(X509) *Stack;
-  uint8_t Index;
-  uint8_t *CertBuf;
-  uint8_t *OldBuf;
-  uint64_t BufferSize;
-  uint64_t OldSize;
-  uint8_t *SingleCert;
-  uint64_t SingleCertSize;
+	PKCS7 *Pkcs7;
+	bool Status;
+	uint8_t *SignedData;
+	const uint8_t *Temp;
+	uint64_t SignedDataSize;
+	bool Wrapped;
+	STACK_OF(X509) * Stack;
+	uint8_t Index;
+	uint8_t *CertBuf;
+	uint8_t *OldBuf;
+	uint64_t BufferSize;
+	uint64_t OldSize;
+	uint8_t *SingleCert;
+	uint64_t SingleCertSize;
 
-  if ((P7Data == NULL) || (CertStack == NULL) || (StackLength == NULL) ||
-      (TrustedCert == NULL) || (CertLength == NULL) || (P7Length > INT_MAX)) {
-    return false;
-  }
+	if ((P7Data == NULL) || (CertStack == NULL) || (StackLength == NULL) ||
+	    (TrustedCert == NULL) || (CertLength == NULL) ||
+	    (P7Length > INT_MAX)) {
+		return false;
+	}
 
-  if ( P7Length == 0 )
-  {
-    ERROR("P7Length is 0!\n");
-    return false;
-  }
+	if (P7Length == 0) {
+		ERROR("P7Length is 0!\n");
+		return false;
+	}
 
-  TRACE();
+	TRACE();
 
-    printf("P7Length=0x%02lx\n", P7Length);
-  int i;
-  for (i=0; i<P7Length; i++)
-  {
-    printf("0x%02x ", P7Data[i]);
-    if ( i % 8 == 0 )
-        printf("\n");
-  }
-  printf("\n");
+	printf("P7Length=0x%02lx\n", P7Length);
+	int i;
+	for (i = 0; i < P7Length; i++) {
+		printf("0x%02x ", P7Data[i]);
+		if (i % 8 == 0)
+			printf("\n");
+	}
+	printf("\n");
 
-  Status = WrapPkcs7Data (P7Data, P7Length, &Wrapped, &SignedData, &SignedDataSize);
-  if (!Status) {
-    return Status;
-  }
+	Status = WrapPkcs7Data(P7Data, P7Length, &Wrapped, &SignedData,
+			       &SignedDataSize);
+	if (!Status) {
+		return Status;
+	}
 
-  Status     = false;
-  Pkcs7      = NULL;
-  Stack      = NULL;
-  CertBuf    = NULL;
-  OldBuf     = NULL;
-  SingleCert = NULL;
+	Status = false;
+	Pkcs7 = NULL;
+	Stack = NULL;
+	CertBuf = NULL;
+	OldBuf = NULL;
+	SingleCert = NULL;
 
-  //
-  // Retrieve PKCS#7 Data (DER encoding)
-  //
-  if (SignedDataSize > INT_MAX) {
-    goto _Exit;
-  }
+	//
+	// Retrieve PKCS#7 Data (DER encoding)
+	//
+	if (SignedDataSize > INT_MAX) {
+		goto _Exit;
+	}
 
-  Temp = SignedData;
-  Pkcs7 = d2i_PKCS7 (NULL, (const unsigned char **) &Temp, (int) SignedDataSize);
-  if (Pkcs7 == NULL) {
-    ERROR("err=0x%02lx, %s\n", ERR_get_error(), ERR_lib_error_string(ERR_get_error()));
-    goto _Exit;
-  }
+	Temp = SignedData;
+	Pkcs7 = d2i_PKCS7(NULL, (const unsigned char **)&Temp,
+			  (int)SignedDataSize);
+	if (Pkcs7 == NULL) {
+		ERROR("err=0x%02lx, %s\n", ERR_get_error(),
+		      ERR_lib_error_string(ERR_get_error()));
+		goto _Exit;
+	}
 
-  //
-  // Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
-  //
-  if (!PKCS7_type_is_signed (Pkcs7)) {
-    goto _Exit;
-  }
+	//
+	// Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
+	//
+	if (!PKCS7_type_is_signed(Pkcs7)) {
+		goto _Exit;
+	}
 
-  Stack = PKCS7_get0_signers(Pkcs7, NULL, PKCS7_BINARY);
-  if (Stack == NULL) {
-    goto _Exit;
-  }
+	Stack = PKCS7_get0_signers(Pkcs7, NULL, PKCS7_BINARY);
+	if (Stack == NULL) {
+		goto _Exit;
+	}
 
-  //
-  // Convert CertStack to buffer in following format:
-  // uint8_t  CertNumber;
-  // uint32_t Cert1Length;
-  // uint8_t  Cert1[];
-  // uint32_t Cert2Length;
-  // uint8_t  Cert2[];
-  // ...
-  // uint32_t CertnLength;
-  // uint8_t  Certn[];
-  //
-  BufferSize = sizeof (uint8_t);
-  OldSize    = BufferSize;
+	//
+	// Convert CertStack to buffer in following format:
+	// uint8_t  CertNumber;
+	// uint32_t Cert1Length;
+	// uint8_t  Cert1[];
+	// uint32_t Cert2Length;
+	// uint8_t  Cert2[];
+	// ...
+	// uint32_t CertnLength;
+	// uint8_t  Certn[];
+	//
+	BufferSize = sizeof(uint8_t);
+	OldSize = BufferSize;
 
-  for (Index = 0; ; Index++) {
-    Status = X509PopCertificate (Stack, &SingleCert, &SingleCertSize);
-    if (!Status) {
-      break;
-    }
+	for (Index = 0;; Index++) {
+		Status =
+			X509PopCertificate(Stack, &SingleCert, &SingleCertSize);
+		if (!Status) {
+			break;
+		}
 
-    OldSize    = BufferSize;
-    OldBuf     = CertBuf;
-    BufferSize = OldSize + SingleCertSize + sizeof (uint32_t);
-    CertBuf    = malloc (BufferSize);
+		OldSize = BufferSize;
+		OldBuf = CertBuf;
+		BufferSize = OldSize + SingleCertSize + sizeof(uint32_t);
+		CertBuf = malloc(BufferSize);
 
-    if (CertBuf == NULL) {
-      goto _Exit;
-    }
+		if (CertBuf == NULL) {
+			goto _Exit;
+		}
 
-    if (OldBuf != NULL) {
-      memcpy (CertBuf, OldBuf, OldSize);
-      free (OldBuf);
-      OldBuf = NULL;
-    }
+		if (OldBuf != NULL) {
+			memcpy(CertBuf, OldBuf, OldSize);
+			free(OldBuf);
+			OldBuf = NULL;
+		}
 
-    WriteUnaligned32 ((uint32_t *) (CertBuf + OldSize), (uint32_t) SingleCertSize);
-    memcpy (CertBuf + OldSize + sizeof (uint32_t), SingleCert, SingleCertSize);
+		WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
+				 (uint32_t)SingleCertSize);
+		memcpy(CertBuf + OldSize + sizeof(uint32_t), SingleCert,
+		       SingleCertSize);
 
-    free (SingleCert);
-    SingleCert = NULL;
-  }
+		free(SingleCert);
+		SingleCert = NULL;
+	}
 
-  if (CertBuf != NULL) {
-    //
-    // Update CertNumber.
-    //
-    CertBuf[0] = Index;
+	if (CertBuf != NULL) {
+		//
+		// Update CertNumber.
+		//
+		CertBuf[0] = Index;
 
-    *CertLength = BufferSize - OldSize - sizeof (uint32_t);
-    *TrustedCert = malloc (*CertLength);
-    if (*TrustedCert == NULL) {
-      goto _Exit;
-    }
+		*CertLength = BufferSize - OldSize - sizeof(uint32_t);
+		*TrustedCert = malloc(*CertLength);
+		if (*TrustedCert == NULL) {
+			goto _Exit;
+		}
 
-    memcpy (*TrustedCert, CertBuf + OldSize + sizeof (uint32_t), *CertLength);
-    *CertStack   = CertBuf;
-    *StackLength = BufferSize;
-    Status = true;
-  }
+		memcpy(*TrustedCert, CertBuf + OldSize + sizeof(uint32_t),
+		       *CertLength);
+		*CertStack = CertBuf;
+		*StackLength = BufferSize;
+		Status = true;
+	}
 
 _Exit:
-  //
-  // Release Resources
-  //
-  if (!Wrapped) {
-    free (SignedData);
-  }
+	//
+	// Release Resources
+	//
+	if (!Wrapped) {
+		free(SignedData);
+	}
 
-  if (Pkcs7 != NULL) {
-    PKCS7_free (Pkcs7);
-  }
+	if (Pkcs7 != NULL) {
+		PKCS7_free(Pkcs7);
+	}
 
-  if (Stack != NULL) {
-    sk_X509_pop_free(Stack, X509_free);
-  }
+	if (Stack != NULL) {
+		sk_X509_pop_free(Stack, X509_free);
+	}
 
-  if (SingleCert !=  NULL) {
-    free (SingleCert);
-  }
+	if (SingleCert != NULL) {
+		free(SingleCert);
+	}
 
-  if (!Status && (CertBuf != NULL)) {
-    free (CertBuf);
-    *CertStack = NULL;
-  }
+	if (!Status && (CertBuf != NULL)) {
+		free(CertBuf);
+		*CertStack = NULL;
+	}
 
-  if (OldBuf != NULL) {
-    free (OldBuf);
-  }
+	if (OldBuf != NULL) {
+		free(OldBuf);
+	}
 
-  return Status;
+	return Status;
 }
 
 /**
@@ -777,9 +777,9 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 			goto _Error;
 		}
 	}
-    CtxUntrusted = X509_STORE_CTX_get0_untrusted(CertCtx);
+	CtxUntrusted = X509_STORE_CTX_get0_untrusted(CertCtx);
 	if (CtxUntrusted != NULL) {
-		(void) sk_X509_delete_ptr(CtxUntrusted, Signer);
+		(void)sk_X509_delete_ptr(CtxUntrusted, Signer);
 	}
 
 	//
@@ -808,7 +808,7 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 				if (!sk_X509_push(CtxChain, Issuer)) {
 					goto _Error;
 				}
-				(void) sk_X509_delete_ptr(CtxUntrusted, Issuer);
+				(void)sk_X509_delete_ptr(CtxUntrusted, Issuer);
 
 				Cert = Issuer;
 				continue;
@@ -858,8 +858,8 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 
 			WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
 					 (uint32_t)CertSize);
-			memcpy(CertBuf + OldSize + sizeof(uint32_t),
-				SingleCert, CertSize);
+			memcpy(CertBuf + OldSize + sizeof(uint32_t), SingleCert,
+			       CertSize);
 
 			free(SingleCert);
 			SingleCert = NULL;
@@ -904,8 +904,8 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
 
 			WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
 					 (uint32_t)CertSize);
-			memcpy(CertBuf + OldSize + sizeof(uint32_t),
-				SingleCert, CertSize);
+			memcpy(CertBuf + OldSize + sizeof(uint32_t), SingleCert,
+			       CertSize);
 
 			free(SingleCert);
 			SingleCert = NULL;
