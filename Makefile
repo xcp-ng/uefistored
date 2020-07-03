@@ -1,3 +1,5 @@
+include Common.mk
+
 LIB_DEPS :=	\
 	xenstore \
 	xenctrl \
@@ -7,16 +9,6 @@ LIB_DEPS :=	\
 	xentoolcore
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-
-SRCS := src/backends/filedb.c                                   \
-        src/common.c                                            \
-        src/xenvariable.c                                       \
-        src/serializer.c                                        \
-        src/xapi.c                                              \
-        src/backends/ramdb.c                                    \
-        src/uefitypes.c                                         \
-        src/uefi_guids.c                                        \
-        src/varnames.c
 
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
