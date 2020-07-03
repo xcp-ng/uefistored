@@ -244,8 +244,10 @@ static void test_big_set(void)
 }
 
 /**
- * Test that a zero-length before passed to SetVariable()
- * yields a EFI_SECURITY_VIOLATION.
+ * Test that a zero-length var before passed to SetVariable()
+ * yields EFI_SUCCESS.
+ *
+ * TODO: check that the variable was cleared.
  */
 static void test_zero_set(void)
 {
@@ -260,7 +262,7 @@ static void test_zero_set(void)
     XenSetVariable(rtcname, &guid, attr, insz, &indata);
     xenvariable_handle_request(comm_buf);
 
-    test(getstatus(comm_buf) == EFI_SECURITY_VIOLATION);
+    test(getstatus(comm_buf) == EFI_SUCCESS);
 }
 
 /**
