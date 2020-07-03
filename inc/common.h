@@ -37,7 +37,7 @@ typedef struct {
 } variable_t;
 
 #define for_each_variable(vars, var) \
-    for ( (var) = (vars); (var) <= &(vars)[sizeof((vars))/sizeof((vars)[0])]; (var)++ )
+    for ( (var) = (vars); (var) < &((vars)[sizeof((vars))/sizeof((vars)[0])]); (var)++ )
 
 typedef struct {
     /* The name of the variable */
