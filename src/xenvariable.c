@@ -15,7 +15,6 @@
 #include "uefi_guids.h"
 #include "varnames.h"
 #include "common.h"
-#include "auth_service.h"
 
 static EVP_PKEY *pk_pubkey;
 

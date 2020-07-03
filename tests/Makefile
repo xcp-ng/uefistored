@@ -1,16 +1,22 @@
+include ../Common.mk
+
+SRCS := $(patsubst %,../%,$(SRCS))
+
 CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/ -Isrc/
 
-SRC := mock/XenVariable.c ../src/xenvariable.c ../src/xapi.c \
-    ../src/backends/filedb.c ../src/backends/ramdb.c ../libs/kissdb/kissdb.c \
-    ../src/serializer.c  ../src/common.c mock/sys/socket.c src/test_xenvariable.c \
-    src/test_xapi.c src/test_ramdb.c  src/test_auth.c src/edk2/secure_boot.c \
-    ../src/uefitypes.c ../src/uefi_guids.c ../src/varnames.c \
-    ../src/auth_service.c ../src/pkcs7_verify.c ../src/CryptRsaBasic.c \
-    ../src/CryptX509.c ../src/CryptSha256.c ../src/crypt/pkcs7_signed_data.c \
-    src/test_crypt.c
+# Add mocks
+SRCS += mock/XenVariable.c \
+        mock/sys/socket.c
 
-OBJ := $(patsubst %.c,%.o,$(SRC))
+# Add test files
+SRCS += src/test_auth.c             \
+        src/test_xapi.c             \
+        src/test_xenvariable.c      \
+        src/test_ramdb.c            \
+        src/edk2/secure_boot.c
+
+OBJ := $(patsubst %.c,%.o,$(SRCS))
 
 .PHONY: all
 all: test-nosan test
