@@ -3,6 +3,69 @@
 #include "uefitypes.h"
 #include "varnames.h"
 
+static inline EFI_SIGNATURE_DATA *pkcert_list_data(EFI_SIGNATURE_LIST *pkcert_list)
+{
+    return (EFI_SIGNATURE_DATA *)
+        (_ADDR(pkcert_list) + sizeof(EFI_SIGNATURE_LIST) + pkcert_list->SignatureHeaderSize);
+}
+
+int to_signature_data(uint8_t **signature_data, uint64_t *signature_len, void *data, size_t sz)
+{
+    EFI_SIGNATURE_LIST *pkcert_list;
+    EFI_SIGNATURE_DATA *pkcert_data;
+    EFI_VARIABLE_AUTHENTICATION_2 *descriptor;
+    size_t descriptor_sz;
+
+    if ( !data )
+        return -1;
+
+    descriptor = data;
+
+    if ( OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
+         OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertType) +
+         sizeof(EFI_GUID) >= sz )
+         return -1;
+
+    if ( memcmp(&descriptor->AuthInfo.CertType, &gEfiCertPkcs7Guid, sizeof(EFI_GUID)) != 0 )
+        return -1;
+
+    descriptor_sz = OFFSET_OF(EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) +
+                        OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
+    pkcert_list = (EFI_SIGNATURE_LIST*)(_ADDR(descriptor) + descriptor_sz);
+    pkcert_data = pkcert_list_data(pkcert_list);
+
+    if ( memcmp (&pkcert_list->SignatureType, &gEfiCertX509Guid, sizeof(EFI_GUID)) != 0 )
+        return -1;
+
+    *signature_data = &pkcert_data->SignatureData[0];
+    *signature_len = pkcert_list->SignatureSize - sizeof(EFI_SIGNATURE_DATA) + 1;
+
+    return 0;
+}
+
+/**
+ * Returns a X509 cert on success, otherwise NULL.
+ */
+static X509 *x509_cert(void *data, size_t sz, bool sigdata_is_signed, EVP_PKEY *pkey)
+{
+    int ret;
+    uint8_t *signature_data;
+    uint64_t signature_data_len;
+
+    ret = to_signature_data(&signature_data, &signature_data_len, data, sz);
+
+    if ( ret < 0 )
+        return NULL;
+
+    if ( sigdata_is_signed )
+    {
+        if ( !pkey )
+            return NULL;
+    }
+
+    return d2i_X509(NULL, (const unsigned char**) &signature_data, signature_data_len);
+}
+
 static EFI_STATUS enroll_pk(EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
 {
     X509 *cert;
