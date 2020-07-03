@@ -162,6 +162,7 @@ void dprint_data(void *data, size_t datalen)
     DPRINTF("\n");
 }
 
+/* TODO: filter on guid */
 variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n)
 {
     variable_t *var;
