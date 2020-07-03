@@ -316,6 +316,7 @@ int setup_portio(xendevicemodel_handle *dmod,
 
 static void *auth_file;
 
+#warning "TODO: load_auth_file()"
 static int load_auth_file(void)
 {
     int fd;
@@ -734,8 +735,6 @@ int main(int argc, char **argv)
             exit(1);
         }
     }
-
-#warning "TODO: implement signal handlers in order to tear down resources upon SIGKILL, etc..."
 
     if ( !root_path )
     {
