@@ -158,11 +158,6 @@ static int xen_map_ioreq_server(
     *buffered_iopage = addr;
     *shared_iopage = addr + PAGE_SIZE;
 
-    DEBUG("fresp=%p, buffered_iopage=%p, shared_iopage=%p\n",
-           fresp,
-           buffered_iopage,
-           shared_iopage);
-
     return 0;
 }
 
@@ -518,7 +513,6 @@ static void cleanup(void)
 {
     if ( !saved_efi_vars && xapi_set_efi_vars() >= 0 )
     {
-        DEBUG("Success: xapi_set_efi_vars()\n");
         saved_efi_vars = true;
     }
 
@@ -551,7 +545,7 @@ static void cleanup(void)
 
 static void signal_handler(int sig)
 {
-    DEBUG("varstored-ng signal: %s\n", strsignal(sig));
+    INFO("varstored-ng signal: %s\n", strsignal(sig));
     cleanup();
     signal(sig, SIG_DFL);
     raise(sig);
@@ -737,14 +731,10 @@ int main(int argc, char **argv)
     }
 
     if ( !root_path )
-    {
         snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
-    }
 
     if ( xapi_init() < 0 )
         goto err;
-
-    DEBUG("root_path=%s\n", root_path);
 
     /* Gain access to the hypervisor */
     xc_handle = xc_interface_open(0, 0, 0);
@@ -923,9 +913,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    DEBUG("chroot path: %s\n", root_path);
-    
-    /* TODO: Containerize varstored */
     ret = chroot(root_path);
     if ( ret < 0 )
     {
@@ -948,8 +935,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    INFO("Starting handler loop!\n");
-
     /* Store the varstored pid in XenStore to signal to XAPI that varstored is alive */
     ret =  snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid", domid);
     if ( ret < 0 )
@@ -970,9 +955,6 @@ int main(int argc, char **argv)
         ERROR("xs_write failed: %d, %s\n", errno, strerror(errno));
         goto err;
     }
-
-
-    DEBUG("Set %s to %s for dom %u\n", pidalive, pidstr, domid);
 
     handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports, vcpu_count, shared_iopage);
 
