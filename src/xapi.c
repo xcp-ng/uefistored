@@ -15,10 +15,11 @@
 #include <libxml/xpath.h>
 #include <libxml/parser.h>
 
-#include "common.h"
-#include "xapi.h"
-#include "serializer.h"
 #include "backends/ramdb.h"
+#include "common.h"
+#include "log.h"
+#include "serializer.h"
+#include "xapi.h"
 
 #define XAPI_CODEC_DEBUG 1
 #define XAPI_DEBUG 0

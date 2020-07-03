@@ -7,15 +7,16 @@
 
 #include <openssl/x509.h>
 
-#include "uefitypes.h"
-#include "uefi_guids.h"
-#include "varnames.h"
 #include "common.h"
-#include "xenvariable.h"
 #include "backends/ramdb.h"
 #include "edk2/secure_boot.h"
+#include "log.h"
+#include "uefitypes.h"
+#include "uefi_guids.h"
 #include "test_common.h"
 #include "test_auth.h"
+#include "varnames.h"
+#include "xenvariable.h"
 
 #define BUFSZ 128
 

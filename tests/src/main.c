@@ -3,15 +3,15 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
+#include "common.h"
+#include "log.h"
+#include "test_common.h"
+#include "test_xapi.h"
 #include "test_xenvariable.h"
 #include "test_ramdb.h"
-#include "test_xapi.h"
-#include "test_common.h"
-#include "common.h"
 
 #define LOGFILE "test_logfile.txt"
 
-int logfd = -1;
 int passcount = 0;
 int failcount = 0;
 
@@ -22,7 +22,7 @@ int open_logfile(void)
 
 int main(void)
 { 
-    set_logfd(open_logfile());
+    log_init(LOGFILE);
     test_xenvariable();
     test_xapi();
     test_ramdb();

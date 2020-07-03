@@ -1,11 +1,12 @@
 #include <string.h>
 
+#include "backends/ramdb.h"
 #include "common.h"
 #include "data/bigbase64.h"
 #include "test_common.h"
 #include "test_xapi.h"
+#include "log.h"
 #include "xapi.h"
-#include "backends/ramdb.h"
 
 #include "test_common.h"
 #include "test_ramdb.h"

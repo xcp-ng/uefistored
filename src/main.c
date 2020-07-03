@@ -26,15 +26,14 @@
 #include <xen/hvm/params.h>
 #include <xen/memory.h>
 
-#include "xenvariable.h"
-#include "xapi.h"
 #include "backends/ramdb.h"
 #include "common.h"
+#include "log.h"
+#include "xapi.h"
+#include "xenvariable.h"
 
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
-
-#define VARSTORED_LOGFILE_MAX 64
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
 static bool saved_efi_vars;
@@ -46,7 +45,6 @@ static int domid;
 static xenforeignmemory_handle *fmem;
 static xenforeignmemory_resource_handle *fmem_resource;
 static ioservid_t ioservid;
-static char *logfile_name;
 static xenevtchn_handle *xce;
 static xc_interface *xc_handle;
 struct xs_handle *xsh;
@@ -547,8 +545,7 @@ static void cleanup(void)
     if ( xc_handle )
         xc_interface_close(xc_handle);
 
-    if ( logfile_name )
-        free(logfile_name);
+    log_deinit();
 }
 
 static void signal_handler(int sig)
@@ -629,7 +626,6 @@ int main(int argc, char **argv)
     buffered_iopage_t *buffered_iopage;
     bool secureboot_enabled;
     bool enforcement_level;
-    int logfd;
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     int ret;
@@ -660,28 +656,13 @@ int main(int argc, char **argv)
 
     memset(variables, 0, sizeof(variables));
 
-    logfile_name = malloc(VARSTORED_LOGFILE_MAX);
-    memset(logfile_name, '\0', VARSTORED_LOGFILE_MAX);
-
     if ( argc == 1 )
     {
         printf(USAGE);
         exit(1);
     }
 
-    ret = snprintf(logfile_name, VARSTORED_LOGFILE_MAX, "/var/log/varstored-%d.log", getpid());
-    if ( ret < 0 )
-    {
-        ERROR("BUG: snprintf() error");
-    }
-
-    logfd = open(logfile_name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if ( logfd < 0 )
-    {
-        ERROR("failed to open %s, err: %d, %s\n", logfile_name, errno, strerror(errno));
-    }
-
-    set_logfd(logfd);
+    log_init(NULL);
 
     install_sighandlers();
 

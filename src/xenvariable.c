@@ -3,18 +3,22 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
 #include "backends/ramdb.h"
-#include "xenvariable.h"
+#include "common.h"
+#include "log.h"
 #include "serializer.h"
-#include "UefiMultiPhase.h"
 #include "uefitypes.h"
 #include "uefi_guids.h"
+#include "UefiMultiPhase.h"
 #include "varnames.h"
-#include "common.h"
+#include "xenvariable.h"
 
 static EVP_PKEY *pk_pubkey;
 

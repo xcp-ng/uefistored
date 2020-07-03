@@ -6,12 +6,13 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "common.h"
+#include "backends/ramdb.h"
 #include "data/bigbase64.h"
 #include "data/bigrequest.h"
+#include "common.h"
+#include "log.h"
 #include "test_common.h"
 #include "test_xapi.h"
-#include "backends/ramdb.h"
 #include "xapi.h"
 
 #define TEST_PT_SIZE 512

@@ -25,8 +25,7 @@ varstored: src/main.c $(OBJS)
 
 .PHONY: clean
 clean:
-	rm varstored $(OBJS)
-	$(MAKE) clean -C tests/
+	rm -f varstored $(OBJS)
 
 .PHONY: clean-test
 clean-test:

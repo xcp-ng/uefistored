@@ -8,8 +8,9 @@
 #include <errno.h>
 
 #include "backends/ramdb.h"
-#include "uefitypes.h"
 #include "common.h"
+#include "uefitypes.h"
+#include "log.h"
 
 #define MAX_VARNAME_SZ 128 
 #define MAX_VARDATA_SZ 1024

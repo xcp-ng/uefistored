@@ -3,14 +3,15 @@
 #include <string.h>
 #include <uchar.h>
 
-#include "xenvariable.h"
 #include "backends/ramdb.h"
+#include "common.h"
+#include "log.h"
 #include "mock/XenVariable.h"
+#include "serializer.h"
 #include "test_common.h"
 #include "UefiMultiPhase.h"
 #include "uefitypes.h"
-#include "serializer.h"
-#include "common.h"
+#include "xenvariable.h"
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;
