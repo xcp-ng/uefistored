@@ -5,6 +5,7 @@ SRCS := src/backends/ramdb.c                                    \
         src/uefitypes.c                                         \
         src/uefi_guids.c                                        \
         src/varnames.c                                          \
+        src/variables_service.c                                 \
         src/xapi.c                                              \
         src/xenvariable.c                                       \
 
