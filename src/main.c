@@ -634,7 +634,6 @@ int main(int argc, char **argv)
     char pidstr[21];
     char pidalive[0x80];
     char c;
-    variable_t variables[MAX_VAR_COUNT];
 
     const struct option options[] = {
         {"domain", required_argument,  0, 'd'},
@@ -653,8 +652,6 @@ int main(int argc, char **argv)
 
     UNUSED(assertsz);
     UNUSED(assertsz2);
-
-    memset(variables, 0, sizeof(variables));
 
     if ( argc == 1 )
     {
