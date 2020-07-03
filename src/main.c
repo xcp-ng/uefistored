@@ -34,9 +34,8 @@
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
 
-#define VARSTORED_LOGFILE "/var/log/varstored-%d.log"
-#define VARSTORED_LOGFILE_MAX 32
-#define IOREQ_BUFFER_SLOT_NUM     511 /* 8 bytes each, plus 2 4-byte indexes */
+#define VARSTORED_LOGFILE_MAX 64
+#define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
 static bool saved_efi_vars;
 
@@ -689,7 +688,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    ret = snprintf(logfile_name, VARSTORED_LOGFILE_MAX,  VARSTORED_LOGFILE, getpid());
+    ret = snprintf(logfile_name, VARSTORED_LOGFILE_MAX, "/var/log/varstored-%d.log", getpid());
     if ( ret < 0 )
     {
         ERROR("BUG: snprintf() error");
