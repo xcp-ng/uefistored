@@ -214,13 +214,6 @@ void handle_ioreq(struct ioreq *ioreq)
     /* This is just the size of the port write.  We only use it to require XenVariable to use 32bit port IO writes. */
     uint32_t size = ioreq->size;
 
-#if 0
-    DEBUG("%s, ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
-            __func__,
-            ioreq->addr, ioreq->data, ioreq->count, ioreq->size,
-            ioreq->vp_eport, ioreq->state, ioreq->data_is_ptr, ioreq->dir, ioreq->type);
-#endif
-
     if ( !io_port_enabled )
     {
         ERROR("ioport not yet enabled!\n");
@@ -271,12 +264,7 @@ int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
     }
 
     assert( ioreq->state < 16 );
-#if 0
-    DEBUG("ioreq: addr=0x%lx,data=0x%lx, count=0x%x, size=0x%x, vp_eport=0x%x, state=0x%x\n, data_is_ptr=%d, dir=%d, type=0x%x\n",
-            ioreq->addr, ioreq->data, ioreq->count, ioreq->size,
-            ioreq->vp_eport, ioreq->state, ioreq->data_is_ptr, ioreq->dir, ioreq->type);
 
-#endif
     if ( ioreq->state != STATE_IOREQ_READY )
     {
         ERROR("IO request not ready, state=0x%02x\n", ioreq->state);
@@ -503,13 +491,6 @@ void handle_bufioreq(buf_ioreq_t *buf_ioreq)
         ERROR("UNKNOWN buf_ioreq type %02x)\n", buf_ioreq->type);
         return;
     }
-
-#if 0
-    DEBUG("buf_ioreq: type=%d, pad=%d, dir=%s, size=%d, addr=%x, data=%x\n", 
-            buf_ioreq->type, buf_ioreq->pad, buf_ioreq->dir ? "read" : "write",
-            buf_ioreq->size,
-            buf_ioreq->addr, buf_ioreq->data);
-#endif
 }
 
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, 
