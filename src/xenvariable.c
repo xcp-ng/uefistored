@@ -23,10 +23,7 @@
 static EVP_PKEY *pk_pubkey;
 
 #define _ADDR(x) ((uint64_t)x)
-
 //#define VALIDATE_WRITES
-
-
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
 static int set_setup_mode(uint8_t val)
@@ -103,6 +100,7 @@ static void buffer_too_small(void *comm_buf, size_t required_size)
 
 static void dprint_next_var(variable_t *curr, variable_t *next)
 {
+#if DEBUG_XENVARIABLE
     DPRINTF("DEBUG: cmd:GET_NEXT_VARIABLE: curr=");
 
     if ( curr && curr->namesz > 0 )
@@ -118,11 +116,12 @@ static void dprint_next_var(variable_t *curr, variable_t *next)
         DPRINTF("%s", strbuf);
     }
     DPRINTF("\n");
+#endif
 }
 
 void print_uc2(const char *TAG, void *vn)
 {
-#if 1
+#if DEBUG_XENVARIABLE
     uc2_ascii(vn, strbuf, 512);
     DEBUG("%s:%s\n", TAG, strbuf);
     memset(strbuf, '\0', 512);
