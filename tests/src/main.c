@@ -25,12 +25,10 @@ int open_logfile(void)
 int main(void)
 { 
     set_logfd(open_logfile());
-#if 0
     test_xenvariable();
     test_xapi();
     test_ramdb();
     test_auth();
-#endif
     test_crypt();
 
     printf("PASSED (%d), FAILED (%d)\n", passcount, failcount);
