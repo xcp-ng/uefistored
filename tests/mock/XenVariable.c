@@ -15,7 +15,7 @@
 
 static void *comm_buf;
 
-void mock_xenvariable_set_buffer(void *p)
+void mock_xen_variable_server_set_buffer(void *p)
 {
     comm_buf = p;
 }

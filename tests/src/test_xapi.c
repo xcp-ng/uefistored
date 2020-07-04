@@ -116,14 +116,14 @@ void test_xapi_set_efi_vars(void)
     uint32_t attr = DEFAULT_ATTR;
 
     var = &vars[0];
-    mock_xenvariable_set_buffer(comm_buf);
+    mock_xen_variable_server_set_buffer(comm_buf);
     XenSetVariable(var->variable, &guid, attr, var->data_len, (void*)var->data);
-    xenvariable_handle_request(comm_buf);
+    xen_variable_server_handle_request(comm_buf);
 
     var = &vars[1];
-    mock_xenvariable_set_buffer(comm_buf);
+    mock_xen_variable_server_set_buffer(comm_buf);
     XenSetVariable(var->variable, &guid, attr, var->data_len, (void*)var->data);
-    xenvariable_handle_request(comm_buf);
+    xen_variable_server_handle_request(comm_buf);
 
     xapi_set_efi_vars();
 

@@ -30,7 +30,7 @@
 #include "common.h"
 #include "log.h"
 #include "xapi.h"
-#include "xenvariable.h"
+#include "xen_variable_server.h"
 
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
@@ -231,7 +231,7 @@ void handle_ioreq(struct ioreq *ioreq)
     {
         /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
          * let's process it. */
-        xenvariable_handle_request(p);
+        xen_variable_server_handle_request(p);
 
         /* Free up mappable space */
         xenforeignmemory_unmap(_fmem, p, 16);
@@ -927,7 +927,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    ret = xenvariable_init(xapi_get_efi_vars);
+    ret = xen_variable_server_init(xapi_get_efi_vars);
 
     if ( ret < 0 )
     {

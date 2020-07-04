@@ -16,7 +16,7 @@
 #include "test_common.h"
 #include "test_auth.h"
 #include "varnames.h"
-#include "xenvariable.h"
+#include "xen_variable_server.h"
 
 #define BUFSZ 128
 
@@ -25,14 +25,14 @@
 
 static void pre_test(void)
 {
-    xenvariable_init(NULL);
+    xen_variable_server_init(NULL);
 }
 
 static void post_test(void)
 {
 	ramdb_destroy();
 	ramdb_deinit();
-    xenvariable_deinit();
+    xen_variable_server_deinit();
 }
 
 /**

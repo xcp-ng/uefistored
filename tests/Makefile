@@ -12,7 +12,7 @@ SRCS += mock/XenVariable.c \
 # Add test files
 SRCS += src/test_auth.c             \
         src/test_xapi.c             \
-        src/test_xenvariable.c      \
+        src/test_xen_variable_server.c      \
         src/test_ramdb.c            \
         src/edk2/secure_boot.c
 

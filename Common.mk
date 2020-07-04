@@ -7,5 +7,5 @@ SRCS := src/backends/ramdb.c                                    \
         src/varnames.c                                          \
         src/variables_service.c                                 \
         src/xapi.c                                              \
-        src/xenvariable.c                                       \
+        src/xen_variable_server.c
 

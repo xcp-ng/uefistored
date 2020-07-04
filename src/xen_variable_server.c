@@ -18,20 +18,19 @@
 #include "UefiMultiPhase.h"
 #include "varnames.h"
 #include "variables_service.h"
-#include "xenvariable.h"
+#include "xen_variable_server.h"
 
-#define _ADDR(x) ((uint64_t)x)
 //#define VALIDATE_WRITES
-#define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
 static int set_setup_mode(uint8_t val)
 {
+    int ret;
 
-    int ret = ramdb_set(
-                   SETUP_MODE_NAME,
-                   &val,
-                   sizeof(val),
-                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    ret = ramdb_set(SETUP_MODE_NAME,
+                    &val,
+                    sizeof(val),
+                    EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+
     if ( ret < 0 )
         ERROR("%s:%d: Failed to set SETUP_MODE_NAME to %u!\n", __func__, __LINE__, val);
 
@@ -98,7 +97,7 @@ static void buffer_too_small(void *comm_buf, size_t required_size)
 
 static void dprint_next_var(variable_t *curr, variable_t *next)
 {
-#if DEBUG_XENVARIABLE
+#if DEBUG_XEN_VARIABLE_SERVER
     DPRINTF("DEBUG: cmd:GET_NEXT_VARIABLE: curr=");
 
     if ( curr && curr->namesz > 0 )
@@ -119,7 +118,7 @@ static void dprint_next_var(variable_t *curr, variable_t *next)
 
 void print_uc2(const char *TAG, void *vn)
 {
-#if DEBUG_XENVARIABLE
+#if DEBUG_XEN_VARIABLE_SERVER
     uc2_ascii(vn, strbuf, 512);
     DEBUG("%s:%s\n", TAG, strbuf);
     memset(strbuf, '\0', 512);
@@ -361,6 +360,43 @@ static void handle_set_variable(void *comm_buf)
     serialize_result(&ptr, status);
 }
 
+static EFI_STATUS unserialize_get_next_variable(void *comm_buf, uint64_t *namesz,
+                                          UTF16 *name,
+                                          uint64_t *guest_bufsz,
+                                          EFI_GUID *guid)
+{
+    uint32_t command;
+    bool efi_at_runtime;
+    uint8_t *ptr = comm_buf;
+    uint32_t version;
+
+    if ( !comm_buf || !namesz || !name || !guid )
+        return EFI_DEVICE_ERROR;
+
+    version = unserialize_uint32(&ptr);
+
+    if ( version != 1 )
+        WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
+
+    command = unserialize_uint32(&ptr);
+
+    assert(command == COMMAND_GET_NEXT_VARIABLE);
+
+    *guest_bufsz = unserialize_uintn(&ptr);
+    *namesz = unserialize_name(&ptr, name, MAX_VARNAME_SZ);
+    unserialize_guid(&ptr, guid);
+
+    /* TODO: use the guid according to spec */
+    efi_at_runtime = unserialize_boolean(&ptr);
+
+    if ( efi_at_runtime )
+    {
+        /* TODO: does this information get used? */
+    }
+
+    return EFI_SUCCESS;
+}
+
 /**
  * Return the names of current UEFI variables, one-by-one.
  *
@@ -369,55 +405,36 @@ static void handle_set_variable(void *comm_buf)
  *
  * @comm_buf:  The shared memory page with the OVMF XenVariable module.
  */
-static void get_next_variable(void *comm_buf)
+static void handle_get_next_variable(void *comm_buf)
 {
-    uint32_t command;
-    variable_t current;
-    variable_t next;
-    bool efi_at_runtime;
-    uint64_t guest_bufsz;
-    EFI_GUID guid;
     uint8_t *ptr = comm_buf;
+    uint64_t guest_bufsz;
+    variable_t current, next;
     int ret;
-    uint32_t version;
+    EFI_STATUS status;
 
     memset(&current, 0, sizeof(current));
     memset(&next, 0, sizeof(next));
 
-    version = unserialize_uint32(&ptr);
-
-    if ( version != 1 )
-        WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
-
-    command = unserialize_uint32(&ptr);
-    assert(command == COMMAND_GET_NEXT_VARIABLE);
-
-    guest_bufsz = unserialize_uintn(&ptr);
-    current.namesz = unserialize_name(&ptr, current.name, MAX_VARNAME_SZ);
-    unserialize_guid(&ptr, &guid);
-
-    /* TODO: use the guid according to spec */
-    (void)guid;
-
-    efi_at_runtime = unserialize_boolean(&ptr);
-
-    if ( efi_at_runtime )
-    {
-        /* TODO: does this information get used? */
-    }
+    status = unserialize_get_next_variable(ptr, &current.namesz, current.name, &guest_bufsz, &current.guid);
+    if ( status )
+        goto err;
 
     ret = ramdb_next(&current, &next);
+
     if ( ret == 0 )
     {
-        next_var_not_found(comm_buf);
-        return;
+        status = EFI_NOT_FOUND;
+        goto err;
     }
 
     if ( ret < 0 )
     {
-        device_error(comm_buf);
-        return;
+        status = EFI_DEVICE_ERROR;
+        goto err;
     }
+
+    assert( ret == 1 );
 
     if ( next.namesz > guest_bufsz )
     {
@@ -432,11 +449,14 @@ static void get_next_variable(void *comm_buf)
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_name(&ptr, next.name);
-    serialize_guid(&ptr, &guid);
+    serialize_guid(&ptr, &next.guid);
+
+err:
+    serialize_result(&ptr, status);
 }
 
 
-void xenvariable_handle_request(void *comm_buf)
+void xen_variable_server_handle_request(void *comm_buf)
 {
     uint8_t *ptr;
     uint32_t command;
@@ -464,7 +484,7 @@ void xenvariable_handle_request(void *comm_buf)
             handle_set_variable(comm_buf);
             break;
         case COMMAND_GET_NEXT_VARIABLE:
-            get_next_variable(comm_buf);
+            handle_get_next_variable(comm_buf);
             break;
         case COMMAND_QUERY_VARIABLE_INFO:
             DEBUG("cmd:QUERY_VARIABLE_VARIABLE\n");
@@ -495,7 +515,7 @@ void init_secure_boot(variable_t variables[MAX_VAR_COUNT], size_t n)
     set_secure_boot(0);
 }
 
-int xenvariable_init(var_initializer_t init_vars)
+int xen_variable_server_init(var_initializer_t init_vars)
 {
     int ret;
     variable_t variables[MAX_VAR_COUNT];
@@ -536,7 +556,7 @@ int xenvariable_init(var_initializer_t init_vars)
     return 0;
 }
 
-int xenvariable_deinit(void)
+int xen_variable_server_deinit(void)
 {
     return 0;
 }

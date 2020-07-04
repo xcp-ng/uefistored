@@ -7,7 +7,7 @@
 #include "log.h"
 #include "test_common.h"
 #include "test_xapi.h"
-#include "test_xenvariable.h"
+#include "test_xen_variable_server.h"
 #include "test_ramdb.h"
 
 #define LOGFILE "test_logfile.txt"
@@ -23,7 +23,7 @@ int open_logfile(void)
 int main(void)
 { 
     log_init(LOGFILE);
-    test_xenvariable();
+    test_xen_variable_server();
     test_xapi();
     test_ramdb();
 

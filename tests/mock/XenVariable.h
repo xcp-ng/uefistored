@@ -52,6 +52,6 @@ XenGetNextVariableName (
      EFI_GUID          *VendorGuid
   );
 
-void mock_xenvariable_set_buffer(void *p);
+void mock_xen_variable_server_set_buffer(void *p);
 
 #endif // __H_XENVARIABLE_
