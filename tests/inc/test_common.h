@@ -10,7 +10,6 @@ extern int all_passed;
 
 #define DO_TEST(test)                                   \
     do  {                                               \
-        printf("\n++++++++  %s  ++++++++\n", #test);           \
         pre_test();                                     \
         test();                                         \
         post_test();                                    \
