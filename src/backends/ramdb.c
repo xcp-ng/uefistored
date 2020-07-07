@@ -27,6 +27,11 @@ int ramdb_init(void)
     return 0;
 }
 
+size_t ramdb_count(void)
+{
+	return total;
+}
+
 void ramdb_deinit(void)
 {
 }
@@ -87,6 +92,9 @@ int ramdb_remove(const UTF16 *name)
     size_t varlen;
     variable_t *var;
 
+    if ( !name )
+        return -1;
+
     varlen = strlen16(name);
 
     for_each_variable(variables, var)
@@ -97,6 +105,7 @@ int ramdb_remove(const UTF16 *name)
         if ( strcmp16(var->name, name) == 0 )
         {
             memset(var, 0, sizeof(*var));
+	    total--;
             return 0;
         }
     }

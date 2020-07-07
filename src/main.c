@@ -185,7 +185,7 @@ void *map_guest_memory(xen_pfn_t start)
         shmem[i] = start + i;
     }
 
-    return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE, 16, shmem, NULL);
+    return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE, SHMEM_PAGES, shmem, NULL);
 }
 
 void handle_ioreq(struct ioreq *ioreq)

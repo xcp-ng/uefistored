@@ -22,6 +22,36 @@
 
 //#define VALIDATE_WRITES
 
+#if DEBUG_XEN_VARIABLE_SERVER
+/**
+ * dprint_vname -  Debug print a variable name
+ *
+ * WARNING: this only prints ASCII characters correctly.
+ * Any char code above 255 will be displayed incorrectly.
+ */
+#define dprint_vname(format, vn, ...) \
+do { \
+    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
+    DEBUG(format, strbuf __VA_ARGS__); \
+    memset(strbuf, '\0', 512); \
+} while ( 0 )
+
+#else
+#define dprint_vname(...) do { } while ( 0 )
+#endif
+
+#if DEBUG_XEN_VARIABLE_SERVER
+#define eprint_vname(format, vn, ...) \
+do { \
+    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
+    ERROR(format, strbuf __VA_ARGS__); \
+    memset(strbuf, '\0', 512); \
+} while( 0 )
+#else
+#define eprint_vname(...) do { } while ( 0 )
+#endif
+
+
 static int set_setup_mode(uint8_t val)
 {
     int ret;
@@ -54,6 +84,7 @@ static int set_secure_boot(uint8_t val)
 
 static void dprint_attrs(uint32_t attr)
 {
+#if DEBUG_XEN_VARIABLE_SERVER
     DPRINTF("0x%x:", attr);
     if ( attr & EFI_VARIABLE_NON_VOLATILE )
         DPRINTF("EFI_VARIABLE_NON_VOLATILE,");
@@ -69,6 +100,7 @@ static void dprint_attrs(uint32_t attr)
         DPRINTF("EFI_VARIABLE_APPEND_WRITE,");
     if ( attr & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
         DPRINTF("EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS,");
+#endif
 }
 
 static void next_var_not_found(void *comm_buf)
@@ -125,13 +157,24 @@ void print_uc2(const char *TAG, void *vn)
 #endif
 }
 
-static bool isnull(void *mem, size_t len)
+static bool isempty(void *mem, size_t len)
 {
-    uint8_t *p = mem;
+    uint8_t *p;
+
+    if ( !mem || len == 0 )
+        return true;
+
+
+    p = mem;
+
 
     while ( len-- > 0 )
-        if ( *(p++) != 0 )
+    {
+        if ( *p != 0 )
             return false;
+
+        p++;
+    }
 
     return true;
 }
@@ -182,7 +225,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
 
 static void handle_get_variable(void *comm_buf)
 {
-    size_t len;
+    int len;
     EFI_GUID guid;
     uint32_t attrs, version;
     uint64_t buflen;
@@ -210,7 +253,8 @@ static void handle_get_variable(void *comm_buf)
     }
 
     len = unserialize_name(&ptr, variable_name, MAX_VARNAME_SZ);
-    if ( len == 0 )
+
+    if ( len <= 0 )
     {
         ERROR("cmd:GET_VARIABLE: UEFI Error: variable name len is 0\n");
         ptr = comm_buf;
@@ -218,13 +262,13 @@ static void handle_get_variable(void *comm_buf)
         return;
     }
 
-    if ( isnull(variable_name, len) )
+    if ( isempty(variable_name, len) )
     {
         /*
-         * This case is not in the UEFI specification.  It seems that this
+         * This case is not in the UEFI specification.  It _seems_ that this
          * would not be allowed, so we disallow it. 
          */
-        DEBUG("cmd:GET_VARIABLE: UEFI Error, variable name is NULL\n");
+        DEBUG("cmd:GET_VARIABLE: UEFI Error, variable name is empty\n");
         ptr = comm_buf;
         serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
@@ -277,7 +321,8 @@ static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr;
     EFI_GUID guid;
-    size_t len, datalen;
+    int len;
+    size_t datalen;
     UTF16 variable_name[MAX_VARNAME_SZ];
     uint8_t data[MAX_VARDATA_SZ];
     void *dp = data;
@@ -309,7 +354,7 @@ static void handle_set_variable(void *comm_buf)
     len = unserialize_name(&ptr, variable_name, MAX_VARNAME_SZ);
     if ( len <= 0 )
     {
-        ERROR("%s: len == %lu\n", __func__, len);
+        ERROR("%s: len == %d\n", __func__, len);
         return;
     }
 
@@ -319,7 +364,7 @@ static void handle_set_variable(void *comm_buf)
 
     print_set_var(variable_name, len, attrs);
 
-#if 1
+#if 0
     if (name_eq(variable_name, len, "XV_DEBUG_UINTN"))
     {
         DEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
@@ -521,6 +566,8 @@ int xen_variable_server_init(var_initializer_t init_vars)
     variable_t variables[MAX_VAR_COUNT];
     variable_t *var;
 
+    memset(variables, 0, sizeof(variables));
+
     /* Initialize UEFI variables */
     ret = ramdb_init();
     if ( ret < 0 )
@@ -550,8 +597,8 @@ int xen_variable_server_init(var_initializer_t init_vars)
         }
     }
 
-    init_setup_mode(variables, MAX_VAR_COUNT);
-    init_secure_boot(variables, MAX_VAR_COUNT);
+    init_setup_mode(variables, ramdb_count());
+    init_secure_boot(variables, ramdb_count());
 
     return 0;
 }

@@ -6,6 +6,7 @@
 #include "common.h"
 
 int ramdb_init(void);
+size_t ramdb_count(void);
 void ramdb_deinit(void);
 int ramdb_get(const UTF16 *name, void *dest, size_t n, size_t *len, uint32_t *attrs);
 int ramdb_set(const UTF16 *name, const void *val, const size_t len, const uint32_t attrs);

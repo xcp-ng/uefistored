@@ -1,5 +1,5 @@
 #ifndef __H_SERIALIZER_
-#define __H_SERIALIZER
+#define __H_SERIALIZER_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,4 +24,4 @@ int unserialize_name(uint8_t **ptr, void *buf, size_t buflen);
 bool unserialize_boolean(uint8_t **ptr);
 EFI_STATUS unserialize_result(uint8_t **ptr);
 
-#endif // __H_SERIALIZER
+#endif // __H_SERIALIZER_

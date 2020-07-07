@@ -71,25 +71,4 @@ variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT]
 #else
 #define TRACE() do { } while ( 0 )
 #endif
-
-/**
- * dprint_vname -  Debug print a variable name
- *
- * WARNING: this only prints ASCII characters correctly.
- * Any char code above 255 will be displayed incorrectly.
- */
-#define dprint_vname(format, vn, ...) \
-do { \
-    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
-    DEBUG(format, strbuf __VA_ARGS__); \
-    memset(strbuf, '\0', 512); \
-} while ( 0 )
-
-#define eprint_vname(format, vn, ...) \
-do { \
-    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
-    ERROR(format, strbuf __VA_ARGS__); \
-    memset(strbuf, '\0', 512); \
-} while( 0 )
-
 #endif // __H_LOG__

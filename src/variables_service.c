@@ -33,7 +33,11 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
 
     ret = ramdb_get(variable, tmp, MAX_VARDATA_SZ, &tmpsz, &tmpattrs);
 
-    if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) || ret == VAR_NOT_FOUND )
+    if ( ret < 0 )
+    {
+        return EFI_DEVICE_ERROR;
+    }
+    else if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) || ret == VAR_NOT_FOUND )
     {
         return EFI_NOT_FOUND;
     }
@@ -41,10 +45,6 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
     {
         *size = tmpsz;
         return EFI_BUFFER_TOO_SMALL;
-    }
-    else if ( ret < 0 )
-    {
-        return EFI_DEVICE_ERROR;
     }
     /*
      * This should NEVER happen.  Indicates a varstored bug.  This means we

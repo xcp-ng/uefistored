@@ -143,18 +143,15 @@ bool unserialize_boolean(uint8_t **ptr)
 int unserialize_name(uint8_t **ptr, void *buf, size_t buflen)
 {
     size_t len;
-    uint8_t *p = buf;
 
     memcpy(&len, *ptr, sizeof(len));
     *ptr += sizeof(len);
 
-    /* We add buffer of 2 bytes at end for UTF16 null-terminator */
-    if ( len + 2 > buflen )
+    if ( len - sizeof(UTF16) > buflen )
         return -1;
 
-    memcpy(p, *ptr, len);
-    p[len] = 0;
-    p[len + 1] = 0;
+    memcpy(buf, *ptr, len);
+    memset(buf + len, 0, sizeof(UTF16));
 
     *ptr += len;
     
