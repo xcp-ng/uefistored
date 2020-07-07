@@ -14,6 +14,8 @@
 #include "test_common.h"
 #include "test_xapi.h"
 #include "xapi.h"
+#include "mock/XenVariable.h"
+#include "xen_variable_server.h"
 
 #define TEST_PT_SIZE 512
 
@@ -38,11 +40,11 @@ static void post_test(void)
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
-static char v1[] = { 'B', 0, 'C', 0, 0, 0, 0 };
-static char v2[] = { 'Y', 0, 'Z', 0, 0, 0, 0 };
+static UTF16 v1[] = { 'B', 'C', 0 };
+static UTF16 v2[] = { 'Y', 'Z', 0 };
 
-#define D1 "WORLD!"
-#define D2 "bar"
+static char *D1 = "WORLD!";
+static char *D2 = "bar";
 
 static size_t v1_len;
 static size_t d1_len;
@@ -50,13 +52,13 @@ static size_t v2_len;
 static size_t d2_len;
 static size_t blocksz;
 
-serializable_var_t vars[2];
+static variable_t vars[2];
 
 static void test_xapi_serialize_size(void)
 {
     size_t size;
 
-    size = xapi_serialized_size((serializable_var_t*)vars, 2);
+    size = xapi_serialized_size(vars, 2);
 
     test(size == blocksz);
 }
@@ -67,9 +69,9 @@ static void test_xapi_serialize(void)
     void *data;
     size_t size, tmp;
 
-    size = xapi_serialized_size((serializable_var_t*)vars, 2);
+    size = xapi_serialized_size(vars, 2);
     data = malloc(size);
-    xapi_serialize((serializable_var_t*)vars, 2, data, size);
+    xapi_serialize(vars, 2, data, size);
 
     p = data;
 
@@ -110,19 +112,18 @@ void test_xapi_set_efi_vars(void)
 {
     char readbuf[4096] = {0};
     int fd;
-    serializable_var_t *var;
-    struct sockaddr_un saddr;
-    uint8_t guid[16] = {0};
+    variable_t *var;
+    EFI_GUID guid;
     uint32_t attr = DEFAULT_ATTR;
 
     var = &vars[0];
     mock_xen_variable_server_set_buffer(comm_buf);
-    XenSetVariable(var->variable, &guid, attr, var->data_len, (void*)var->data);
+    XenSetVariable(var->name, &guid, attr, var->datasz, (void*)var->data);
     xen_variable_server_handle_request(comm_buf);
 
     var = &vars[1];
     mock_xen_variable_server_set_buffer(comm_buf);
-    XenSetVariable(var->variable, &guid, attr, var->data_len, (void*)var->data);
+    XenSetVariable(var->name, &guid, attr, var->datasz, (void*)var->data);
     xen_variable_server_handle_request(comm_buf);
 
     xapi_set_efi_vars();
@@ -349,16 +350,15 @@ static void test_big_request(void)
 {
     char buffer[4096*8];
     char *big_request = BIG_REQUEST;
-    char *base64;
 
     base64_from_response(buffer, 4096*8, big_request);
 }
 
 void test_xapi(void)
 {
-    v1_len = strsize16((char16_t*)v1) + 2;
+    v1_len = strsize16((char16_t*)v1) + sizeof(UTF16);
     d1_len = strlen(D1);
-    v2_len = strsize16((char16_t*)v2) + 2; 
+    v2_len = strsize16((char16_t*)v2) + sizeof(UTF16); 
     d2_len = strlen(D2);
 
     blocksz = v1_len + sizeof(v1_len) +
@@ -366,19 +366,29 @@ void test_xapi(void)
               v2_len + sizeof(v2_len) +
               d2_len + sizeof(d2_len);
 
-    vars[0].variable = malloc(v1_len); 
-    memset(vars[0].variable, 0, v1_len);
-    memcpy(vars[0].variable, v1, v1_len);
-    vars[0].variable_len = v1_len;
-    vars[0].data = (uint8_t*)D1;
-    vars[0].data_len = d1_len;
+    memset(vars, 0, sizeof(vars));
 
-    vars[1].variable = malloc(v2_len); 
-    memset(vars[1].variable, 0, v2_len);
-    memcpy(vars[1].variable, v2, v2_len);
-    vars[1].variable_len = v2_len;
-    vars[1].data = (uint8_t*)D2;
-    vars[1].data_len = d2_len;
+    vars[0].namesz = v1_len;
+    memcpy(vars[0].name, v1, v1_len);
+
+    vars[0].datasz = d1_len;
+    memcpy(vars[0].data, D1, d1_len);
+
+    vars[1].namesz = v2_len;
+    memcpy(vars[1].name, v2, v2_len);
+
+    vars[1].datasz = d2_len;
+    memcpy(vars[1].data, D2, d2_len);
+
+
+    char buf[MAX_VARNAME_SZ] = {0};
+
+
+    variable_t *var;
+    var = &vars[0];
+    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARNAME_SZ);
+    var = &vars[1];
+    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARNAME_SZ);
 
     DO_TEST(test_xapi_serialize_size);
     DO_TEST(test_xapi_serialize);
@@ -391,7 +401,4 @@ void test_xapi(void)
     DO_TEST(test_base64_big);
     DO_TEST(test_base64_big_xml);
     DO_TEST(test_big_request);
-
-    free(vars[0].variable); 
-    free(vars[1].variable); 
 }

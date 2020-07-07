@@ -3,9 +3,9 @@
 
 #include "common.h"
 
-size_t xapi_serialized_size(serializable_var_t *vars, size_t);
+size_t xapi_serialized_size(variable_t *vars, size_t);
 int xapi_init(void);
-int xapi_serialize(serializable_var_t *vars, size_t len, void *data, size_t size);
+int xapi_serialize(variable_t *vars, size_t len, void *data, size_t size);
 int xapi_set_efi_vars(void);
 int xapi_connect(void);
 int xapi_efi_vars(variable_t *variables, size_t sz);
@@ -22,5 +22,6 @@ int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_s
 char *blob_to_base64(uint8_t *buffer, size_t length);
 size_t blob_size(variable_t *variables, size_t n);
 int base64_from_response_body(char *buffer, size_t n, char *body);
+int base64_from_response(char *buffer, size_t n, char *response);
 
 #endif // __H_XAPI_

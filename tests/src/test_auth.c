@@ -32,75 +32,7 @@ static void post_test(void)
 {
 	ramdb_destroy();
 	ramdb_deinit();
-    xen_variable_server_deinit();
-}
-
-/**
- * Test that time based authentication works.
- *
- * According to the UEFI specification:
-
-A caller that invokes the SetVariable() service with the
-EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS attribute set shall do the
-following prior to invoking the service:
-
-1.    Create a descriptor
-        Create an EFI_VARIABLE_AUTHENTICATION_2 descriptor where:
-                - TimeStamp is set to the current time.
-                - AuthInfo.CertTypeis set to EFI_CERT_TYPE_PKCS7_GUID
-
-2.    Hash the serialization
-        Hash the serialization of the values of the VariableName, VendorGuid
-        and Attributesparameters of the SetVariable() call and theTimeStampcomponent of
-        the EFI_VARIABLE_AUTHENTICATION_2 descriptor followed by the variable’s new
-        value (i.e.  the Dataparameter’s new variable content).That is, digest = hash
-        (VariableName, VendorGuid, Attributes, TimeStamp, DataNew_variable_content).
-        The NULL character terminating the VariableName value shall not be included in
-        the hash computation
-
-3.    Sign the resulting digest
-        Sign the resulting digest using a selected 
-
-4.    Construct a DER-encoded PKCS
-        Construct a DER-encoded PKCS #7 version 1.5 SignedData (see [RFC2315])
-        with the signed content as follows:
-
-	a	SignedData.version shall be set to 1
-        b 	SignedData.digestAlgorithms shall contain the digest algorithm
-                used when preparing the signature. Only a digest algorithm of SHA-256 is
-                accepted.
-        c	SignedData.contentInfo.contentType shall be set to id-data
-        d	SignedData.contentInfo.content shall be absent (the content is
-                provided in the Data parameter to the SetVariable() call)
-	e	SignedData.certificates shall contain, at a minimum, the
-                signer’s DER-encoded X.509 certificatefSignedData.crls is
-                optional.gSignedData.signerInfos shall be constructed as:
-
-		-   SignerInfo.version shall be set to 1
-		-   SignerInfo.issuerAndSerial shall be present and as in the signer’s certificate
-		-   SignerInfo.authenticatedAttributes shall not be present.
-		-   SignerInfo.digestEncryptionAlgorithm shall be set to the
-		    algorithm used to sign the data. Only a digest encryption algorithm of RSA with
-		    PKCS #1 v1.5 padding (RSASSA_PKCS1-v1_5). is accepted.
-		-   SiginerInfo.encryptedDigest shall be present
-		-   SignerInfo.unauthenticatedAttributes shall not be present
-
-5.    Set AuthInfo.CertData
-	Set AuthInfo.CertData to the DER-encoded PKCS #7 SignedData value.
-
-6.    Construct Data parameter
-        Construct the SetVariable()’s Dataparameter by concatenating the complete,
-        serialized EFI_VARIABLE_AUTHENTICATION_2 descriptor with the new value of the
-        variable(DataNew_variable_content).
-
-*/
-static void test_timebased_auth(void)
-{
-    EFI_STATUS status;
-
-    status = EnrollPlatformKey(&gEfiGlobalVariableGuid, &gEfiCertPkcs7Guid, "keys/PK.der", 1);
-
-    test(!status);
+	xen_variable_server_deinit();
 }
 
 static void test_setting_pk_turns_setup_mode_off(void)

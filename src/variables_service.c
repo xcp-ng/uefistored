@@ -33,11 +33,13 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
 
     ret = ramdb_get(variable, tmp, MAX_VARDATA_SZ, &tmpsz, &tmpattrs);
 
-    if ( ret < 0 )
+    if ( ret == VAR_NOT_FOUND )
+        return EFI_NOT_FOUND;
+    else if ( ret < 0 )
     {
         return EFI_DEVICE_ERROR;
     }
-    else if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) || ret == VAR_NOT_FOUND )
+    else if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) )
     {
         return EFI_NOT_FOUND;
     }

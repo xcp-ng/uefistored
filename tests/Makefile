@@ -81,7 +81,7 @@ valgrind: test-nosan
 
 .PHONY: clean
 clean:
-	rm $(OBJ) $(TEST_OBJ) test test-nosan
+	rm -f $(OBJ) $(TEST_OBJ) test test-nosan
 
 .PHONY: keys
 keys: keys/.done

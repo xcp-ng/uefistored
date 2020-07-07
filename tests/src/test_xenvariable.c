@@ -68,14 +68,12 @@ static void test_nonexistent_variable_returns_not_found(void)
 
     /* Build a GetVariable() command */
     XenGetVariable(rtcname, &guid, &attr, &datasize, (void*)&data);
-    DEBUG("1.status=%lu\n", getstatus(comm_buf));
 
     /* Handle the command */
     xen_variable_server_handle_request(comm_buf);
 
    // xen_variable_server_handle_request(comm_buf);
     test(getstatus(comm_buf) == EFI_NOT_FOUND);
-    DEBUG("2.status=%lu\n", getstatus(comm_buf));
 }
 
 static EFI_STATUS deserialize_xen_get_var_response(

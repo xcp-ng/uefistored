@@ -220,21 +220,21 @@ cleanup:
     return b64text;
 }
 
-size_t xapi_serialized_size(serializable_var_t *vars, size_t len)
+size_t xapi_serialized_size(variable_t *vars, size_t len)
 {
     size_t size = 0;
     size_t i;
     
     for ( i=0; i<len; i++ )
-        size += vars[i].variable_len + sizeof(vars[i].variable_len) +
-                vars[i].data_len + sizeof(vars[i].data_len);
+        size += vars[i].namesz + sizeof(vars[i].namesz) +
+                vars[i].datasz + sizeof(vars[i].datasz);
 
     return size;
 }
 
-int xapi_serialize(serializable_var_t *vars, size_t len, void *data, size_t size)
+int xapi_serialize(variable_t *vars, size_t len, void *data, size_t size)
 {
-    serializable_var_t *var;
+    variable_t *var;
     size_t current_size = 0;
     size_t i;
     void *p;
@@ -243,25 +243,25 @@ int xapi_serialize(serializable_var_t *vars, size_t len, void *data, size_t size
     {
         var = &vars[i];
 
-        if ( current_size + var->data_len + var->variable_len + 
-             sizeof(var->data_len) + sizeof(var->variable_len) > size )
+        if ( current_size + var->datasz + var->namesz + 
+             sizeof(var->datasz) + sizeof(var->namesz) > size )
              return -1;
 
         p = data + current_size;
-        memcpy(p, &var->variable_len, sizeof(var->variable_len));
-        current_size += sizeof(var->variable_len);
+        memcpy(p, &var->namesz, sizeof(var->namesz));
+        current_size += sizeof(var->namesz);
 
         p = data + current_size;
-        memcpy(p, var->variable, var->variable_len);
-        current_size += var->variable_len;
+        memcpy(p, var->name, var->namesz);
+        current_size += var->namesz;
 
         p = data + current_size;
-        memcpy(p, &var->data_len, sizeof(var->data_len));
-        current_size += sizeof(var->data_len);
+        memcpy(p, &var->datasz, sizeof(var->datasz));
+        current_size += sizeof(var->datasz);
 
         p = data + current_size;
-        memcpy(p, var->data, var->data_len);
-        current_size += var->data_len;
+        memcpy(p, var->data, var->datasz);
+        current_size += var->datasz;
     }
 
     return 0;

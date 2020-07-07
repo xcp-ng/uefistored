@@ -83,7 +83,6 @@ XenGetVariableLocked (
     )
 {
   uint8_t *ptr;
-  EFI_STATUS status;
 
   if (!VariableName || !VendorGuid || !DataSize)
       return EFI_INVALID_PARAMETER;
@@ -99,27 +98,7 @@ XenGetVariableLocked (
   exec_command(comm_buf);
   ptr = comm_buf;
 
-#if 0
-  status = unserialize_result(&ptr);
-  switch (status) {
-  case EFI_SUCCESS:
-    if (!Data)
-        return EFI_INVALID_PARAMETER;
-    attr = unserialize_uint32(&ptr);
-    if (Attributes)
-        *Attributes = attr;
-    unserialize_data(&ptr, Data, DataSize);
-    break;
-  case EFI_BUFFER_TOO_SMALL:
-    *DataSize = unserialize_uintn(&ptr);
-    break;
-  default:
-    break;
-  }
-
-  return status;
-#endif
-    return 0;
+  return 0;
 }
   
 EFI_STATUS

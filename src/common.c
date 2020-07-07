@@ -23,7 +23,7 @@ bool variable_is_empty(variable_t *v1)
 uint64_t strlen16(const UTF16 *str)
 {
     uint64_t len = 0;
-    UTF16 *p1;
+    const UTF16 *p1;
 
     if ( !str )
         return 0;

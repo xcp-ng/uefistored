@@ -103,22 +103,6 @@ static void dprint_attrs(uint32_t attr)
 #endif
 }
 
-static void next_var_not_found(void *comm_buf)
-{
-    uint8_t *ptr;
-
-    DEBUG("GetNextVariableName(): next var not found\n");
-    ptr = comm_buf;
-    serialize_result(&ptr, EFI_NOT_FOUND);
-}
-
-static void device_error(void *comm_buf)
-{
-    uint8_t *ptr = comm_buf;
-
-    serialize_result(&ptr, EFI_DEVICE_ERROR);
-}
-
 static void buffer_too_small(void *comm_buf, size_t required_size)
 {
     uint8_t *ptr = comm_buf;
@@ -310,13 +294,6 @@ static void print_set_var(UTF16 *variable_name, size_t len, uint32_t attrs)
     DPRINTF("\n");
 }
 
-static bool name_eq(void *vn, size_t vnlen, const char *comp)
-{
-    uc2_ascii_safe(vn, vnlen, strbuf, 512);
-    return memcmp(strbuf, comp, vnlen / 2) == 0;
-}
-
-
 static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr;
@@ -364,41 +341,7 @@ static void handle_set_variable(void *comm_buf)
 
     print_set_var(variable_name, len, attrs);
 
-#if 0
-    if (name_eq(variable_name, len, "XV_DEBUG_UINTN"))
-    {
-        DEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
-        return;
-    }
-    else if (name_eq(variable_name, len, "XV_DEBUG_UINT32"))
-    {
-        DEBUG("XV_DEBUG_UINT32: 0x%x\n",  *((uint32_t*)data));
-        return;
-    }
-    else if (name_eq(variable_name, len, "XV_DEBUG_UINT64"))
-    {
-        DEBUG("XV_DEBUG_UINT64: 0x%lx\n",  *((uint64_t*)data));
-        return;
-    }
-    else if (name_eq(variable_name, len, "XV_DEBUG_UINT8"))
-    {
-        DEBUG("XV_DEBUG_UINT8: 0x%x\n",  *((uint8_t*)data));
-        return;
-    }
-    else if (name_eq(variable_name, len, "XV_DEBUG_STR"))
-    {
-        print_uc2("XV_DEBUG_STR:", data);
-        return;
-    }
-    else if (name_eq(variable_name, len, "XV_DEBUG_ASCII"))
-    {
-        DEBUG("XV_DEBUG_ASCII: %s\n", (char*)data);
-        return;
-    }
-#endif
-
     status = set_variable(variable_name, &guid, attrs, datalen, dp);
-
     validate(variable_name, len, dp, datalen, attrs);
 
     ptr = comm_buf;
