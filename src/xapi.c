@@ -21,8 +21,11 @@
 #include "serializer.h"
 #include "xapi.h"
 
-#define XAPI_CODEC_DEBUG 1
+#define XAPI_CONNECT_RETRIES 5
+#define XAPI_CONNECT_SLEEP 3
 #define XAPI_DEBUG 0
+
+#define MAX_RESPONSE_SIZE 4096
 
 #define BIG_MESSAGE_SIZE (8 * PAGE_SIZE)
 
@@ -69,14 +72,14 @@ int xapi_parse_arg(char *arg)
 
     if ( (p = strstr(optarg, "socket:")) != NULL )
     {
-        p += 7;
+        p += sizeof("socket:") - 1;
         strncpy(socket_path, p, SOCKET_MAX);
         socket_path_initialized = true;
         return 0;
     }
     else if ( (p = strstr(optarg, "uuid:")) != NULL )
     {
-        p += 5; 
+        p += sizeof("uuid:") - 1;
         strncpy(VM_UUID, p, VM_UUID_MAX);
         xapi_uuid_initialized = true;
         return 0;
@@ -477,19 +480,6 @@ static char *variables_base64(void)
     if ( rc < 0 )
         return NULL;
 
-#if XAPI_CODEC_DEBUG
-    DPRINTF("0x");
-    int i;
-    for (i=0; i<16 * sizeof(unsigned long long); i += sizeof(unsigned long long))
-    {
-        unsigned long long val;
-        memcpy(&val, blob + i, sizeof(unsigned long long));
-
-        DPRINTF("%llx", val);
-    }
-    DPRINTF("\n");
-#endif
-
     if ( rc < 0 )
         goto end;
 
@@ -658,43 +648,22 @@ int xapi_set_efi_vars(void)
 
 int xapi_connect(void)
 {
-    char response[4096];
+    char response[MAX_RESPONSE_SIZE];
+    int retries = XAPI_CONNECT_RETRIES;
     int ret;
 
-    ret = send_request(HTTP_LOGIN, response, 4096);
-    if ( ret < 0 )
-        return ret;
+    while ( retries-- > 0 )
+    {
+        ret = send_request(HTTP_LOGIN, response, MAX_RESPONSE_SIZE);
+
+        if ( ret == 200 )
+            break;
+
+        INFO("%s: retrying...\n", __func__);
+        sleep(XAPI_CONNECT_SLEEP);
+    }
 
     return ret;
-}
-
-void save_time(void)
-{
-#if 0
-    time_t ret;
-
-    /* Time since last saved */
-    ret = time((time_t *)0x0);
-    DAT_0060d7c0 = DAT_0060d7c0 + ((int)ret - (int)_DAT_0060d8a0) * 2;
-    _DAT_0060d8a0 = ret;
-    if (DAT_0060d7c0 < 0x65)
-    {
-        if (DAT_0060d7c0 == 0)
-        {
-            response = (void *)0x0;
-            nanosleep((timespec *)&response,(timespec *)0x0);
-            _DAT_0060d8a0 = time((time_t *)0x0);
-        }
-        else
-        {
-            DAT_0060d7c0 = DAT_0060d7c0 - 1;
-        }
-    }
-    else
-    {
-        DAT_0060d7c0 = 99;
-    }
-#endif
 }
 
 int xapi_request(char *response, size_t response_sz, const char *format, ...)
@@ -1177,20 +1146,6 @@ int xapi_get_efi_vars(variable_t *vars, size_t n)
     if ( ret < 0 )
         return ret;
 
-#if XAPI_CODEC_DEBUG
-    int i;
-
-    DPRINTF("0x");
-    for (i=0; i<16 * sizeof(unsigned long long); i += sizeof(unsigned long long))
-    {
-        unsigned long long val;
-        memcpy(&val, plaintext + i, sizeof(unsigned long long));
-
-        DPRINTF("%llx", val);
-    }
-    DPRINTF("\n");
-#endif
-
     ret = from_blob_to_vars(vars, n, plaintext, (size_t)ret);
 
     if ( ret < 0 )
@@ -1207,8 +1162,6 @@ int xapi_set_variables(void)
 
     if ( UUID_ARG == 0 )
         return 1;
-
-    save_time();
 
     ret = session_login(session_id, 512);
 
