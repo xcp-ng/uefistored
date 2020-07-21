@@ -12,7 +12,7 @@ int get_sockfd(void)
 
 int socket(int type, int socktype, int protocol)
 {
-    sockfd = open("./random_socket_mock", O_RDWR | O_CREAT | O_EXCL, S_IRWXU);
+    sockfd = open("./mock_socket", O_RDWR | O_CREAT | O_EXCL, S_IRWXU);
 
     if ( sockfd == -1 )
         return sockfd;

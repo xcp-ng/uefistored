@@ -19,11 +19,17 @@ static variable_t variables[MAX_VAR_COUNT];
 static size_t iter;
 static size_t total;
 
+static bool slot_is_empty(variable_t *var)
+{
+    if ( !var || var->datasz == 0 || var->namesz == 0 )
+       return true;
+
+    return false;
+}
+
 int ramdb_init(void)
 {
-    total = 0;
-    iter = 0;
-    memset(variables, 0, sizeof(variables));
+    ramdb_destroy();
     return 0;
 }
 
@@ -38,9 +44,15 @@ void ramdb_deinit(void)
 
 void ramdb_destroy(void)
 {
+    variable_t *var;
+
     total = 0;
     iter = 0;
-    memset(variables, 0, sizeof(variables));
+
+    for_each_variable(variables, var)
+    {
+        variable_destroy_noalloc(var);
+    }
 }
 
 int ramdb_exists(const UTF16 *name)
@@ -89,23 +101,23 @@ int ramdb_get(const UTF16 *name,
 
 int ramdb_remove(const UTF16 *name)
 {
-    size_t varlen;
+    size_t namesz;
     variable_t *var;
 
     if ( !name )
         return -1;
 
-    varlen = strlen16(name);
+    namesz = strsize16(name);
 
     for_each_variable(variables, var)
     {
-        if ( var->namesz != varlen )
+        if ( var->namesz != namesz )
             continue;
 
         if ( strcmp16(var->name, name) == 0 )
         {
-            memset(var, 0, sizeof(*var));
-	    total--;
+            variable_destroy(var);
+            total--;
             return 0;
         }
     }
@@ -114,58 +126,64 @@ int ramdb_remove(const UTF16 *name)
     return 0;
 }
 
-int ramdb_set(const UTF16 *name, const void *val, const size_t len, const uint32_t attrs)
+int ramdb_set(const UTF16 *name,
+              const void *data,
+              const size_t datasz,
+              const uint32_t attrs)
 {
-    size_t varlen;
+    int ret;
+    EFI_GUID guid = {0};
+    size_t namesz;
     variable_t *var;
 
-    if ( !name )
+    if ( !name || !data )
         return -1;
 
-    varlen = strlen16(name);
+    namesz = strsize16(name);
 
-    if ( varlen + 2 >=  MAX_VARNAME_SZ )
+    if ( namesz + sizeof(UTF16) >=  MAX_VARNAME_SZ )
         return -ENOMEM;
 
-    if ( len >=  MAX_VARDATA_SZ )
+    if ( datasz >=  MAX_VARDATA_SZ )
         return -ENOMEM;
 
     /* As specified by the UEFI spec */
-    if ( len == 0 || attrs == 0 )
+    if ( datasz == 0 || attrs == 0 )
         return ramdb_remove(name);
 
     /* If it already exists, replace it */
     for_each_variable(variables, var)
     {
-        if ( var->namesz != varlen )
+        if ( var->namesz != namesz )
             continue;
 
         if ( strcmp16(var->name, name) == 0 )
         {
-            memcpy(var->data, val, len);
-            memcpy(&var->namesz, &varlen, sizeof(var->namesz));
-            memcpy(&var->datasz, &len, sizeof(var->datasz));
+            ret = variable_set_name(var, name);
+
+            if ( ret < 0 )
+                return ret;
+
+            ret = variable_set_data(var, data, datasz);
+
+            if ( ret < 0 )
+                return ret;
+
             memcpy(&var->attrs, &attrs, sizeof(var->attrs));
             return 0;
         }
     }
 
-    /* Place it in first found empty slot */
+    /* If it is completely new, place it in the first found empty slot */
     for_each_variable(variables, var)
     {
-        if ( var->namesz == 0 )
+        if ( var->name == NULL )
         {
-            if ( strncpy16(var->name, name, MAX_VARNAME_SZ) < 0 )
-            {
-                memset(var->name, 0, MAX_VARNAME_SZ * sizeof(UTF16));
-                return -1;
-            }
-                
-            memcpy(var->name, name, varlen);
-            memcpy(var->data, val, len);
-            memcpy(&var->namesz, &varlen, sizeof(var->namesz));
-            memcpy(&var->datasz, &len, sizeof(var->datasz));
-            memcpy(&var->attrs, &attrs, sizeof(var->attrs));
+            ret = variable_create_noalloc(var, name, data, datasz, &guid, attrs);
+
+            if ( ret < 0 )
+                return ret;
+
             total++;
             return 0;
         }
@@ -182,75 +200,36 @@ int ramdb_set(const UTF16 *name, const void *val, const size_t len, const uint32
  *
  * Returns -1 on error, 0 on end of list, 1 on success
  */
-int ramdb_next(variable_t *current, variable_t *next)
+int ramdb_next(variable_t *next)
 {
     variable_t *var;
 
-    if ( !current || !next )
+    if ( !next )
         return -1;
 
-    if ( iter >= MAX_VAR_COUNT || iter >= total )
+    if ( iter >= MAX_VAR_COUNT || total == 0 )
         goto stop_iterator;
-
-    var = &variables[iter];
     
-    /* First call */
-    if ( iter == 0 )
+    var = &variables[iter];
+
+    /* Find next non-empty_variable slot */
+    while ( iter < MAX_VAR_COUNT && slot_is_empty(var) )
     {
-
-        if ( variable_is_empty(var) )
-            goto stop_iterator;
-
-        goto variable_found;
+        iter++;
+        var = &variables[iter];
     }
 
-variable_found:
-    memcpy(next, var, sizeof(*next));
+    /* If none found, stop the iteration */
+    if ( iter >= MAX_VAR_COUNT )
+        goto stop_iterator;
+
     iter++;
+
+    /* A variable has been found so return it as next */
+    variable_create_noalloc(next, var->name, var->data, var->datasz, &var->guid, var->attrs);
     return 1;
 
 stop_iterator:
     iter = 0;
     return 0;
-}
-
-void ramdb_debug(void)
-{
-#if 1
-    variable_t *var;
-
-    for_each_variable(variables, var) 
-    {
-        if ( variable_is_empty(var) )
-            continue;
-
-        char ascii[MAX_VARNAME_SZ];
-        uc2_ascii(var->name, ascii, MAX_VARNAME_SZ);
-
-        switch ( var->datasz )
-        {
-        case 1:
-            DEBUG("%s: 0x%x\n", ascii, *((uint8_t*)var->data));
-            break;
-        case 2:
-            DEBUG("%s: 0x%x\n", ascii, *((uint16_t*)var->data));
-            break;
-        case 4:
-            DEBUG("%s: 0x%x\n", ascii, *((uint32_t*)var->data));
-            break;
-        case 8:
-            DEBUG("%s: 0x%lx\n", ascii, *((uint64_t*)var->data));
-            break;
-        case 16:
-            DEBUG("%s: 0x%llx\n", ascii, *((unsigned long long*)var->data));
-            break;
-        default:
-        {
-            DPRINTF("%s: ", ascii);
-            dprint_data(var->data, var->datasz);
-            break;
-        }
-        }
-    }
-#endif
 }

@@ -17,7 +17,6 @@ void log_init(const char *filename);
 void log_deinit(void);
 
 void dprint_data(void *data, size_t datalen);
-variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n);
 
 #define varstored_fprintf(stream, ...)                    \
     do {                                                \

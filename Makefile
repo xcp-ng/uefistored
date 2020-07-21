@@ -13,7 +13,7 @@ LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
 INC := -Iinc/ -Ilibs/
-CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
+CFLAGS := -g -Wall -Werror -lssl -lcrypto -lxml2 -I/usr/include/libxml2
 
 all: varstored
 
@@ -39,9 +39,11 @@ tools:
 .PHONY: test
 test:
 	$(MAKE) -C tests/
+	cd tests && ./$@
 
 .PHONY: test-nosan
 test-nosan:
 	$(MAKE) test-nosan -C tests/
+	cd tests && ./$@
 
 include Env.mk

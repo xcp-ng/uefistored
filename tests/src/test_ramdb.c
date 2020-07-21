@@ -11,21 +11,13 @@
 #include "test_common.h"
 #include "test_ramdb.h"
 
-static variable_t var1 = {
-    .name =  {'R', 'T', 'C'},
-    .namesz =  3,
-    .data = { 0xa, 0xb, 0xc, 0xd },
-    .datasz = 4,
-    .attrs = 0x5,
-};
+static UTF16 RTC[] =  {'R', 'T', 'C'};
+static uint8_t RTC_DATA[] = { 0xa, 0xb, 0xc, 0xd };
+static UTF16 CHEER[] =  {'C', 'H', 'E', 'E', 'R'};
+static uint8_t CHEER_DATA[] = { 0xa, 0xb, 0xc, 0xd, 0xf, 0xf };
 
-static variable_t var2 = {
-    .name = {'C', 'H', 'E', 'E', 'R'},
-    .namesz =  5,
-    .data = { 0xa, 0xb, 0xc, 0xd, 0xf, 0xf },
-    .datasz = 6,
-    .attrs = 0x4,
-};
+static variable_t var1;
+static variable_t var2;
 
 static void pre_test(void)
 {
@@ -41,10 +33,11 @@ static void test_set_and_get(void)
 {
     int ret;
 
-    variable_t tmp;
+    variable_t tmp = {0};
 
-    memcpy(tmp.name, var1.name, var1.namesz);
-    memcpy(&tmp.namesz, &var1.namesz, sizeof(var1.namesz));
+    variable_create_noalloc(&tmp, var1.name, var1.data, var1.datasz, &var1.guid, var1.attrs);
+
+    memset(var1.data, 0, var1.datasz);
 
     ret = ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
@@ -57,6 +50,8 @@ static void test_set_and_get(void)
     test( memcmp(tmp.name, var1.name, var1.namesz) == 0 );
     test( memcmp(tmp.data, var1.data, var1.datasz) == 0 );
     test( var1.attrs == tmp.attrs );
+
+    variable_destroy_noalloc(&tmp);
 }
 
 static void test_set_and_get2(void)
@@ -65,7 +60,8 @@ static void test_set_and_get2(void)
 
     variable_t tmp;
 
-
+    tmp.name = malloc(MAX_VARNAME_SZ);
+    tmp.data = malloc(MAX_VARDATA_SZ);
     strncpy16(tmp.name, var1.name, MAX_VARNAME_SZ);
     tmp.namesz = var1.namesz;
 
@@ -81,7 +77,6 @@ static void test_set_and_get2(void)
     test( memcmp(tmp.data, var1.data, var1.datasz) == 0 );
     test( var1.attrs == tmp.attrs );
 
-    memset(&tmp, 0, sizeof(tmp));
     strncpy16(tmp.name, var2.name, MAX_VARNAME_SZ);
     tmp.namesz = var2.namesz;
 
@@ -91,11 +86,10 @@ static void test_set_and_get2(void)
     ret = ramdb_get(tmp.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
-    test( var2.namesz == tmp.namesz );
-    test( var2.datasz == tmp.datasz );
-    test( memcmp(tmp.name, var2.name, var2.namesz) == 0 );
-    test( memcmp(tmp.data, var2.data, var2.datasz) == 0 );
-    test( var2.attrs == tmp.attrs );
+    test( variable_eq(&var2, &tmp) );
+
+    free(tmp.data);
+    free(tmp.name);
 }
 
 static void test_next(void)
@@ -112,20 +106,28 @@ static void test_next(void)
     ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
     ramdb_set(var2.name, var2.data, var2.datasz, var2.attrs);
 
-    ret = ramdb_next(&cur, &next);
+    ret = ramdb_next(&next);
     test( ret == 1 );
+    variable_destroy_noalloc(&next);
 
-    ret = ramdb_next(&next, &after);
+    ret = ramdb_next(&next);
     test( ret == 1 );
+    variable_destroy_noalloc(&next);
 
-    ret = ramdb_next(&after, &final);
-    DEBUG("ret=%d\n", ret);
+    ret = ramdb_next(&next);
     test( ret == 0 );
+    variable_destroy_noalloc(&next);
 }
 
 void test_ramdb(void)
 {
+    variable_create_noalloc(&var1, RTC, RTC_DATA, sizeof(RTC_DATA), &DEFAULT_GUID, DEFAULT_ATTR);
+    variable_create_noalloc(&var2, CHEER, CHEER_DATA, sizeof(CHEER_DATA), &DEFAULT_GUID, DEFAULT_ATTR);
+
     DO_TEST(test_set_and_get);
     DO_TEST(test_set_and_get2);
     DO_TEST(test_next);
+
+    variable_destroy_noalloc(&var1);
+    variable_destroy_noalloc(&var2);
 }

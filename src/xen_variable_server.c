@@ -111,27 +111,6 @@ static void buffer_too_small(void *comm_buf, size_t required_size)
     serialize_uintn(&ptr, (uint64_t)required_size);
 }
 
-static void dprint_next_var(variable_t *curr, variable_t *next)
-{
-#if DEBUG_XEN_VARIABLE_SERVER
-    DPRINTF("DEBUG: cmd:GET_NEXT_VARIABLE: curr=");
-
-    if ( curr && curr->namesz > 0 )
-    {
-        uc2_ascii_safe(curr->name, curr->namesz, strbuf, 512);
-        DPRINTF("%s", strbuf);
-    }
-
-    DPRINTF(", next=");
-    if ( next && next->namesz > 0 )
-    {
-        uc2_ascii_safe(next->name, next->namesz, strbuf, 512);
-        DPRINTF("%s", strbuf);
-    }
-    DPRINTF("\n");
-#endif
-}
-
 void print_uc2(const char *TAG, void *vn)
 {
 #if DEBUG_XEN_VARIABLE_SERVER
@@ -141,41 +120,19 @@ void print_uc2(const char *TAG, void *vn)
 #endif
 }
 
-static bool isempty(void *mem, size_t len)
-{
-    uint8_t *p;
-
-    if ( !mem || len == 0 )
-        return true;
-
-
-    p = mem;
-
-
-    while ( len-- > 0 )
-    {
-        if ( *p != 0 )
-            return false;
-
-        p++;
-    }
-
-    return true;
-}
-
 #ifdef VALIDATE_WRITES
-static void validate(void *variable_name, size_t len, void *data, size_t datalen, uint32_t attrs)
+static void validate(void *name, size_t len, void *data, size_t datasz, uint32_t attrs)
 {
     int ret;
     uint8_t test_data[MAX_VARDATA_SZ];
     uint32_t test_attrs = 0;
-    size_t test_datalen;
+    size_t test_datasz;
 
     (void) len;
 
-    ret = ramdb_get(variable_name, test_data, MAX_VARDATA_SZ, &test_datalen, &test_attrs);
+    ret = ramdb_get(name, test_data, MAX_VARDATA_SZ, &test_datasz, &test_attrs);
 
-    if ( datalen == 0 && ret == VAR_NOT_FOUND )
+    if ( datasz == 0 && ret == VAR_NOT_FOUND )
     {
         DEBUG("Variable successfully deleted!\n");
         return;
@@ -186,7 +143,7 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
         return;
     }
 
-    if ( memcmp(test_data, data, datalen) )
+    if ( memcmp(test_data, data, datasz) )
         ERROR("Variable does not match!\n");
     else
         INFO("Variables match!\n");
@@ -196,11 +153,11 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
     else
         INFO("Attrs match!\n");
 
-    dprint_vname("Validate: %s\n", variable_name);
+    dprint_vname("Validate: %s\n", name);
     DPRINTF("FROM DB: ");
-    dprint_data(test_data, test_datalen);
+    dprint_data(test_data, test_datasz);
     DPRINTF("FROM OVMF: ");
-    dprint_data(data, datalen);
+    dprint_data(data, datasz);
     DEBUG("*************************\n");
 }
 #else
@@ -209,12 +166,12 @@ static void validate(void *variable_name, size_t len, void *data, size_t datalen
 
 static void handle_get_variable(void *comm_buf)
 {
-    int len;
+    int namesz;
     EFI_GUID guid;
     uint32_t attrs, version;
     uint64_t buflen;
     uint8_t data[MAX_VARDATA_SZ];
-    UTF16 variable_name[MAX_VARNAME_SZ];
+    UTF16 *name;
     EFI_STATUS status;
     uint8_t *ptr;
 
@@ -236,60 +193,53 @@ static void handle_get_variable(void *comm_buf)
         return;
     }
 
-    len = unserialize_name(&ptr, variable_name, MAX_VARNAME_SZ);
+    namesz = unserialize_namesz(&ptr);
 
-    if ( len <= 0 )
+    if ( namesz <= 0 )
     {
-        ERROR("cmd:GET_VARIABLE: UEFI Error: variable name len is 0\n");
         ptr = comm_buf;
-        serialize_result(&ptr, EFI_INVALID_PARAMETER);
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
-    if ( isempty(variable_name, len) )
-    {
-        /*
-         * This case is not in the UEFI specification.  It _seems_ that this
-         * would not be allowed, so we disallow it. 
-         */
-        DEBUG("cmd:GET_VARIABLE: UEFI Error, variable name is empty\n");
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_INVALID_PARAMETER);
-        return;
-    }
-
+    name = malloc(namesz + sizeof(UTF16));
+    unserialize_name(&ptr, name, namesz + sizeof(UTF16));
     unserialize_guid(&ptr, &guid);
 
     buflen = unserialize_uint64(&ptr);
 
-    status = get_variable(variable_name, &guid, &attrs, &buflen, data);
+    status = get_variable(name, &guid, &attrs, &buflen, data);
 
     if ( status == EFI_BUFFER_TOO_SMALL )
     {
         buffer_too_small(comm_buf, buflen);
+        free(name);
         return;
     }
     else if ( status )
     {
         ptr = comm_buf;
-        dprint_vname("cmd:GET_VARIABLE: %s, ", variable_name);
+        dprint_vname("cmd:GET_VARIABLE: %s, ", name);
         DPRINTF("error=0x%02lx\n", status);
         serialize_result(&ptr, status);
+        free(name);
         return;
     }
 
 
-    dprint_vname("cmd:GET_VARIABLE: %s\n", variable_name);
+    dprint_vname("cmd:GET_VARIABLE: %s\n", name);
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_uint32(&ptr, attrs);
     serialize_data(&ptr, data, buflen);
+
+    free(name);
 }
 
-static void print_set_var(UTF16 *variable_name, size_t len, uint32_t attrs)
+static void print_set_var(UTF16 *name, size_t len, uint32_t attrs)
 {
-    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", variable_name);
+    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", name);
     dprint_attrs(attrs);
     DPRINTF("\n");
 }
@@ -298,9 +248,9 @@ static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr;
     EFI_GUID guid;
-    int len;
-    size_t datalen;
-    UTF16 variable_name[MAX_VARNAME_SZ];
+    int namesz;
+    size_t datasz;
+    UTF16 *name;
     uint8_t data[MAX_VARDATA_SZ];
     void *dp = data;
     uint32_t attrs, command, version;
@@ -328,30 +278,38 @@ static void handle_set_variable(void *comm_buf)
         return;
     }
 
-    len = unserialize_name(&ptr, variable_name, MAX_VARNAME_SZ);
-    if ( len <= 0 )
+    namesz = unserialize_namesz(&ptr);
+
+    if ( namesz <= 0 )
     {
-        ERROR("%s: len == %d\n", __func__, len);
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
+    name = malloc(namesz + sizeof(UTF16));
+    unserialize_name(&ptr, name, namesz + sizeof(UTF16));
     unserialize_guid(&ptr, &guid);
-    datalen = unserialize_data(&ptr, dp, MAX_VARDATA_SZ);
+
+    datasz = unserialize_data(&ptr, dp, MAX_VARDATA_SZ);
     attrs = unserialize_uint32(&ptr);
 
-    print_set_var(variable_name, len, attrs);
+    print_set_var(name, namesz, attrs);
 
-    status = set_variable(variable_name, &guid, attrs, datalen, dp);
-    validate(variable_name, len, dp, datalen, attrs);
+    status = set_variable(name, &guid, attrs, datasz, dp);
+    validate(name, namesz, dp, datasz, attrs);
 
     ptr = comm_buf;
     serialize_result(&ptr, status);
+
+    free(name);
 }
 
-static EFI_STATUS unserialize_get_next_variable(void *comm_buf, uint64_t *namesz,
-                                          UTF16 *name,
-                                          uint64_t *guest_bufsz,
-                                          EFI_GUID *guid)
+static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
+                                                uint64_t *namesz,
+                                                UTF16 **name,
+                                                uint64_t *guest_bufsz,
+                                                EFI_GUID *guid)
 {
     uint32_t command;
     bool efi_at_runtime;
@@ -371,7 +329,10 @@ static EFI_STATUS unserialize_get_next_variable(void *comm_buf, uint64_t *namesz
     assert(command == COMMAND_GET_NEXT_VARIABLE);
 
     *guest_bufsz = unserialize_uintn(&ptr);
-    *namesz = unserialize_name(&ptr, name, MAX_VARNAME_SZ);
+    *namesz = unserialize_namesz(&ptr);
+    *name = malloc(*namesz + sizeof(UTF16));
+
+    unserialize_name(&ptr, *name, *namesz + sizeof(UTF16));
     unserialize_guid(&ptr, guid);
 
     /* TODO: use the guid according to spec */
@@ -397,18 +358,20 @@ static void handle_get_next_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
     uint64_t guest_bufsz;
-    variable_t current, next;
+    UTF16 *name;
+    uint64_t namesz;
+    variable_t next;
     int ret;
+    EFI_GUID guid;
     EFI_STATUS status;
 
-    memset(&current, 0, sizeof(current));
     memset(&next, 0, sizeof(next));
 
-    status = unserialize_get_next_variable(ptr, &current.namesz, current.name, &guest_bufsz, &current.guid);
+    status = unserialize_get_next_variable(ptr, &namesz, &name, &guest_bufsz, &guid);
     if ( status )
         goto err;
 
-    ret = ramdb_next(&current, &next);
+    ret = ramdb_next(&next);
 
     if ( ret == 0 )
     {
@@ -429,18 +392,22 @@ static void handle_get_next_variable(void *comm_buf)
         WARNING("GetNextVariableName(), buffer too small: namesz: %lu, guest_bufsz: %lu\n",
                 next.namesz, guest_bufsz);
         buffer_too_small(comm_buf, strsize16(next.name));
-        return;
+        goto cleanup;
     }
-
-    dprint_next_var(&current, &next);
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_name(&ptr, next.name);
     serialize_guid(&ptr, &next.guid);
+    goto cleanup;
 
 err:
     serialize_result(&ptr, status);
+
+cleanup:
+    variable_destroy_noalloc(&next);
+    free(name);
+    return;
 }
 
 
@@ -461,7 +428,6 @@ void xen_variable_server_handle_request(void *comm_buf)
     unserialize_uint32(&ptr);
 
     command = unserialize_uint32(&ptr);
-    DEBUG("command=%d\n", command);
 
     switch ( command )
     {
@@ -533,9 +499,10 @@ int xen_variable_server_init(var_initializer_t init_vars)
         {
             for_each_variable(variables, var) 
             {
-                char ascii[MAX_VARNAME_SZ];
-                uc2_ascii(var->name, ascii, MAX_VARNAME_SZ);
-                DEBUG("%s: %s\n", ascii, var->data);
+                ret = ramdb_set(var->name, var->data, var->datasz, var->attrs);
+
+                if ( ret < 0 )
+                    ERROR("failed to set variable\n");
             }
         }
     }

@@ -4,17 +4,6 @@
 #include "log.h"
 #include "uefitypes.h"
 
-char strbuf[512] = {0};
-
-bool variable_is_empty(variable_t *v1)
-{
-    if ( !v1 )
-       return true;
-
-    /* tWO ZERO BYTES IS END OF STRING IN ucs-2 /CHAR16 */
-    return v1->name[0] == 0 && v1->name[1] == 0;
-}
-
 /**
  * Return the length of a UTF16 string.
  *
@@ -135,7 +124,7 @@ int strcmp16(const UTF16 *a, const UTF16 *b)
  */
 int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
 {
-    uint8_t *p;
+    UTF16 *p;
     size_t b_sz;
 
     if ( !a || !b )
@@ -143,14 +132,13 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
 
     b_sz = strsize16(b);
     
-    if ( b_sz > n )
+    if ( b_sz + sizeof(UTF16) > n )
         return -1;
 
     memcpy(a, b, b_sz);
 
-    p =  (uint8_t*)a;
-    p[b_sz] = 0;
-    p[b_sz + 1] = 0;
+    p = a;
+    p[b_sz / sizeof(UTF16)] = 0;
 
     return 0;
 }

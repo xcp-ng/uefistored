@@ -34,14 +34,14 @@ UTF16 rtcnamebytes[] = {
     'R',
     'T',
     'C',
-     0,
+     '\0',
 };
 
 UTF16 mtcnamebytes[] = {
     'M',
     'T',
     'C',
-     0,
+     '\0',
 };
 
 static inline uint64_t getstatus(void *p)
@@ -254,11 +254,6 @@ static void test_empty_get_next_var(void)
 
 #define TEST_VARNAME_BUF_SZ 256
 
-/**
- * Test that variable store returns EFI_SUCCESS and returns the correct
- * variable name upon GetNextVariableName() being called after setting one
- * variable.
- */
 static void test_success_get_next_var_one(void)
 {
     EFI_STATUS status;
@@ -284,18 +279,6 @@ static void test_success_get_next_var_one(void)
 
     /* Assertions */
     test(status == EFI_SUCCESS);
-
-    int i;
-    for ( i=0; i<sizeof(rtcnamebytes) / sizeof(rtcnamebytes[0]); i++ )
-    {
-        printf("0x%02x == 0x%02x\n", buf[i], rtcnamebytes[i]);
-    }
-
-    for ( i=0; i<32; i++ )
-    {
-        printf("0x%02x ", ((uint8_t*)comm_buf)[i]);
-    }
-    printf("\n");
     test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 
     XenGetNextVariableName(&varname_sz, buf, &guid);
@@ -303,6 +286,8 @@ static void test_success_get_next_var_one(void)
 
     ptr = comm_buf;
     status = unserialize_result(&ptr);
+    printf("status=0x%02lx\n", status);
+    printf("EFI_NOT_FOUND=0x%02lx\n", EFI_NOT_FOUND);
     test(status == EFI_NOT_FOUND);
 }
 

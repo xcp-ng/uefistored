@@ -3,8 +3,9 @@ include ../Common.mk
 CC := gcc
 
 SRCS := $(patsubst %,../%,$(SRCS))
+HDRS := $(shell find . -type f -name '*.h')
 
-CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2
+CFLAGS := -g -Wall -lssl -lcrypto -lxml2 -I/usr/include/libxml2 -Werror
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -I mock/ -Isrc/
 
 # Add mocks
@@ -31,10 +32,10 @@ all: test-nosan test
 		./test-nosan
 	./$<
 
-test: src/main.c $(OBJ) $(TEST_OBJ) keys/.done
+test: src/main.c $(OBJ) $(TEST_OBJ) keys/.done $(HDRS)
 	$(CC) -o $@ $< $(INC) $(OBJ) $(TEST_OBJ) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak
 
-test-nosan: src/main.c $(TEST_OBJ) $(OBJ) keys
+test-nosan: src/main.c $(TEST_OBJ) $(OBJ) keys $(HDRS)
 	$(CC) -o $@ $< $(INC) $(OBJ) $(TEST_OBJ) $(CFLAGS)
 
 FUZZ_LONG := 30m

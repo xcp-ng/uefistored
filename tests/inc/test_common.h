@@ -7,6 +7,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+static const EFI_GUID DEFAULT_GUID = { .Data1 = 0xc0defeed };
+static const uint32_t DEFAULT_ATTRS = 0xdeadbeef;
+
+#define DISABLE_STDIO 1
+
 static char assertion[128];
 extern int passcount;
 extern int failcount;
@@ -15,8 +20,9 @@ static int old_fail_count;
 static int old_stdout;
 static int old_stderr;
 static bool redirected;
-int test_lineno;
+static int test_lineno;
 
+#if DISABLE_STDIO
 static inline void redirect_init(void)
 {
     int new_stdout, new_stderr;
@@ -54,6 +60,15 @@ static inline void redirect_deinit(void)
 
     redirected = false;
 }
+#else
+#define redirect_init() do {        \
+    (void)redirected;               \
+    (void)old_stderr;               \
+    (void)old_stdout;               \
+    } while (0)
+
+#define redirect_deinit() do { } while (0)
+#endif
 
 #define test_printf(...)            \
     do {                            \
@@ -70,7 +85,7 @@ static inline void pre_pre_test(void)
 static inline void post_post_test(const char *file_name, const char *test_name)
 {
     if ( old_fail_count != failcount )
-        printf("%s:%s:%d: %s: %s\n", file_name, test_name, test_lineno, assertion, "fail");
+        test_printf("\n%s:%s:%d: %s: %s\n", file_name, test_name, test_lineno, assertion, "fail");
 
     memset(assertion, 0, strlen(assertion));
 }
@@ -93,11 +108,10 @@ static inline void post_post_test(const char *file_name, const char *test_name)
             strcpy(assertion, #_assertion);                             \
             test_lineno = _lineno;                             \
             failcount++;                                                \
-            return;                                                     \
         }                                                               \
         else                                                            \
         {                                                               \
-            printf(".");                                                \
+            test_printf(".");                                                \
             passcount++;                                                \
         }                                                               \
     } while ( 0 )

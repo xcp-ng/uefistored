@@ -9,6 +9,10 @@
 #include <uchar.h>
 
 #include "uefitypes.h"
+#include "variable.h"
+
+#define VAR_PADDING 48UL
+#define UTF16_CHAR_SZ sizeof(UTF16)
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
@@ -25,34 +29,6 @@
 #define SHMEM_PAGES 16
 #define SHMEM_SIZE (SHMEM_PAGES * PAGE_SIZE)
 
-typedef struct {
-    size_t namesz;
-    UTF16 name[MAX_VARNAME_SZ];
-    size_t datasz;
-    uint8_t data[MAX_VARDATA_SZ];
-    uint32_t attrs;
-    EFI_GUID guid;
-} variable_t;
-
-#define for_each_variable(vars, var) \
-    for ( (var) = (vars); (var) < &((vars)[sizeof((vars))/sizeof((vars)[0])]); (var)++ )
-
-typedef struct {
-    /* The name of the variable */
-    uint8_t *variable;
-
-    /* The length of the variable name */
-    size_t variable_len;
-
-    /* The value of the variable */
-    uint8_t *data;
-
-    /* The length of the value of the variable */
-    size_t data_len;
-} serializable_var_t;
-
-
-
 void dprint_variable(variable_t *var);
 
 #define USE_STREAM 1
@@ -64,9 +40,8 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n);
 
 void uc2_ascii_safe(UTF16 *uc2, size_t uc2_len, char *ascii, size_t len);
 void uc2_ascii(UTF16 *uc2, char *ascii, size_t len);
-bool variable_is_empty(variable_t *);
-
 
 typedef int (*var_initializer_t)(variable_t *, size_t);
+variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n);
 
 #endif

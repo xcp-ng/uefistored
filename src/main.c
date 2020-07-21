@@ -311,7 +311,6 @@ int setup_portio(xendevicemodel_handle *dmod,
 
 static void *auth_file;
 
-#warning "TODO: load_auth_file()"
 static int load_auth_file(void)
 {
     int fd;

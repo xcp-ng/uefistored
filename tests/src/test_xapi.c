@@ -25,7 +25,23 @@ static char *BIG_BASE64_XML =  BIG_BASE64_XML_STR;
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;
 
-char socket_path[108] = "/xapi-depriv-socket";
+static UTF16 v1[] = { 'B', 'C', '\0' };
+static UTF16 v2[] = { 'Y', 'Z', '\0' };
+static const UTF16 FOO[] = { 'F', 'O', 'O', '\0' };
+static const UTF16 BAR[] = { 'B', 'A', 'R', '\0' };
+static const UTF16 CHEER[] = { 'C', 'H', 'E', 'E', 'R', '\0' };
+static const UTF16 ABCD[] = { 'A', 'B', 'C', 'D', '\0' };
+
+static char *D1 = "WORLD!";
+static char *D2 = "bar";
+
+static size_t v1_len;
+static size_t d1_len;
+static size_t v2_len;
+static size_t d2_len;
+static size_t blocksz;
+
+static variable_t vars[2];
 
 static void pre_test(void)
 {
@@ -40,81 +56,13 @@ static void post_test(void)
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
-static UTF16 v1[] = { 'B', 'C', 0 };
-static UTF16 v2[] = { 'Y', 'Z', 0 };
-
-static char *D1 = "WORLD!";
-static char *D2 = "bar";
-
-static size_t v1_len;
-static size_t d1_len;
-static size_t v2_len;
-static size_t d2_len;
-static size_t blocksz;
-
-static variable_t vars[2];
-
-static void test_xapi_serialize_size(void)
-{
-    size_t size;
-
-    size = xapi_serialized_size(vars, 2);
-
-    test(size == blocksz);
-}
-
-static void test_xapi_serialize(void)
-{
-    uint8_t *p;
-    void *data;
-    size_t size, tmp;
-
-    size = xapi_serialized_size(vars, 2);
-    data = malloc(size);
-    xapi_serialize(vars, 2, data, size);
-
-    p = data;
-
-    /* Test Variable 1 was serialized correctly */
-    memcpy(&tmp, p, sizeof(tmp));
-    test(tmp == v1_len);
-    p += sizeof(tmp);
-
-    test(memcmp(p, v1, tmp) == 0);
-    p += tmp;
-
-    memcpy(&tmp, p, sizeof(tmp));
-    test(tmp == d1_len);
-    p += sizeof(tmp);
-
-    test(memcmp(p, D1, tmp) == 0);
-    p += tmp;
-
-    /* Test Variable 2 was serialized correctly */
-    memcpy(&tmp, p, sizeof(tmp));
-    test(tmp == v2_len);
-    p += sizeof(tmp);
-
-    test(memcmp(p, v2, tmp) == 0);
-    p += tmp;
-
-    memcpy(&tmp, p, sizeof(tmp));
-    test(tmp == d2_len);
-    p += sizeof(tmp);
-
-    test(memcmp(p, D2, tmp) == 0);
-    p += tmp;
-
-    free(data);
-}
-
 void test_xapi_set_efi_vars(void)
 {
     char readbuf[4096] = {0};
     int fd;
     variable_t *var;
     EFI_GUID guid;
-    uint32_t attr = DEFAULT_ATTR;
+    uint32_t attr = DEFAULT_ATTRS;
 
     var = &vars[0];
     mock_xen_variable_server_set_buffer(comm_buf);
@@ -128,148 +76,193 @@ void test_xapi_set_efi_vars(void)
 
     xapi_set_efi_vars();
 
-    fd = open("./random_socket_mock", O_RDWR | O_EXCL, S_IRWXU);
+    fd = open("./mock_socket", O_RDWR | O_EXCL, S_IRWXU);
     
     test(fd > 0);
     test(read(fd, readbuf, 4096) >= 0);
     test(strstr(readbuf, "BAAAAAAAAABCAEMABgAAAAAAAABXT1JMRCEEAAAAAAAAAFkAWgADAAAAAAAAAGJh") != NULL);
 
-    remove("./random_socket_mock");
+    remove("./mock_socket");
 }
 
 static void test_blob(void)
 {
     uint8_t blob[4096] = {0};
+    uint8_t *p = (uint8_t*)blob;
     variable_t orig = {0};
     variable_t var = {0};
 
     /* Setup */
-    strcpy((char*)orig.name, "FOO");
-    orig.namesz = strlen("FOO");
-    strcpy((char*)orig.data, "BAR");
-    orig.datasz = strlen("BAR");
+    variable_create_noalloc(&orig, FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTR);
 
-    from_vars_to_blob(blob, TEST_PT_SIZE, &orig, 1);
+    serialize_variable_list(&p, TEST_PT_SIZE, &orig, 1);
     from_blob_to_vars(&var, 1, blob, TEST_PT_SIZE);
 
-    test(memcmp(&var, &orig, sizeof(var)) == 0);
+    test(variable_eq(&orig, &var));
+    variable_destroy_noalloc(&orig);
+    variable_destroy_noalloc(&var);
 }
 
 static void test_var_copy(void)
 {
     uint8_t buf[4096] = {0};
-    uint8_t *p = buf;
+    uint8_t *p;
     variable_t orig = {0};
-    variable_t var = {0};
+    variable_t *var;
 
     /* Setup */
-    strcpy((char*)orig.name, "FOO");
-    orig.namesz = strlen("FOO");
-    strcpy((char*)orig.data, "BAR");
-    orig.datasz = strlen("BAR");
+    variable_create_noalloc(&orig, FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTR);
 
 
     /* Do the work */
-    serialize_var(&p, 4096, &orig);
     p = buf;
-    unserialize_var(&var, &p);
+    serialize_var(&p, &orig);
+    p = buf;
+    var = variable_create_unserialize(&p);
+
+    variable_printf(var);
+    variable_printf(&orig);
+
+    printf("var->namesz=%lu\n", var->namesz);
+    printf("orig.namesz=%lu\n", orig.namesz);
 
     /* Do the test */
-    test(memcmp(&var, &orig, sizeof(var)) == 0);
+    test(variable_eq(var, &orig));
+
+	variable_destroy(var);
+    variable_destroy_noalloc(&orig);
 }
 
+#define EXPECTED_B64_ENC "VkFSUwEAAAABAAAAAAAAAGAAAAAAAAAABgAAAAAAA"     \
+                         "ABGAE8ATwAGAAAAAAAAAAAAAAAAAN3Mu6"            \
+                         "oAAAAAAAAAAAAAAADz8gAAAAAAAAAAAAA"            \
+                         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"             \
+                         "AAAAAAAAAAAAAAAAAAAAA"
+
+/**
+ * Passes if a variable list of size 1 serializes and encodes into
+ * the correct base64 string.
+ */
 void test_base64_encode(void)
 {
     char *base64;
     uint8_t buf[4096] = {0};
+    uint8_t *p = (uint8_t*)buf;
     variable_t orig = {0};
-    const char *expected = "AwAAAAAAAABGT08DAAAAAAAAAEJBUg==";
+    const char *expected = EXPECTED_B64_ENC;
 
     /* Setup */
-    strcpy((char*)orig.name, "FOO");
-    orig.namesz = strlen("FOO");
-    strcpy((char*)orig.data, "BAR");
-    orig.datasz = strlen("BAR");
+    orig.namesz = strsize16(FOO);
+    orig.name = malloc(orig.namesz + sizeof(UTF16));
+    strncpy16(orig.name, FOO, orig.namesz + sizeof(UTF16));
 
+    orig.datasz = strsize16(BAR);
+    orig.data = calloc(1, orig.datasz);
+    strncpy16((UTF16*)orig.data, BAR, orig.datasz);
+
+    orig.guid.Data1 = 0xaabbccdd;
+    orig.attrs = 0xf2f3;
 
     /* Do the work */
-    from_vars_to_blob(buf, 4096, &orig, 1);
-    base64 = blob_to_base64(buf, blob_size(&orig, 1));
+    serialize_variable_list(&p, 4096, &orig, 1);
+    base64 = blob_to_base64(buf, list_size(&orig, 1));
 
-
-    DEBUG("exp: %s\n", expected);
     /* Do the test */
     test(strcmp(base64, expected) == 0);
     free(base64);
+    free(orig.name);
+    free(orig.data);
 }
 
+/**
+ * Passes if serializing a list of size 1 and then deserializig it results in
+ * the same list of size 1.
+ */
 void test_base64(void)
 {
     int sz;
     char *base64;
     uint8_t buf[4096] = {0};
+    uint8_t *p = (uint8_t*)buf;
     uint8_t blob[4096] = {0};
-    variable_t orig = {0};
+    variable_t *orig;
     variable_t var = {0};
 
     /* Setup */
-    strcpy((char*)orig.name, "FOO");
-    orig.namesz = strlen("FOO");
-    strcpy((char*)orig.data, "BAR");
-    orig.datasz = strlen("BAR");
+    orig = variable_create(FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTRS);
 
+    /* Convert variable into blob, and then blob into base64 */
+    serialize_variable_list(&p, 4096, orig, 1);
+    base64 = blob_to_base64(buf, list_size(orig, 1));
 
-    /* Do the work */
-    from_vars_to_blob(buf, 4096, &orig, 1);
-    base64 = blob_to_base64(buf, blob_size(&orig, 1));
-
+    /* Convert base64 to blob, then blob back to variable */
     sz = base64_to_blob(blob, 4096, base64, strlen(base64)); 
     from_blob_to_vars(&var, 1, blob, sz); 
 
-    /* Do the test */
-    test(memcmp(&var, &orig, sizeof(var)) == 0);
+    /* Assert the original variable and the decoded variable are equal */
+    test(variable_eq(&var, orig));
+
+    /* Cleanup */
     free(base64);
+    variable_destroy(orig);
+    variable_destroy_noalloc(&var);
 }
 
 #define VARCNT 2
 #define BUFSZ (4096*2)
+#define EXPECTED_BASE64_MULT "VkFSUwEAAAACAAAA"\
+                             "AAAAAMYAAAAAAAAA"\
+                             "BgAAAAAAAABGAE8A"\
+                             "TwAGAAAAAAAAAEIA"\
+                             "QQBSAO3+3sAAAAAA"\
+                             "AAAAAAAAAADvvq3e"\
+                             "AAAAAAAAAAAAAAAA"\
+                             "AAAAAAAAAAAAAAAA"\
+                             "AAAAAAAAAAAAAAAA"\
+                             "AAAAAAAAAAAAAAAA"\
+                             "CgAAAAAAAABDAEgA"\
+                             "RQBFAFIACAAAAAAA"\
+                             "AABBAEIAQwBEAO3+"\
+                             "3sAAAAAAAAAAAAAA"\
+                             "AADvvq3eAAAAAAAA"\
+                             "AAAAAAAAAAAAAAAA"\
+                             "AAAAAAAAAAAAAAAA"\
+                             "AAAAAAAAAAAAAAAA"\
+                             "AAAAAAAA"
+
 
 void test_base64_multiple(void)
 {
     int ret;
     char *base64;
-    const char *expected = "AwAAAAAAAABGT08DAAAAAAAAAEJBUgUAAAAAAAAAQ0hFRVIEAAAAAAAAAEFCQ0Q=";
+    const char *expected = EXPECTED_BASE64_MULT;
     uint8_t buf[BUFSZ] = {0};
+    uint8_t *p = (uint8_t*)buf;
     uint8_t blob[BUFSZ] = {0};
     variable_t orig[VARCNT] = {0};
     variable_t var[VARCNT] = {0};
 
     /* Setup */
-    strcpy((char*)orig[0].name, "FOO");
-    orig[0].namesz = strlen("FOO");
-    strcpy((char*)orig[0].data, "BAR");
-    orig[0].datasz = strlen("BAR");
-
-    strcpy((char*)orig[1].name, "CHEER");
-    orig[1].namesz = strlen("CHEER");
-    strcpy((char*)orig[1].data, "ABCD");
-    orig[1].datasz = strlen("ABCD");
-
+    variable_create_noalloc(&orig[0], FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTRS);
+    variable_create_noalloc(&orig[1], CHEER, (uint8_t*)ABCD, strsize16(ABCD), &DEFAULT_GUID, DEFAULT_ATTRS);
 
     /* Do the work */
-    from_vars_to_blob(buf, BUFSZ, orig, VARCNT);
+    serialize_variable_list(&p, BUFSZ, orig, sizeof(orig) / sizeof(orig[0]));
+    base64 = blob_to_base64(buf, list_size(orig, VARCNT));
 
-    base64 = blob_to_base64(buf, blob_size(orig, VARCNT));
-
+    /* Test the base64 encoding */
     test(strcmp(base64, expected) == 0);
-
     ret = base64_to_blob(blob, BUFSZ, base64, strlen(base64)); 
-
     from_blob_to_vars(var, VARCNT, blob, ret); 
 
     /* Do the test */
-    test(memcmp(&var[0], &orig[0], sizeof(var[0])) == 0);
-    test(memcmp(&var[1], &orig[1], sizeof(var[1])) == 0);
+    test(variable_eq(&var[0], &orig[0]));
+    test(variable_eq(&var[1], &orig[1]));
+
+    variable_destroy_noalloc(&orig[0]);
+    variable_destroy_noalloc(&orig[1]);
+    variable_destroy_noalloc(&var[0]);
+    variable_destroy_noalloc(&var[1]);
 
     free(base64);
 }
@@ -290,28 +283,19 @@ void test_base64_big(void)
     for ( i=0; i<ret; i++ )
     {
         char ascii[512];
+
         uc2_ascii(vars[i].name, ascii, 512);
 
         if ( strcmp(ascii, "BootOrder") == 0 )
             has_bootorder = true;
         else if ( strcmp(ascii, "ConOut") == 0 )
             has_conout = true;
-        
+
+        variable_destroy_noalloc(&vars[i]);
     }
 
     test(has_bootorder);
     test(has_conout);
-
-#if 0
-    int i;
-
-    DPRINTF("0x");
-    for ( i=0; i<128; i++ )
-    {
-        DPRINTF("%02x", pt[i]);
-    }
-    DPRINTF("\n");
-#endif
 }
 
 void test_base64_big_xml(void)
@@ -340,6 +324,8 @@ void test_base64_big_xml(void)
             has_bootorder = true;
         else if ( strcmp(ascii, "ConOut") == 0 )
             has_conout = true;
+
+        variable_destroy_noalloc(&vars[i]);
     }
 
     test(has_bootorder);
@@ -368,30 +354,9 @@ void test_xapi(void)
 
     memset(vars, 0, sizeof(vars));
 
-    vars[0].namesz = v1_len;
-    memcpy(vars[0].name, v1, v1_len);
+    variable_create_noalloc(&vars[0], v1, (uint8_t*)D1, d1_len, &DEFAULT_GUID, DEFAULT_ATTRS);
+    variable_create_noalloc(&vars[1], v2, (uint8_t*)D2, d2_len, &DEFAULT_GUID, DEFAULT_ATTRS);
 
-    vars[0].datasz = d1_len;
-    memcpy(vars[0].data, D1, d1_len);
-
-    vars[1].namesz = v2_len;
-    memcpy(vars[1].name, v2, v2_len);
-
-    vars[1].datasz = d2_len;
-    memcpy(vars[1].data, D2, d2_len);
-
-
-    char buf[MAX_VARNAME_SZ] = {0};
-
-
-    variable_t *var;
-    var = &vars[0];
-    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARNAME_SZ);
-    var = &vars[1];
-    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARNAME_SZ);
-
-    DO_TEST(test_xapi_serialize_size);
-    DO_TEST(test_xapi_serialize);
     //DO_TEST(test_xapi_set_efi_vars);
     DO_TEST(test_var_copy);
     DO_TEST(test_blob);

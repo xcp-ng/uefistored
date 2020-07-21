@@ -27,6 +27,6 @@ int main(void)
     test_xapi();
     test_ramdb();
 
-    printf("PASSED (%d), FAILED (%d)\n", passcount, failcount);
+    test_printf("\nPASSED (%d), FAILED (%d)\n", passcount, failcount);
     return failcount == 0 ? 0 : -1;
 }

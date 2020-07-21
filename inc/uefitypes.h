@@ -167,12 +167,6 @@ typedef uint64_t RETURN_STATUS;
 #define EFIERR(a)         (EFI_MAX_BIT | (a))
 
 typedef uint64_t EFI_STATUS;
-//#define EFI_INVALID_PARAMETER EFIERR(2)
-//#define EFI_BUFFER_TOO_SMALL EFIERR(5)
-//#define EFI_DEVICE_ERROR EFIERR(7)
-//#define EFI_OUT_OF_RESOURCES EFIERR(9)
-//#define EFI_NOT_FOUND EFIERR(14)
-//#define EFI_SECURITY_VIOLATION EFIERR(26)
 
 ///
 /// Attributes of variable.

@@ -4,6 +4,7 @@
 #include "uefitypes.h"
 #include "uefi_guids.h"
 #include "varnames.h"
+#include "variable.h"
 
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
@@ -87,40 +88,4 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
     }
 
     return EFI_SUCCESS;
-}
-
-EFI_STATUS get_next_variable(uint64_t *current_namesz, UTF16 *current_name, EFI_GUID *current_guid)
-{
-    variable_t current, next;
-    EFI_STATUS status = EFI_SUCCESS;
-    int ret;
-
-    if ( !current_namesz || !current_name || !current_guid )
-        return EFI_DEVICE_ERROR;
-
-    memcpy(&current.namesz, current_namesz, sizeof(*current_namesz));
-    memcpy(&current.name, current_name, *current_namesz);
-    memcpy(&current.guid, current_guid, sizeof(EFI_GUID));
-
-    ret = ramdb_next(&current, &next);
-
-    if ( ret == 0 )
-    {
-        return EFI_NOT_FOUND;
-    }
-    else if ( ret < 0 )
-    {
-        return EFI_DEVICE_ERROR;
-    }
-    else if ( next.namesz > *current_namesz )
-    {
-        *current_namesz = next.namesz;
-        return EFI_BUFFER_TOO_SMALL;
-    }
-
-    memcpy(current_namesz, &next.namesz, sizeof(*current_namesz));
-    memcpy(current_name, next.name, next.namesz);
-    memcpy(current_guid, &next.guid, sizeof(EFI_GUID));
-
-    return status;
 }
