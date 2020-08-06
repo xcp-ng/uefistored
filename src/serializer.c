@@ -10,12 +10,6 @@
 #include "uefitypes.h"
 #include "variable.h"
 
-#define serialize_value(p, field)            \
-    do {                                            \
-        memcpy(*p, &field, sizeof(field));          \
-        *p += sizeof(field);                        \
-    } while ( 0 )
-
 static const char VARS[] = "VARS";
 
 struct variable_list {

@@ -4,6 +4,7 @@
 #include "uefitypes.h"
 #include "common.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 int xen_variable_server_init(var_initializer_t init_vars);
 void xen_variable_server_handle_request(void *comm_buff);
@@ -19,5 +20,7 @@ EFI_STATUS get_variable(UTF16 *variable,
                         void *data);
 
 int xen_variable_server_deinit(void);
+
+bool valid_attrs(uint32_t attrs);
 
 #endif // __H_XEN_VARIABLE_SERVER_

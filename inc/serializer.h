@@ -37,4 +37,10 @@ EFI_STATUS unserialize_result(uint8_t **ptr);
 void unserialize_variable_list_header(uint8_t **ptr, struct variable_list_header *hdr);
 int unserialize_var_cached(uint8_t **ptr, variable_t *var);
 
+#define serialize_value(p, field)            \
+    do {                                            \
+        memcpy(*p, &field, sizeof(field));          \
+        *p += sizeof(field);                        \
+    } while ( 0 )
+
 #endif // __H_SERIALIZER_

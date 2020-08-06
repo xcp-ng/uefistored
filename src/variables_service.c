@@ -6,7 +6,19 @@
 #include "varnames.h"
 #include "variable.h"
 
-#define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
+bool valid_attrs(uint32_t attrs)
+{
+    if ( attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
+        return false;
+    else if ( attrs & EFI_VARIABLE_HARDWARE_ERROR_RECORD )
+        return false;
+    else if ( (attrs & RT_BS_ATTRS) == EFI_VARIABLE_RUNTIME_ACCESS )
+        return false;
+    else if ( !(attrs & (RT_BS_ATTRS)) )
+        return false;
+
+    return true;
+}
 
 /**
  * Returns true if variable is read-only, otherwise false.
@@ -86,6 +98,21 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
         ERROR("Failed to set variable in db\n");
         return EFI_OUT_OF_RESOURCES;
     }
+
+    return EFI_SUCCESS;
+}
+
+EFI_STATUS query_variable_info(uint32_t attrs, 
+                               uint64_t *max_variable_storage,
+                               uint64_t *remaining_variable_storage,
+                               uint64_t *max_variable_size)
+{
+    if ( !valid_attrs(attrs) )
+        return EFI_UNSUPPORTED;
+
+    *max_variable_storage = MAX_STORAGE_SIZE;
+    *max_variable_size = MAX_VARIABLE_SIZE;
+    *remaining_variable_storage = MAX_STORAGE_SIZE - ramdb_used();
 
     return EFI_SUCCESS;
 }

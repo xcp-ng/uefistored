@@ -5,6 +5,9 @@
 
 #include "common.h"
 
+#define MAX_STORAGE_SIZE MB(256)
+#define MAX_VARIABLE_SIZE KB(2)
+
 int ramdb_init(void);
 size_t ramdb_count(void);
 void ramdb_deinit(void);
@@ -14,5 +17,6 @@ void ramdb_destroy(void);
 int ramdb_next(variable_t *next);
 int ramdb_remove(const UTF16 *name);
 int ramdb_exists(const UTF16 *name);
+uint64_t ramdb_used(void);
 
 #endif

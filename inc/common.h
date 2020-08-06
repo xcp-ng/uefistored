@@ -11,6 +11,11 @@
 #include "uefitypes.h"
 #include "variable.h"
 
+#define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
+
+#define KB(x) (x * 1024)
+#define MB(x) (KB(x) * 1024)
+
 #define VAR_PADDING 48UL
 #define UTF16_CHAR_SZ sizeof(UTF16)
 
@@ -24,6 +29,8 @@
 #define VAR_NOT_FOUND (-10)
 
 #define PAGE_SIZE (4<<10)
+
+#define RT_BS_ATTRS (EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS)
 
 /* OVMF XenVariable loads 16 pages of shared memory to pass varstored the command */
 #define SHMEM_PAGES 16

@@ -11,4 +11,9 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
 EFI_STATUS
 set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data);
 
+EFI_STATUS query_variable_info(uint32_t attrs, 
+                               uint64_t *max_variable_storage,
+                               uint64_t *remaining_variable_storage,
+                               uint64_t *max_variable_size);
+
 #endif // __H_VARIABLES_SERVICE__

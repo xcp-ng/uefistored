@@ -11,6 +11,7 @@
 
 #include "backends/ramdb.h"
 #include "common.h"
+#include "info.h"
 #include "log.h"
 #include "serializer.h"
 #include "uefitypes.h"
@@ -50,7 +51,6 @@ do { \
 #else
 #define eprint_vname(...) do { } while ( 0 )
 #endif
-
 
 static int set_setup_mode(uint8_t val)
 {
@@ -177,7 +177,8 @@ static void handle_get_variable(void *comm_buf)
 
     ptr = comm_buf;
     version = unserialize_uint32(&ptr);
-    if ( version != 1 )
+
+    if ( version != VARSTORED_VERSION )
     {
         ERROR("Unsupported version of XenVariable RPC protocol\n");
         ptr = comm_buf;
@@ -237,6 +238,57 @@ static void handle_get_variable(void *comm_buf)
     free(name);
 }
 
+static void handle_query_variable_info(void *comm_buf)
+{
+    uint32_t attrs, version, command;
+    EFI_STATUS status;
+    uint8_t *ptr;
+    uint64_t max_variable_storage;
+    uint64_t remaining_variable_storage;
+    uint64_t max_variable_size;
+
+    ptr = comm_buf;
+    version = unserialize_uint32(&ptr);
+
+    if ( version != VARSTORED_VERSION )
+    {
+        ERROR("Bad varstored version: %u\n", version);
+        status = EFI_UNSUPPORTED;
+        ptr = comm_buf;
+        serialize_result(&ptr, status);
+        return;
+    }
+
+    command = unserialize_uint32(&ptr);
+
+    if ( command != COMMAND_QUERY_VARIABLE_INFO )
+    {
+        ERROR("Bad command: %u\n", command);
+        status = EFI_DEVICE_ERROR;
+        ptr = comm_buf;
+        serialize_result(&ptr, status);
+        return;
+    }
+
+    attrs = unserialize_uint32(&ptr);
+
+    status = query_variable_info(attrs, &max_variable_storage, &remaining_variable_storage, &max_variable_size);;
+
+    if ( status != EFI_SUCCESS )
+    {
+        ptr = comm_buf;
+        serialize_result(&ptr, status);
+        return;
+    }
+
+    ptr = comm_buf;
+    serialize_result(&ptr, status);
+    printf(">>>>>>>>>> 0x%02lx\n", max_variable_storage);
+    serialize_value(&ptr, max_variable_storage);
+    serialize_value(&ptr, remaining_variable_storage);
+    serialize_value(&ptr, max_variable_size);
+}
+
 static void print_set_var(UTF16 *name, size_t len, uint32_t attrs)
 {
     dprint_vname("cmd:SET_VARIABLE: %s, attrs=", name);
@@ -259,7 +311,7 @@ static void handle_set_variable(void *comm_buf)
     ptr = comm_buf;
     version = unserialize_uint32(&ptr);
 
-    if ( version != 1 )
+    if ( version != VARSTORED_VERSION )
     {
         ERROR("Invalid XenVariable OVMF module version number: %d, only supports version 1\n",
               version);
@@ -321,7 +373,7 @@ static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
 
     version = unserialize_uint32(&ptr);
 
-    if ( version != 1 )
+    if ( version != VARSTORED_VERSION )
         WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
 
     command = unserialize_uint32(&ptr);
@@ -441,7 +493,7 @@ void xen_variable_server_handle_request(void *comm_buf)
             handle_get_next_variable(comm_buf);
             break;
         case COMMAND_QUERY_VARIABLE_INFO:
-            DEBUG("cmd:QUERY_VARIABLE_VARIABLE\n");
+            handle_query_variable_info(comm_buf);
             break;
         case COMMAND_NOTIFY_SB_FAILURE:
             DEBUG("cmd:NOTIFY_SB_FAILURE\n");

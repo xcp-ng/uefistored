@@ -410,6 +410,102 @@ static void test_runtime_access_attr(void)
     test(status == EFI_NOT_FOUND);
 }
 
+/**
+ * Test QueryVariableInfo bad input attributes are rejected.
+ *
+ * All attributes should have the same contstraints;
+ */
+static void test_query_variable_info_bad_attrs(void)
+{
+    uint8_t *ptr;
+    uint64_t max_storage_size, remaining_storage_size, max_variable_size;
+
+    mock_xen_variable_server_set_buffer(comm_buf);
+
+    XenQueryVariableInfo(EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS | \
+            EFI_VARIABLE_HARDWARE_ERROR_RECORD, &max_storage_size, &remaining_storage_size, &max_variable_size);
+    xen_variable_server_handle_request(comm_buf);
+
+    ptr = comm_buf;
+    test(unserialize_result(&ptr) == EFI_UNSUPPORTED);
+
+    XenQueryVariableInfo(EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
+            &max_storage_size, &remaining_storage_size, &max_variable_size);
+    xen_variable_server_handle_request(comm_buf);
+    ptr = comm_buf;
+    test(unserialize_result(&ptr) == EFI_SUCCESS);
+
+    XenQueryVariableInfo(EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS,
+            &max_storage_size, &remaining_storage_size, &max_variable_size);
+    xen_variable_server_handle_request(comm_buf);
+    ptr = comm_buf;
+    test(unserialize_result(&ptr) == EFI_UNSUPPORTED);
+}
+
+/**
+ * Test that valid attrs is correct.
+ */
+static void test_valid_attrs(void)
+{
+    /* We don't support authenticated writes yet */
+    test(valid_attrs(EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS) == false);
+
+    /* We don't support hardware error record yet  */
+    test(valid_attrs(EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_HARDWARE_ERROR_RECORD) == false);
+
+    /* Runetime accesss requires boot access */
+    test(valid_attrs(EFI_VARIABLE_RUNTIME_ACCESS & ~EFI_VARIABLE_BOOTSERVICE_ACCESS) == false);
+}
+
+
+/**
+ * Test QueryVariableInfo functions correctly.
+ *
+ * All attributes should have the same contstraints;
+ */
+static void test_query_variable_info(void)
+{
+    uint8_t *ptr;
+    uint32_t attrs;
+    uint64_t max_storage_size, remaining_storage_size, max_variable_size;
+
+    mock_xen_variable_server_set_buffer(comm_buf);
+
+    attrs = 1<<31;
+
+    while ( attrs )
+    {
+        if ( !valid_attrs(attrs) )
+        {
+            attrs >>= 1;
+            continue;
+        }
+
+        /* serialize message */
+        XenQueryVariableInfo(attrs, &max_storage_size, &remaining_storage_size, &max_variable_size);
+
+        /* send message */
+        xen_variable_server_handle_request(comm_buf);
+
+        /* parse response */
+        ptr = comm_buf;
+        EFI_STATUS status = unserialize_result(&ptr);
+
+        printf("status=0x%02lx\n", status);
+
+        max_storage_size = unserialize_uint64(&ptr);
+        remaining_storage_size = unserialize_uint64(&ptr);
+        max_variable_size = unserialize_uint64(&ptr);
+
+        printf("attrs=0x%02x\n", attrs);
+        test_eq_int64(max_storage_size, MAX_STORAGE_SIZE);
+        test_eq_int64(remaining_storage_size, MAX_STORAGE_SIZE);
+        test_eq_int64(max_variable_size, MAX_VARIABLE_SIZE);
+
+        attrs >>= 1;
+    }
+}
+
 void test_xen_variable_server(void)
 {
     DO_TEST(test_nonexistent_variable_returns_not_found);
@@ -421,4 +517,7 @@ void test_xen_variable_server(void)
     DO_TEST(test_success_get_next_var_two);
     DO_TEST(test_get_next_var_buf_too_small);
     DO_TEST(test_runtime_access_attr);
+    DO_TEST(test_query_variable_info);
+    DO_TEST(test_query_variable_info_bad_attrs);
+    DO_TEST(test_valid_attrs);
 }

@@ -16,8 +16,9 @@
 #define MAX_VARDATA_SZ 1024
 
 static variable_t variables[MAX_VAR_COUNT];
-static size_t iter;
-static size_t total;
+static size_t iter = 0;
+static size_t total = 0;
+static uint64_t used = 0;
 
 static bool slot_is_empty(variable_t *var)
 {
@@ -47,12 +48,15 @@ void ramdb_destroy(void)
     variable_t *var;
 
     total = 0;
+    used = 0;
     iter = 0;
 
     for_each_variable(variables, var)
     {
         variable_destroy_noalloc(var);
     }
+
+    memset(variables, 0, sizeof(variables));
 }
 
 int ramdb_exists(const UTF16 *name)
@@ -117,6 +121,7 @@ int ramdb_remove(const UTF16 *name)
         if ( strcmp16(var->name, name) == 0 )
         {
             variable_destroy(var);
+            used -= (var->datasz + namesz);
             total--;
             return 0;
         }
@@ -145,6 +150,9 @@ int ramdb_set(const UTF16 *name,
         return -ENOMEM;
 
     if ( datasz >=  MAX_VARDATA_SZ )
+        return -ENOMEM;
+
+    if ( datasz + namesz + ramdb_used() > MAX_STORAGE_SIZE )
         return -ENOMEM;
 
     /* As specified by the UEFI spec */
@@ -185,11 +193,17 @@ int ramdb_set(const UTF16 *name,
                 return ret;
 
             total++;
+            used += datasz + namesz;
             return 0;
         }
     }
 
     return -1;
+}
+
+uint64_t ramdb_used(void)
+{
+    return used;
 }
 
 /**
