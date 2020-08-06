@@ -12,17 +12,15 @@ static const uint32_t DEFAULT_ATTRS = 0xdeadbeef;
 
 #define DISABLE_STDIO 1
 
-static char assertion[128];
 extern int passcount;
 extern int failcount;
 extern int all_passed;
-static int old_fail_count;
+
+#if DISABLE_STDIO
 static int old_stdout;
 static int old_stderr;
 static bool redirected;
-static int test_lineno;
 
-#if DISABLE_STDIO
 static inline void redirect_init(void)
 {
     int new_stdout, new_stderr;
@@ -60,15 +58,6 @@ static inline void redirect_deinit(void)
 
     redirected = false;
 }
-#else
-#define redirect_init() do {        \
-    (void)redirected;               \
-    (void)old_stderr;               \
-    (void)old_stdout;               \
-    } while (0)
-
-#define redirect_deinit() do { } while (0)
-#endif
 
 #define test_printf(...)            \
     do {                            \
@@ -77,47 +66,61 @@ static inline void redirect_deinit(void)
        redirect_init();             \
     } while ( 0 )
 
-static inline void pre_pre_test(void)
-{
-    old_fail_count = failcount;
-}
+#else
 
-static inline void post_post_test(const char *file_name, const char *test_name)
-{
-    if ( old_fail_count != failcount )
-        test_printf("\n%s:%s:%d: %s: %s\n", file_name, test_name, test_lineno, assertion, "fail");
+#define test_printf printf
+#define redirect_init() do { } while (0)
+#define redirect_deinit() do { } while (0)
 
-    memset(assertion, 0, strlen(assertion));
-}
+#endif
 
 #define DO_TEST(test)                                   \
     do  {                                               \
-        pre_pre_test();                                 \
         redirect_init();                                \
         pre_test();                                     \
         test();                                         \
         post_test();                                    \
         redirect_deinit();                              \
-        post_post_test(__FILE__, #test);                               \
     }  while ( 0 )
 
-#define _test(_assertion, _lineno)                                                \
-    do {                                                                \
-        if ( !(_assertion) )                                            \
-        {                                                               \
-            strcpy(assertion, #_assertion);                             \
-            test_lineno = _lineno;                             \
-            failcount++;                                                \
-        }                                                               \
-        else                                                            \
-        {                                                               \
-            test_printf(".");                                                \
-            passcount++;                                                \
-        }                                                               \
-    } while ( 0 )
+static inline void  _test(const char *file_name, const char *test_name,
+                          int lineno, const char *assertion, bool passed)
+{
+    if ( !passed )
+    {
+        failcount++;
+        test_printf("\n%s:%s:%d: %s: fail\n", file_name, test_name, lineno, assertion);
+    }
+    else
+    {
+        passcount++;
+        test_printf(".");
+    }
+}
 
-#define test(_assertion)	\
-	_test(_assertion, __LINE__)
+#define test(assertion)	\
+	_test(__FILE__, __func__, __LINE__, #assertion, assertion)
+
+static inline void  _test_eq_int64(const char *file_name, const char *test_name,
+                                   int lineno,
+                                   const char *val1_str, const char *val2_str,
+                                   uint64_t val1, uint64_t val2)
+{
+    if ( val1 != val2 )
+    {
+        failcount++;
+        test_printf("\n%s:%s:%d: fail: ", file_name, test_name, lineno);
+        test_printf(" %s != %s  (0x%02lx != 0x%02lx)\n", val1_str, val2_str, val1, val2);
+    }
+    else
+    {
+        passcount++;
+        test_printf(".");
+    }
+}
+
+#define test_eq_int64(val1, val2)	\
+	_test_eq_int64(__FILE__, __func__, __LINE__, #val1, #val2, val1, val2)
 
 #define DEFAULT_ATTR (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS)
 
