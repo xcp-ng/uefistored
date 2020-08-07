@@ -434,46 +434,44 @@ static void handle_get_next_variable(void *comm_buf)
     memset(&next, 0, sizeof(next));
 
     status = unserialize_get_next_variable(ptr, &namesz, &name, &guest_bufsz, &guid);
+
     if ( status )
-        goto err;
+    {
+        serialize_result(&ptr, status);
+        return;
+    }
 
     ret = storage_next(&next);
 
     if ( ret == 0 )
     {
         status = EFI_NOT_FOUND;
-        goto err;
+        serialize_result(&ptr, status);
+        goto cleanup1;
     }
-
-    if ( ret < 0 )
+    else if ( ret < 0 )
     {
         status = EFI_DEVICE_ERROR;
-        goto err;
+        serialize_result(&ptr, status);
+        goto cleanup2;
     }
-
-    assert( ret == 1 );
-
-    if ( next.namesz > guest_bufsz )
+    else if ( next.namesz > guest_bufsz )
     {
         WARNING("GetNextVariableName(), buffer too small: namesz: %lu, guest_bufsz: %lu\n",
                 next.namesz, guest_bufsz);
         buffer_too_small(comm_buf, strsize16(next.name));
-        goto cleanup;
+        goto cleanup2;
     }
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_name(&ptr, next.name);
     serialize_guid(&ptr, &next.guid);
-    goto cleanup;
 
-err:
-    serialize_result(&ptr, status);
-
-cleanup:
+cleanup2:
     variable_destroy_noalloc(&next);
+cleanup1:
     free(name);
-    return;
 }
 
 
