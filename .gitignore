@@ -12,7 +12,8 @@ tests/test_logfile.txt
 *.db
 test_logfile.txt
 libs/kissdb
-fuzz-address
-fuzz-memory
-fuzz-overflow
 scripts/raw.dat
+
+tests/fuzz/bin/
+
+
