@@ -30,7 +30,7 @@ uint64_t unserialize_uintn(uint8_t **ptr);
 uint32_t unserialize_uint32(uint8_t **ptr);
 uint64_t unserialize_uint64(uint8_t **ptr);
 void unserialize_guid(uint8_t **ptr, EFI_GUID *Guid);
-void unserialize_name(uint8_t **ptr, void *buf, size_t n);
+int unserialize_name(uint8_t **ptr, size_t buf_sz, void *name, size_t n);
 uint64_t unserialize_namesz(uint8_t **ptr);
 bool unserialize_boolean(uint8_t **ptr);
 EFI_STATUS unserialize_result(uint8_t **ptr);

@@ -151,14 +151,19 @@ uint64_t unserialize_namesz(uint8_t **ptr)
  * Returns -1 if error, otherwise the length of the name 
  * (not including null-terminator).
  */
-void unserialize_name(uint8_t **ptr, void *name, size_t n)
+int unserialize_name(uint8_t **ptr, size_t buf_sz, void *name, size_t n)
 {
     uint64_t namesz = n - sizeof(UTF16);
+
+    if ( namesz > buf_sz || namesz > MAX_VARIABLE_NAME_SIZE )
+        return -1;
 
     memcpy(name, *ptr, namesz);
     memset(name + namesz, 0, sizeof(UTF16));
 
     *ptr += namesz;
+
+    return namesz;
 }
 
 EFI_STATUS unserialize_result(uint8_t **ptr)

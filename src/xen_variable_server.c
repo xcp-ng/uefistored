@@ -217,7 +217,7 @@ static void handle_get_variable(void *comm_buf)
         return;
     }
 
-    unserialize_name(&ptr, name, namesz + sizeof(UTF16));
+    unserialize_name(&ptr, BUFFER_REMAINING(comm_buf, ptr), name, namesz + sizeof(UTF16));
     unserialize_guid(&ptr, &guid);
 
     buflen = unserialize_uint64(&ptr);
@@ -361,7 +361,7 @@ static void handle_set_variable(void *comm_buf)
     }
 
     name = malloc(namesz + sizeof(UTF16));
-    unserialize_name(&ptr, name, namesz + sizeof(UTF16));
+    unserialize_name(&ptr, BUFFER_REMAINING(comm_buf, ptr), name, namesz + sizeof(UTF16));
     unserialize_guid(&ptr, &guid);
 
     datasz = unserialize_data(&ptr, dp, MAX_VARIABLE_DATA_SIZE);
@@ -412,7 +412,7 @@ static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
     if ( !*name )
         return EFI_DEVICE_ERROR;
 
-    unserialize_name(&ptr, *name, *namesz + sizeof(UTF16));
+    unserialize_name(&ptr, BUFFER_REMAINING(comm_buf, ptr), *name, *namesz + sizeof(UTF16));
     unserialize_guid(&ptr, guid);
 
     /* TODO: use the guid according to spec */

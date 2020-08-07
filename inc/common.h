@@ -13,6 +13,11 @@
 
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
+#define PTR_DIFF(p1, p2) (((unsigned long)p1) - ((unsigned long)p2))
+
+/* Calculate the remaning shared buf size, given the current ptr location */
+#define BUFFER_REMAINING(start, curr) (MAX_SHARED_OVMF_MEM - (PTR_DIFF(start, curr)))
+
 #define KB(x) (x * 1024)
 #define MB(x) (KB(x) * 1024)
 
