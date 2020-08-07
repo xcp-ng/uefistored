@@ -143,7 +143,7 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
     return 0;
 }
 
-void dprint_data(void *data, size_t datalen)
+void dprint_data(void *data, size_t datasz)
 {
     uint8_t *p = data;
     size_t i;
@@ -152,7 +152,7 @@ void dprint_data(void *data, size_t datalen)
         return;
 
     DPRINTF("DATA: ");
-    for (i=0; i<datalen; i++)
+    for (i=0; i<datasz; i++)
     {
         if (i % 8 == 0)
             DPRINTF("\n%02lx: 0x", i);

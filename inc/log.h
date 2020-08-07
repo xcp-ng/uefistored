@@ -16,7 +16,7 @@ void log_init(const char *filename);
  */
 void log_deinit(void);
 
-void dprint_data(void *data, size_t datalen);
+void dprint_data(void *data, size_t datasz);
 
 #define varstored_fprintf(stream, ...)                    \
     do {                                                \

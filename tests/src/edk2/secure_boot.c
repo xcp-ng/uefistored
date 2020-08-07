@@ -35,7 +35,7 @@ EFI_STATUS set_variable(
   void *variable,
   EFI_GUID *guid,
   uint32_t attrs,
-  size_t datalen,
+  size_t datasz,
   void *data
 );
 

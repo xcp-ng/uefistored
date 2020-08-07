@@ -79,7 +79,7 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
     return EFI_SUCCESS;
 }
 
-EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datalen, void *data)
+EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datasz, void *data)
 {
     int ret;
 
@@ -91,7 +91,7 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
 
     uc2_ascii_safe(variable, strsize16(variable), strbuf, 512);
 
-    ret = storage_set(variable, data, datalen, attrs);
+    ret = storage_set(variable, data, datasz, attrs);
 
     if ( ret < 0 )
     {
