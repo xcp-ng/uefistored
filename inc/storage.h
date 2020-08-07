@@ -6,7 +6,13 @@
 #include "common.h"
 
 #define MAX_STORAGE_SIZE MB(256)
-#define MAX_VARIABLE_SIZE KB(2)
+#define MAX_VARIABLE_SIZE KB(4)
+#define MAX_VARIABLE_NAME_SIZE 512
+#define MAX_VARIABLE_DATA_SIZE (MAX_VARIABLE_SIZE - MAX_VARIABLE_NAME_SIZE)
+
+#if (MAX_VARIABLE_NAME_SIZE + MAX_VARIABLE_DATA_SIZE) != MAX_VARIABLE_SIZE
+#error "Name and data max sizes are misconfigured!"
+#endif
 
 int storage_init(void);
 size_t storage_count(void);
