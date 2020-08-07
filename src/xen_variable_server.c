@@ -338,6 +338,14 @@ static void handle_set_variable(void *comm_buf)
         return;
     }
 
+    if ( namesz > MAX_VARIABLE_NAME_SIZE )
+    {
+
+        buffer_too_small(comm_buf,
+                min(MAX_STORAGE_SIZE - storage_used(), MAX_VARIABLE_NAME_SIZE));
+        return;
+    }
+
     name = malloc(namesz + sizeof(UTF16));
     unserialize_name(&ptr, name, namesz + sizeof(UTF16));
     unserialize_guid(&ptr, &guid);
@@ -381,7 +389,14 @@ static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
 
     *guest_bufsz = unserialize_uintn(&ptr);
     *namesz = unserialize_namesz(&ptr);
+
+    if ( *namesz > MAX_VARIABLE_NAME_SIZE )
+        return EFI_DEVICE_ERROR;
+
     *name = malloc(*namesz + sizeof(UTF16));
+
+    if ( !*name )
+        return EFI_DEVICE_ERROR;
 
     unserialize_name(&ptr, *name, *namesz + sizeof(UTF16));
     unserialize_guid(&ptr, guid);
