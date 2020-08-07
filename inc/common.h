@@ -22,7 +22,6 @@
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
 #define MAX_VAR_COUNT 512
-#define MAX_VARNAME_SZ 128 
 
 #define VARSTORED_ERROR 1
 #define VAR_NOT_FOUND (-10)

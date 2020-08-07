@@ -60,9 +60,9 @@ static void test_set_and_get2(void)
 
     variable_t tmp;
 
-    tmp.name = malloc(MAX_VARNAME_SZ);
+    tmp.name = malloc(MAX_VARIABLE_NAME_SIZE);
     tmp.data = malloc(MAX_VARIABLE_DATA_SIZE);
-    strncpy16(tmp.name, var1.name, MAX_VARNAME_SZ);
+    strncpy16(tmp.name, var1.name, MAX_VARIABLE_NAME_SIZE);
     tmp.namesz = var1.namesz;
 
     ret = storage_set(var1.name, var1.data, var1.datasz, var1.attrs);
@@ -77,7 +77,7 @@ static void test_set_and_get2(void)
     test( memcmp(tmp.data, var1.data, var1.datasz) == 0 );
     test( var1.attrs == tmp.attrs );
 
-    strncpy16(tmp.name, var2.name, MAX_VARNAME_SZ);
+    strncpy16(tmp.name, var2.name, MAX_VARIABLE_NAME_SIZE);
     tmp.namesz = var2.namesz;
 
     ret = storage_set(var2.name, var2.data, var2.datasz, var2.attrs);

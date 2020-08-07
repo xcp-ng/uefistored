@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "common.h"
+#include "storage.h"
 #include "log.h"
 #include "uefi/types.h"
 
@@ -87,12 +88,12 @@ void uc2_ascii(UTF16 *uc2, char *ascii, size_t len)
 
 void dprint_variable(variable_t *var)
 {
-    char buf[MAX_VARNAME_SZ] = {0};
+    char buf[MAX_VARIABLE_NAME_SIZE] = {0};
 
     if ( !var )
         return;
 
-    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARNAME_SZ);
+    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARIABLE_NAME_SIZE);
     DEBUG("Variable(%s)\n", buf);
 }
 

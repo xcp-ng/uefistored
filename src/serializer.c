@@ -179,7 +179,7 @@ void unserialize_variable_list_header(uint8_t **ptr, struct variable_list_header
 
 int unserialize_var_cached(uint8_t **ptr, variable_t *var)
 {
-    UTF16 name[MAX_VARNAME_SZ] = {0};
+    UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
     EFI_GUID guid;
     uint8_t *data;
     uint64_t namesz, datasz;
@@ -191,7 +191,7 @@ int unserialize_var_cached(uint8_t **ptr, variable_t *var)
 
     namesz = unserialize_uint64(ptr);
 
-	if ( namesz == 0 || namesz > MAX_VARNAME_SZ )
+	if ( namesz == 0 || namesz > MAX_VARIABLE_NAME_SIZE )
         return -1;
 
 	memcpy(name, *ptr, namesz);

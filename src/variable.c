@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "storage.h"
 #include "uefi/types.h"
 #include "serializer.h"
 #include "variable.h"
@@ -152,7 +153,7 @@ variable_t *variable_create(const UTF16 *name, const uint8_t *data,
 variable_t *variable_create_unserialize(uint8_t **ptr)
 {
     variable_t *var;
-    UTF16 name[MAX_VARNAME_SZ] = {0};
+    UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
     EFI_GUID guid;
     uint8_t *data;
     uint64_t namesz, datasz;
