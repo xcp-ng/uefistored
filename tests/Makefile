@@ -54,6 +54,7 @@ valgrind: test-nosan
 .PHONY: clean
 clean:
 	rm -f $(OBJ) $(TEST_OBJ) test test-nosan
+	$(MAKE) -C fuzz/
 
 .PHONY: keys
 keys: keys/.done
@@ -66,6 +67,3 @@ keys/.done:
 
 print-%:
 	@:$(info $($*))
-
-fuzz-%:
-	$(MAKE) $@ -f Fuzz.mk
