@@ -217,29 +217,6 @@ cleanup:
 	return b64text;
 }
 
-static inline void xapi_item_next(void ***item_ptr_ptr)
-{
-    void **ptr;
-
-    ptr = (*item_ptr_ptr)[0xd];
-    *item_ptr_ptr = ptr;
-}
-
-static inline size_t xapi_get_size(void **item)
-{
-    size_t accumulator = 0;
-
-    for (; item != NULL; xapi_item_next(&item) )
-    {
-        if (*(uint8_t *)(item + 6) & 1) {
-            accumulator = accumulator + 0x54 +
-                      (long)item[1] +
-                      (long)item[3];
-        }
-    }
-    return accumulator;
-}
-
 #define OFFSET_SZ 4 
 
 size_t list_size(variable_t *variables, size_t n)
