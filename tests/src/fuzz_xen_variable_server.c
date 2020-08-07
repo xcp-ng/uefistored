@@ -5,7 +5,7 @@
 #include "test_common.h"
 #include "xen_variable_server.h"
 
-void fuzz_xen_variable_server(const uint8_t *data, size_t blocksz)
+static void fuzz_xen_variable_server(const uint8_t *data, size_t blocksz)
 {
     void *p, *mem;
     uint32_t *command;
