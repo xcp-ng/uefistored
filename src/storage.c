@@ -12,9 +12,6 @@
 #include "uefi/types.h"
 #include "log.h"
 
-#define MAX_VARNAME_SZ 128 
-#define MAX_VARDATA_SZ 1024
-
 static variable_t variables[MAX_VAR_COUNT];
 static size_t iter = 0;
 static size_t total = 0;
