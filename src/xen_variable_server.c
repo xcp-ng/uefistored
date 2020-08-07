@@ -213,6 +213,7 @@ static void handle_get_variable(void *comm_buf)
 
     if ( namesz > MAX_VARIABLE_NAME_SIZE )
     {
+        free(name);
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
@@ -227,17 +228,15 @@ static void handle_get_variable(void *comm_buf)
 
     if ( status == EFI_BUFFER_TOO_SMALL )
     {
-        buffer_too_small(comm_buf, buflen);
         free(name);
+        buffer_too_small(comm_buf, buflen);
         return;
     }
     else if ( status )
     {
-        ptr = comm_buf;
-        dprint_vname("cmd:GET_VARIABLE: %s, ", name);
-        DPRINTF("error=0x%02lx\n", status);
-        serialize_result(&ptr, status);
         free(name);
+        ptr = comm_buf;
+        serialize_result(&ptr, status);
         return;
     }
 
