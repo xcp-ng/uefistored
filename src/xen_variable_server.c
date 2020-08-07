@@ -123,13 +123,13 @@ void print_uc2(const char *TAG, void *vn)
 static void validate(void *name, size_t len, void *data, size_t datasz, uint32_t attrs)
 {
     int ret;
-    uint8_t test_data[MAX_VARDATA_SZ];
+    uint8_t test_data[MAX_VARIABLE_DATA_SIZE];
     uint32_t test_attrs = 0;
     size_t test_datasz;
 
     (void) len;
 
-    ret = storage_get(name, test_data, MAX_VARDATA_SZ, &test_datasz, &test_attrs);
+    ret = storage_get(name, test_data, MAX_VARIABLE_DATA_SIZE, &test_datasz, &test_attrs);
 
     if ( datasz == 0 && ret == VAR_NOT_FOUND )
     {
@@ -169,7 +169,7 @@ static void handle_get_variable(void *comm_buf)
     EFI_GUID guid;
     uint32_t attrs, version;
     uint64_t buflen;
-    uint8_t data[MAX_VARDATA_SZ];
+    uint8_t data[MAX_VARIABLE_DATA_SIZE];
     UTF16 *name;
     EFI_STATUS status;
     uint8_t *ptr;
@@ -302,7 +302,7 @@ static void handle_set_variable(void *comm_buf)
     int namesz;
     size_t datasz;
     UTF16 *name;
-    uint8_t data[MAX_VARDATA_SZ];
+    uint8_t data[MAX_VARIABLE_DATA_SIZE];
     void *dp = data;
     uint32_t attrs, command, version;
     EFI_STATUS status;
@@ -350,7 +350,7 @@ static void handle_set_variable(void *comm_buf)
     unserialize_name(&ptr, name, namesz + sizeof(UTF16));
     unserialize_guid(&ptr, &guid);
 
-    datasz = unserialize_data(&ptr, dp, MAX_VARDATA_SZ);
+    datasz = unserialize_data(&ptr, dp, MAX_VARIABLE_DATA_SIZE);
     attrs = unserialize_uint32(&ptr);
 
     print_set_var(name, namesz, attrs);

@@ -23,7 +23,6 @@
 
 #define MAX_VAR_COUNT 512
 #define MAX_VARNAME_SZ 128 
-#define MAX_VARDATA_SZ 1024
 
 #define VARSTORED_ERROR 1
 #define VAR_NOT_FOUND (-10)
