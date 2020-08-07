@@ -154,6 +154,7 @@ uint64_t unserialize_namesz(uint8_t **ptr)
 void unserialize_name(uint8_t **ptr, void *buf, size_t n)
 {
     uint64_t namesz = n - sizeof(UTF16);
+
     memcpy(buf, *ptr, namesz);
     memset(buf + namesz, 0, sizeof(UTF16));
 
