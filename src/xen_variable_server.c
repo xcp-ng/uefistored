@@ -203,6 +203,20 @@ static void handle_get_variable(void *comm_buf)
     }
 
     name = malloc(namesz + sizeof(UTF16));
+
+    if ( !name )
+    {
+        buffer_too_small(comm_buf, MAX_VARIABLE_NAME_SIZE);
+        return;
+    }
+
+    if ( namesz > MAX_VARIABLE_NAME_SIZE )
+    {
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        return;
+    }
+
     unserialize_name(&ptr, name, namesz + sizeof(UTF16));
     unserialize_guid(&ptr, &guid);
 
