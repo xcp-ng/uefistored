@@ -9,7 +9,7 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "common.h"
 #include "info.h"
 #include "log.h"

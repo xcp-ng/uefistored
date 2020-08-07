@@ -1,4 +1,4 @@
-SRCS := src/backends/ramdb.c                                    \
+SRCS := src/ramdb.c                                    \
         src/common.c                                            \
         src/log.c                                               \
         src/serializer.c                                        \

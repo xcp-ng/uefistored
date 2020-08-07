@@ -16,7 +16,7 @@
 #include <libxml/xpath.h>
 #include <libxml/parser.h>
 
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "common.h"
 #include "log.h"
 #include "serializer.h"

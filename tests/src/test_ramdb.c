@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "common.h"
 #include "data/bigbase64.h"
 #include "test_common.h"

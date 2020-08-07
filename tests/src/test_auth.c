@@ -8,7 +8,7 @@
 #include <openssl/x509.h>
 
 #include "common.h"
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "edk2/secure_boot.h"
 #include "log.h"
 #include "uefitypes.h"

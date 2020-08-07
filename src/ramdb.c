@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <errno.h>
 
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "common.h"
 #include "uefitypes.h"
 #include "log.h"

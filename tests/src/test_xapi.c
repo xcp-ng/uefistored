@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "data/bigbase64.h"
 #include "data/bigrequest.h"
 #include "common.h"

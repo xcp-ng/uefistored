@@ -43,7 +43,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "varnames.h"
 #include "uefi_guids.h"
 #include "pkcs7_verify.h"
-#include "backends/ramdb.h"
+#include "ramdb.h"
 
 void  *mHashCtx = NULL;
 

@@ -26,7 +26,7 @@
 #include <xen/hvm/params.h>
 #include <xen/memory.h>
 
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "common.h"
 #include "log.h"
 #include "xapi.h"

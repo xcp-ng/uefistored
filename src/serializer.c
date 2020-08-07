@@ -4,7 +4,7 @@
 #include <limits.h>
 
 #include "common.h"
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "log.h"
 #include "serializer.h"
 #include "uefitypes.h"

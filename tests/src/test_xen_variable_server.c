@@ -3,7 +3,7 @@
 #include <string.h>
 #include <uchar.h>
 
-#include "backends/ramdb.h"
+#include "ramdb.h"
 #include "common.h"
 #include "log.h"
 #include "mock/XenVariable.h"
