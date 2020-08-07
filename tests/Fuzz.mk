@@ -23,20 +23,14 @@ fuzz-short: fuzz-memory fuzz-address fuzz-overflow
 	timeout --preserve-status $(FUZZ_SHORT) ./fuzz-address
 	timeout --preserve-status $(FUZZ_SHORT) ./fuzz-overflow
 
-fuzz-memory: CFLAGS := $(CFLAGS) -fsanitize=fuzzer,memory -g
-fuzz-memory: CC = clang
 fuzz-memory: src/fuzz_xen_variable_server.c  $(OBJ)
-	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJ)
+	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJ) -fsanitize=fuzzer,memory -g
 
-fuzz-address: CFLAGS := $(CFLAGS) -fsanitize=fuzzer,address -g
-fuzz-address: CC = clang
 fuzz-address: src/fuzz_xen_variable_server.c  $(OBJ)
-	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJ)
+	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJ) -fsanitize=fuzzer,address -g
 
-fuzz-overflow: CFLAGS := $(CFLAGS) -fsanitize=fuzzer,signed-integer-overflow -g
-fuzz-overflow: CC = clang
 fuzz-overflow: src/fuzz_xen_variable_server.c  $(OBJ)
-	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJ)
+	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJ) -fsanitize=fuzzer,signed-integer-overflow -g
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
