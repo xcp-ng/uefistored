@@ -15,3 +15,4 @@ libs/kissdb
 fuzz-address
 fuzz-memory
 fuzz-overflow
+scripts/raw.dat
