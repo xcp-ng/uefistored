@@ -16,7 +16,7 @@ TEST_SRCS += mock/XenVariable.c \
 TEST_SRCS += src/test_auth.c             \
         src/test_xapi.c             \
         src/test_xen_variable_server.c      \
-        src/test_ramdb.c            \
+        src/test_storage.c            \
         src/edk2/secure_boot.c
 
 TEST_OBJ := $(patsubst %.c,%.o,$(TEST_SRCS))

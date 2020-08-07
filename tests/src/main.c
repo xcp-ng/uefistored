@@ -8,7 +8,7 @@
 #include "test_common.h"
 #include "test_xapi.h"
 #include "test_xen_variable_server.h"
-#include "test_ramdb.h"
+#include "test_storage.h"
 
 #define LOGFILE "test_logfile.txt"
 
@@ -25,7 +25,7 @@ int main(void)
     log_init(LOGFILE);
     test_xen_variable_server();
     test_xapi();
-    test_ramdb();
+    test_storage();
 
     test_printf("\nPASSED (%d), FAILED (%d)\n", passcount, failcount);
     return failcount == 0 ? 0 : -1;

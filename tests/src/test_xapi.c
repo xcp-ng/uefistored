@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "ramdb.h"
+#include "storage.h"
 #include "data/bigbase64.h"
 #include "data/bigrequest.h"
 #include "common.h"
@@ -45,14 +45,14 @@ static variable_t vars[2];
 
 static void pre_test(void)
 {
-    ramdb_init();
+    storage_init();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 static void post_test(void)
 {
-    ramdb_deinit();
-    ramdb_destroy();
+    storage_deinit();
+    storage_destroy();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 

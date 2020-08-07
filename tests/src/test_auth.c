@@ -8,7 +8,7 @@
 #include <openssl/x509.h>
 
 #include "common.h"
-#include "ramdb.h"
+#include "storage.h"
 #include "edk2/secure_boot.h"
 #include "log.h"
 #include "uefitypes.h"
@@ -30,8 +30,8 @@ static void pre_test(void)
 
 static void post_test(void)
 {
-	ramdb_destroy();
-	ramdb_deinit();
+	storage_destroy();
+	storage_deinit();
 	xen_variable_server_deinit();
 }
 

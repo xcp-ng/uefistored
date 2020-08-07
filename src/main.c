@@ -26,7 +26,7 @@
 #include <xen/hvm/params.h>
 #include <xen/memory.h>
 
-#include "ramdb.h"
+#include "storage.h"
 #include "common.h"
 #include "log.h"
 #include "xapi.h"
@@ -515,7 +515,7 @@ static void cleanup(void)
         saved_efi_vars = true;
     }
 
-    ramdb_destroy();
+    storage_destroy();
 
     if ( fmem && fmem_resource )
         xenforeignmemory_unmap_resource(fmem, fmem_resource);

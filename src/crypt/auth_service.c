@@ -43,7 +43,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "varnames.h"
 #include "uefi_guids.h"
 #include "pkcs7_verify.h"
-#include "ramdb.h"
+#include "storage.h"
 
 void  *mHashCtx = NULL;
 
@@ -142,7 +142,7 @@ AuthServiceInternalFindVariable(UTF16 *VariableName,
     if ( !VariableName || !VendorGuid )
         return EFI_DEVICE_ERROR;
 
-    ret = ramdb_get(VariableName, data, MAX_VARDATA_SZ, &len, &tmpattrs);
+    ret = storage_get(VariableName, data, MAX_VARDATA_SZ, &len, &tmpattrs);
 
     if ( ret == VAR_NOT_FOUND )
         return EFI_NOT_FOUND;
@@ -311,7 +311,7 @@ AuthServiceInternalUpdateVariable(UTF16 *VariableName,
 	AuthVariableInfo.DataSize = DataSize;
 	AuthVariableInfo.Attributes = Attributes;
 
-    return ramdb_set(VariableName, Data, DataSize, Attributes) < 0 ? EFI_DEVICE_ERROR : EFI_SUCCESS;
+    return storage_set(VariableName, Data, DataSize, Attributes) < 0 ? EFI_DEVICE_ERROR : EFI_SUCCESS;
 }
 
 /**
@@ -650,7 +650,7 @@ AuthServiceInternalUpdateVariableWithTimeStamp(UTF16 *VariableName,
 	AuthVariableInfo.Attributes = Attributes;
 	AuthVariableInfo.TimeStamp = TimeStamp;
 
-    return ramdb_set(VariableName, Data, DataSize, Attributes) < 0 ? EFI_DEVICE_ERROR : EFI_SUCCESS;
+    return storage_set(VariableName, Data, DataSize, Attributes) < 0 ? EFI_DEVICE_ERROR : EFI_SUCCESS;
 }
 
 /**

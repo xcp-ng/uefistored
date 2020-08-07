@@ -9,7 +9,7 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
-#include "ramdb.h"
+#include "storage.h"
 #include "common.h"
 #include "info.h"
 #include "log.h"
@@ -56,7 +56,7 @@ static int set_setup_mode(uint8_t val)
 {
     int ret;
 
-    ret = ramdb_set(SETUP_MODE_NAME,
+    ret = storage_set(SETUP_MODE_NAME,
                     &val,
                     sizeof(val),
                     EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
@@ -71,7 +71,7 @@ static int set_secure_boot(uint8_t val)
 {
     int ret;
 
-    ret = ramdb_set(SECURE_BOOT_NAME,
+    ret = storage_set(SECURE_BOOT_NAME,
                    &val,
                    sizeof(val),
                    EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
@@ -130,7 +130,7 @@ static void validate(void *name, size_t len, void *data, size_t datasz, uint32_t
 
     (void) len;
 
-    ret = ramdb_get(name, test_data, MAX_VARDATA_SZ, &test_datasz, &test_attrs);
+    ret = storage_get(name, test_data, MAX_VARDATA_SZ, &test_datasz, &test_attrs);
 
     if ( datasz == 0 && ret == VAR_NOT_FOUND )
     {
@@ -139,7 +139,7 @@ static void validate(void *name, size_t len, void *data, size_t datasz, uint32_t
     }
     else if ( ret != 0 )
     {
-        ERROR("%s: failed to get variable with ramdb_get(), ret=%d!\n", __func__, ret);
+        ERROR("%s: failed to get variable with storage_get(), ret=%d!\n", __func__, ret);
         return;
     }
 
@@ -423,7 +423,7 @@ static void handle_get_next_variable(void *comm_buf)
     if ( status )
         goto err;
 
-    ret = ramdb_next(&next);
+    ret = storage_next(&next);
 
     if ( ret == 0 )
     {
@@ -530,7 +530,7 @@ int xen_variable_server_init(var_initializer_t init_vars)
     memset(variables, 0, sizeof(variables));
 
     /* Initialize UEFI variables */
-    ret = ramdb_init();
+    ret = storage_init();
     if ( ret < 0 )
     {
         ERROR("Failed to initialize db: %d\n", ret);
@@ -551,7 +551,7 @@ int xen_variable_server_init(var_initializer_t init_vars)
         {
             for_each_variable(variables, var) 
             {
-                ret = ramdb_set(var->name, var->data, var->datasz, var->attrs);
+                ret = storage_set(var->name, var->data, var->datasz, var->attrs);
 
                 if ( ret < 0 )
                     ERROR("failed to set variable\n");
@@ -559,8 +559,8 @@ int xen_variable_server_init(var_initializer_t init_vars)
         }
     }
 
-    init_setup_mode(variables, ramdb_count());
-    init_secure_boot(variables, ramdb_count());
+    init_setup_mode(variables, storage_count());
+    init_secure_boot(variables, storage_count());
 
     return 0;
 }

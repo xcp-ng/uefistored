@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "ramdb.h"
+#include "storage.h"
 #include "common.h"
 #include "data/bigbase64.h"
 #include "test_common.h"
@@ -9,7 +9,7 @@
 #include "xapi.h"
 
 #include "test_common.h"
-#include "test_ramdb.h"
+#include "test_storage.h"
 
 static UTF16 RTC[] =  {'R', 'T', 'C'};
 static uint8_t RTC_DATA[] = { 0xa, 0xb, 0xc, 0xd };
@@ -21,12 +21,12 @@ static variable_t var2;
 
 static void pre_test(void)
 {
-    ramdb_init();
+    storage_init();
 }
 
 static void post_test(void)
 {
-    ramdb_destroy();
+    storage_destroy();
 }
 
 static void test_set_and_get(void)
@@ -39,10 +39,10 @@ static void test_set_and_get(void)
 
     memset(var1.data, 0, var1.datasz);
 
-    ret = ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
+    ret = storage_set(var1.name, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
-    ret = ramdb_get(var1.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
+    ret = storage_get(var1.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( var1.namesz == tmp.namesz );
@@ -65,10 +65,10 @@ static void test_set_and_get2(void)
     strncpy16(tmp.name, var1.name, MAX_VARNAME_SZ);
     tmp.namesz = var1.namesz;
 
-    ret = ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
+    ret = storage_set(var1.name, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
-    ret = ramdb_get(tmp.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
+    ret = storage_get(tmp.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( var1.namesz == tmp.namesz );
@@ -80,10 +80,10 @@ static void test_set_and_get2(void)
     strncpy16(tmp.name, var2.name, MAX_VARNAME_SZ);
     tmp.namesz = var2.namesz;
 
-    ret = ramdb_set(var2.name, var2.data, var2.datasz, var2.attrs);
+    ret = storage_set(var2.name, var2.data, var2.datasz, var2.attrs);
     test( ret == 0 );
 
-    ret = ramdb_get(tmp.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
+    ret = storage_get(tmp.name, tmp.data, MAX_VARDATA_SZ, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( variable_eq(&var2, &tmp) );
@@ -103,23 +103,23 @@ static void test_next(void)
     memset(&after, 0, sizeof(after));
     memset(&final, 0, sizeof(final));
 
-    ramdb_set(var1.name, var1.data, var1.datasz, var1.attrs);
-    ramdb_set(var2.name, var2.data, var2.datasz, var2.attrs);
+    storage_set(var1.name, var1.data, var1.datasz, var1.attrs);
+    storage_set(var2.name, var2.data, var2.datasz, var2.attrs);
 
-    ret = ramdb_next(&next);
+    ret = storage_next(&next);
     test( ret == 1 );
     variable_destroy_noalloc(&next);
 
-    ret = ramdb_next(&next);
+    ret = storage_next(&next);
     test( ret == 1 );
     variable_destroy_noalloc(&next);
 
-    ret = ramdb_next(&next);
+    ret = storage_next(&next);
     test( ret == 0 );
     variable_destroy_noalloc(&next);
 }
 
-void test_ramdb(void)
+void test_storage(void)
 {
     variable_create_noalloc(&var1, RTC, RTC_DATA, sizeof(RTC_DATA), &DEFAULT_GUID, DEFAULT_ATTR);
     variable_create_noalloc(&var2, CHEER, CHEER_DATA, sizeof(CHEER_DATA), &DEFAULT_GUID, DEFAULT_ATTR);

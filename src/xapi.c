@@ -16,7 +16,7 @@
 #include <libxml/xpath.h>
 #include <libxml/parser.h>
 
-#include "ramdb.h"
+#include "storage.h"
 #include "common.h"
 #include "log.h"
 #include "serializer.h"
@@ -271,7 +271,7 @@ static int retrieve_vars(variable_t *vars, size_t n)
 
 	while ( cnt < n )
     {
-		ret = ramdb_next(next);
+		ret = storage_next(next);
 
 		/* Error */
 		if ( ret < 0 )

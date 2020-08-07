@@ -4,7 +4,7 @@
 #include <limits.h>
 
 #include "common.h"
-#include "ramdb.h"
+#include "storage.h"
 #include "log.h"
 #include "serializer.h"
 #include "uefitypes.h"
@@ -333,7 +333,7 @@ uint64_t unserialize_variable_list(uint8_t **ptr)
     for ( i=0; i<hdr.variable_count; i++ )
     {
         var = variable_create_unserialize(ptr);
-        ret = ramdb_set(var->name, var->data, var->datasz, var->attrs);
+        ret = storage_set(var->name, var->data, var->datasz, var->attrs);
         variable_destroy(var);
 
         if ( ret < 0 )

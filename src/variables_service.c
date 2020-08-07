@@ -1,4 +1,4 @@
-#include "ramdb.h"
+#include "storage.h"
 #include "common.h"
 #include "log.h"
 #include "uefitypes.h"
@@ -44,7 +44,7 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
     if ( !variable )
         return EFI_INVALID_PARAMETER;
 
-    ret = ramdb_get(variable, tmp, MAX_VARDATA_SZ, &tmpsz, &tmpattrs);
+    ret = storage_get(variable, tmp, MAX_VARDATA_SZ, &tmpsz, &tmpattrs);
 
     if ( ret == VAR_NOT_FOUND )
         return EFI_NOT_FOUND;
@@ -91,7 +91,7 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
 
     uc2_ascii_safe(variable, strsize16(variable), strbuf, 512);
 
-    ret = ramdb_set(variable, data, datalen, attrs);
+    ret = storage_set(variable, data, datalen, attrs);
 
     if ( ret < 0 )
     {
@@ -112,7 +112,7 @@ EFI_STATUS query_variable_info(uint32_t attrs,
 
     *max_variable_storage = MAX_STORAGE_SIZE;
     *max_variable_size = MAX_VARIABLE_SIZE;
-    *remaining_variable_storage = MAX_STORAGE_SIZE - ramdb_used();
+    *remaining_variable_storage = MAX_STORAGE_SIZE - storage_used();
 
     return EFI_SUCCESS;
 }

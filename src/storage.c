@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <errno.h>
 
-#include "ramdb.h"
+#include "storage.h"
 #include "common.h"
 #include "uefitypes.h"
 #include "log.h"
@@ -28,22 +28,22 @@ static bool slot_is_empty(variable_t *var)
     return false;
 }
 
-int ramdb_init(void)
+int storage_init(void)
 {
-    ramdb_destroy();
+    storage_destroy();
     return 0;
 }
 
-size_t ramdb_count(void)
+size_t storage_count(void)
 {
 	return total;
 }
 
-void ramdb_deinit(void)
+void storage_deinit(void)
 {
 }
 
-void ramdb_destroy(void)
+void storage_destroy(void)
 {
     variable_t *var;
 
@@ -59,7 +59,7 @@ void ramdb_destroy(void)
     memset(variables, 0, sizeof(variables));
 }
 
-int ramdb_exists(const UTF16 *name)
+int storage_exists(const UTF16 *name)
 {
     variable_t *var = NULL;
 
@@ -71,7 +71,7 @@ int ramdb_exists(const UTF16 *name)
     return 0;
 }
 
-int ramdb_get(const UTF16 *name,
+int storage_get(const UTF16 *name,
               void *dest, size_t n,
               size_t *len, uint32_t *attrs)
 {
@@ -103,7 +103,7 @@ int ramdb_get(const UTF16 *name,
     return 0;
 }
 
-int ramdb_remove(const UTF16 *name)
+int storage_remove(const UTF16 *name)
 {
     size_t namesz;
     variable_t *var;
@@ -131,7 +131,7 @@ int ramdb_remove(const UTF16 *name)
     return 0;
 }
 
-int ramdb_set(const UTF16 *name,
+int storage_set(const UTF16 *name,
               const void *data,
               const size_t datasz,
               const uint32_t attrs)
@@ -152,12 +152,12 @@ int ramdb_set(const UTF16 *name,
     if ( datasz >=  MAX_VARDATA_SZ )
         return -ENOMEM;
 
-    if ( datasz + namesz + ramdb_used() > MAX_STORAGE_SIZE )
+    if ( datasz + namesz + storage_used() > MAX_STORAGE_SIZE )
         return -ENOMEM;
 
     /* As specified by the UEFI spec */
     if ( datasz == 0 || attrs == 0 )
-        return ramdb_remove(name);
+        return storage_remove(name);
 
     /* If it already exists, replace it */
     for_each_variable(variables, var)
@@ -201,7 +201,7 @@ int ramdb_set(const UTF16 *name,
     return -1;
 }
 
-uint64_t ramdb_used(void)
+uint64_t storage_used(void)
 {
     return used;
 }
@@ -214,7 +214,7 @@ uint64_t ramdb_used(void)
  *
  * Returns -1 on error, 0 on end of list, 1 on success
  */
-int ramdb_next(variable_t *next)
+int storage_next(variable_t *next)
 {
     variable_t *var;
 

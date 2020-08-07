@@ -3,7 +3,7 @@
 #include <string.h>
 #include <uchar.h>
 
-#include "ramdb.h"
+#include "storage.h"
 #include "common.h"
 #include "log.h"
 #include "mock/XenVariable.h"
@@ -18,14 +18,14 @@ static void *comm_buf = comm_buf_phys;
 
 static void pre_test(void)
 {
-    ramdb_init();
+    storage_init();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 static void post_test(void)
 {
-    ramdb_deinit();
-    ramdb_destroy();
+    storage_deinit();
+    storage_destroy();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
