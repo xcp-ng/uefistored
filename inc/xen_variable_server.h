@@ -1,7 +1,7 @@
 #ifndef __H_XEN_VARIABLE_SERVER_
 #define __H_XEN_VARIABLE_SERVER_
 
-#include "uefitypes.h"
+#include "uefi/types.h"
 #include "common.h"
 #include <stdint.h>
 #include <stdbool.h>

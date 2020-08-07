@@ -9,8 +9,8 @@
 #include "mock/XenVariable.h"
 #include "serializer.h"
 #include "test_common.h"
-#include "UefiMultiPhase.h"
-#include "uefitypes.h"
+#include "uefi/types.h"
+#include "uefi/types.h"
 #include "xen_variable_server.h"
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];

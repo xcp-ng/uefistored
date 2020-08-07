@@ -1,4 +1,4 @@
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 #include <assert.h>
 #include <sys/types.h>

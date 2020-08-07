@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 EFI_STATUS
 get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, void *data);

@@ -6,7 +6,7 @@
 #include <uchar.h>
 
 #include "serializer.h"
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 #define PORT_ADDRESS 0x0100
 #define SHMEM_PAGES  16

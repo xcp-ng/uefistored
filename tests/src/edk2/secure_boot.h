@@ -2,7 +2,7 @@
 #define __H_SECURE_BOOT_
 
 #include <stdint.h>
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 EFI_STATUS
 EnrollPlatformKey (

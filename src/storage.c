@@ -9,7 +9,7 @@
 
 #include "storage.h"
 #include "common.h"
-#include "uefitypes.h"
+#include "uefi/types.h"
 #include "log.h"
 
 #define MAX_VARNAME_SZ 128 

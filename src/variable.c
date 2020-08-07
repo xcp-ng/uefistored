@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "common.h"
-#include "uefitypes.h"
+#include "uefi/types.h"
 #include "serializer.h"
 #include "variable.h"
 

@@ -1,7 +1,7 @@
 #ifndef __H_COMMON_
 #define __H_COMMON_
 
-#include "UefiMultiPhase.h"
+#include "uefi/types.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

@@ -1,7 +1,7 @@
 #ifndef __H_UEFI_GUIDS_
 #define __H_UEFI_GUIDS_
 
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 extern EFI_GUID gEfiCertPkcs7Guid;
 extern EFI_GUID gEfiCertX509Guid;

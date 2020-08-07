@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 typedef struct {
     /* namesz is not strictly needed, but we use it to speed up comparisons */

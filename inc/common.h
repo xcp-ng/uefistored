@@ -8,7 +8,7 @@
 #include <string.h>
 #include <uchar.h>
 
-#include "uefitypes.h"
+#include "uefi/types.h"
 #include "variable.h"
 
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)

@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "log.h"
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 /**
  * Return the length of a UTF16 string.

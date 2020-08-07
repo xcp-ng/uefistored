@@ -1,7 +1,7 @@
 #ifndef __H_VAR_NAMES_
 #define __H_VAR_NAMES_
 
-#include "uefitypes.h"
+#include "uefi/types.h"
 
 extern UTF16 KEK_NAME[];
 extern UTF16 PK_NAME[];

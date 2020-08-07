@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "uefitypes.h"
+#include "uefi/types.h"
 #include "common.h"
 #include "variable.h"
 

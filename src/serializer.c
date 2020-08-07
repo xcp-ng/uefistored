@@ -7,7 +7,7 @@
 #include "storage.h"
 #include "log.h"
 #include "serializer.h"
-#include "uefitypes.h"
+#include "uefi/types.h"
 #include "variable.h"
 
 static const char VARS[] = "VARS";

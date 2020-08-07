@@ -1,8 +1,8 @@
 #include "storage.h"
 #include "common.h"
 #include "log.h"
-#include "uefitypes.h"
-#include "uefi_guids.h"
+#include "uefi/types.h"
+#include "uefi/guids.h"
 #include "varnames.h"
 #include "variable.h"
 
