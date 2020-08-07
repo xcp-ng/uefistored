@@ -206,6 +206,7 @@ static void handle_get_variable(void *comm_buf)
 
     if ( !name )
     {
+        ptr = comm_buf;
         buffer_too_small(comm_buf, MAX_VARIABLE_NAME_SIZE);
         return;
     }
