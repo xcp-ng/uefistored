@@ -146,10 +146,10 @@ int storage_set(const UTF16 *name,
 
     namesz = strsize16(name);
 
-    if ( namesz + sizeof(UTF16) >=  MAX_VARNAME_SZ )
+    if ( namesz >= MAX_VARIABLE_NAME_SIZE )
         return -ENOMEM;
 
-    if ( datasz >=  MAX_VARDATA_SZ )
+    if ( datasz >= MAX_VARIABLE_DATA_SIZE )
         return -ENOMEM;
 
     if ( datasz + namesz + storage_used() > MAX_STORAGE_SIZE )
