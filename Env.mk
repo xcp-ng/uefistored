@@ -1,5 +1,5 @@
 # GIT repo dependencies
-GIT_REPO_TARGETS :=  xcp-ng-build-env/.cloned libs/kissdb/.cloned
+GIT_REPO_TARGETS :=  xcp-ng-build-env/.cloned
 
 XCP_NG_VER := 8.1
 DOCKER_IMAGE := xcp-ng/xcp-ng-build-env:$(XCP_NG_VER)
@@ -18,7 +18,6 @@ print-%:
 	@:$(info $($*))
 
 xcp-ng-build-env/.cloned: GIT_REPO := https://github.com/beshleman/xcp-ng-build-env.git
-libs/kissdb/.cloned: GIT_REPO := https://github.com/adamierymenko/kissdb.git libs/kissdb
 
 %/.cloned:
 	git clone $(GIT_REPO)
