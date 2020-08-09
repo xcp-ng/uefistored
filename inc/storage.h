@@ -14,7 +14,7 @@
 #error "Name and data max sizes are misconfigured!"
 #endif
 
-int storage_init(void);
+void storage_init(void);
 size_t storage_count(void);
 void storage_deinit(void);
 int storage_get(const UTF16 *name, void *dest, size_t n, size_t *len, uint32_t *attrs);

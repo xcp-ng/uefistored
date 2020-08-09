@@ -25,10 +25,9 @@ static bool slot_is_empty(variable_t *var)
     return false;
 }
 
-int storage_init(void)
+void storage_init(void)
 {
     storage_destroy();
-    return 0;
 }
 
 size_t storage_count(void)
@@ -195,7 +194,7 @@ int storage_set(const UTF16 *name,
         }
     }
 
-    return -1;
+    return -2;
 }
 
 uint64_t storage_used(void)
