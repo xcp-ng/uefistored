@@ -17,6 +17,15 @@ HVM domU that XAPI has started.  XenVariable, found in OVMF, knows how to
 communicate with varstored-ng using the device emulation protocol.  See [OVMF
 and varstored-ng] for more details.
 
+## Deployment in Test
+
+If you just want to deploy to a known host:
+
+```
+$ make all
+$ XCP_NG_IP=192.168.0.17 make deploy
+```
+
 ## OVMF and varstored-ng
 
 OVMF's XenVariable module implements the UEFI Variables service (see the UEFI
