@@ -31,8 +31,6 @@
 char VM_UUID[VM_UUID_MAX];
 bool xapi_uuid_initialized = false;
 
-static char *UUID_ARG;
-
 extern char root_path[PATH_MAX];
 char socket_path[108];
 bool socket_path_initialized = false;
@@ -644,37 +642,6 @@ int get_response_content(char *response, char *outstr, size_t n)
     return 0;
 }
 
-static int set_efi_vars(char *session_id, char *b64)
-{
-    int ret;
-    char response[1024] = { 0 };
-    int status;
-
-    ret = xapi_vm_get_by_uuid(session_id);
-
-    if (ret < 0)
-        return ret;
-
-    status = xapi_request(response, 1024,
-                          "<?xmlversion=\'1.0\'?>"
-                          "<methodCall>"
-                          "<methodName>VM.set_NVRAM_EFI_variables</methodName>"
-                          "<params>"
-                          "<param><value><string>%s</string></value></param>"
-                          "<param><value><string>%s</string></value></param>"
-                          "<param><value><string>%s</string></value></param>"
-                          "</params>"
-                          "</methodCall>",
-                          session_id, VM_UUID, b64);
-
-    if (status != 200) {
-        ERROR("Failed to set NVRAM EFI vars\n");
-        return -1;
-    }
-
-    return success(response_body(response)) ? 0 : -1;
-}
-
 int xapi_vm_get_by_uuid(char *session_id)
 {
     int status, ret;
@@ -929,45 +896,4 @@ int xapi_get_variables(variable_t *vars, size_t n)
         return ret;
 
     return from_blob_to_vars(vars, n, plaintext, (size_t)ret);
-}
-
-int xapi_set_variables(void)
-{
-    char *b64;
-    int ret;
-    char session_id[512];
-
-    if (UUID_ARG == 0)
-        return 1;
-
-    ret = session_login(session_id, 512);
-
-    if (ret < 0) {
-        usleep(100000);
-        ret = session_login(session_id, 512);
-        if (ret < 0)
-            return ret;
-    }
-
-    ret = xapi_vm_get_by_uuid(session_id);
-
-    if (ret < 0)
-        return ret;
-
-    b64 = variables_base64();
-
-    ret = set_efi_vars(session_id, b64);
-
-    if (ret < 0)
-        goto free_b64;
-
-    ret = session_logout(session_id);
-
-    if (ret < 0)
-        goto free_b64;
-
-free_b64:
-    free(b64);
-
-    return ret;
 }
