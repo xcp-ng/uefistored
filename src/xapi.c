@@ -28,12 +28,15 @@
 #define MAX_RESPONSE_SIZE 4096
 
 #define VM_UUID_MAX 36
-char VM_UUID[VM_UUID_MAX];
-bool xapi_uuid_initialized = false;
+
+static char VM_UUID[VM_UUID_MAX];
+
+static bool xapi_uuid_initialized = false;
 
 extern char root_path[PATH_MAX];
 char socket_path[108];
-bool socket_path_initialized = false;
+
+static bool socket_path_initialized = false;
 
 /* The maximum number of digits in the Content-Length HTTP field */
 #define MAX_CONTENT_LENGTH_DIGITS 16
@@ -60,6 +63,7 @@ bool socket_path_initialized = false;
     "</methodCall>"
 
 #define SOCKET_MAX 108
+
 char socket_path[SOCKET_MAX];
 
 int xapi_parse_arg(char *arg)
@@ -70,12 +74,16 @@ int xapi_parse_arg(char *arg)
         p += sizeof("socket:") - 1;
         strncpy(socket_path, p, SOCKET_MAX);
         socket_path_initialized = true;
+
         return 0;
+
     } else if ((p = strstr(optarg, "uuid:")) != NULL) {
         p += sizeof("uuid:") - 1;
         strncpy(VM_UUID, p, VM_UUID_MAX);
         xapi_uuid_initialized = true;
+
         return 0;
+
     }
 
     return 0;
