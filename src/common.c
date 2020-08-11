@@ -98,6 +98,24 @@ void dprint_variable(variable_t *var)
 }
 
 /**
+ * print_variable -  print a variable
+ *
+ * WARNING: this only prints ASCII characters correctly.
+ * Any char code above 255 will be displayed incorrectly.
+ */
+
+void print_variable(variable_t *var)
+{
+    char buf[MAX_VARIABLE_NAME_SIZE] = {0};
+
+    if ( !var )
+        return;
+
+    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARIABLE_NAME_SIZE);
+    printf("Variable(%s)\n", buf);
+}
+
+/**
  * Returns 0 if a and b are equal, otherwise non-zero.
  */
 int strcmp16(const UTF16 *a, const UTF16 *b)
