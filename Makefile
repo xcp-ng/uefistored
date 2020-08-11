@@ -15,9 +15,12 @@ OBJS := $(patsubst %.c,%.o,$(SRCS))
 INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall -Werror -lssl -lcrypto -lxml2 -I/usr/include/libxml2
 
+all:        ## Build varstored (same as varstored target)
 all: varstored
 
-varstored: src/main.c $(OBJS) 
+
+varstored:  ## Build varstored
+varstored: src/main.c $(OBJS)
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
@@ -37,13 +40,19 @@ tools:
 	$(MAKE) -C tools
 
 .PHONY: test
-test:
+test:       ## Run varstored unit tests with address sanitizers
 	$(MAKE) -C tests/
 	cd tests && ./$@
 
 .PHONY: test-nosan
-test-nosan:
+test-nosan: ## Run varstored unit tests without address sanitizers
 	$(MAKE) test-nosan -C tests/
 	cd tests && ./$@
+
+.PHONY: help
+help:
+	@printf "\nvarstored - UEFI Secure Boot support for Guest VMs\n\n"
+	@fgrep -h "##" Makefile Env.mk | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
+	@printf "\n"
 
 include Env.mk
