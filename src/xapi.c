@@ -644,7 +644,7 @@ int get_response_content(char *response, char *outstr, size_t n)
     return 0;
 }
 
-int set_efi_vars(char *session_id, char *b64)
+static int set_efi_vars(char *session_id, char *b64)
 {
     int ret;
     char response[1024] = { 0 };
