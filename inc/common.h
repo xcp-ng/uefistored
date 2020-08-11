@@ -39,10 +39,6 @@
 #define SHMEM_PAGES 16
 #define SHMEM_SIZE (SHMEM_PAGES * PAGE_SIZE)
 
-void dprint_variable(variable_t *var);
-
-#define USE_STREAM 1
-
 uint64_t strlen16(const UTF16 *str);
 uint64_t strsize16(const UTF16 *str);
 int strcmp16(const UTF16 *a, const UTF16 *b);
@@ -53,5 +49,8 @@ void uc2_ascii(UTF16 *uc2, char *ascii, size_t len);
 
 typedef int (*var_initializer_t)(variable_t *, size_t);
 variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n);
+
+void print_variable(variable_t *var);
+void dprint_variable(variable_t *var);
 
 #endif

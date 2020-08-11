@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#define BIG_MESSAGE_SIZE (8 * PAGE_SIZE)
+
 int xapi_init(void);
 int xapi_set_efi_vars(void);
 int xapi_connect(void);

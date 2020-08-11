@@ -18,6 +18,8 @@ void log_deinit(void);
 
 void dprint_data(void *data, size_t datasz);
 
+#define USE_STREAM 0
+
 #define varstored_fprintf(stream, ...)                    \
     do {                                                \
         fprintf(stream, __VA_ARGS__);                       \
