@@ -22,11 +22,12 @@ int open_logfile(void)
 
 int main(void)
 { 
+
     log_init(LOGFILE);
     test_xen_variable_server();
     test_xapi();
     test_storage();
 
-    test_printf("\nPASSED (%d), FAILED (%d)\n", passcount, failcount);
+    printf("\nPASSED (%d), FAILED (%d)\n", passcount, failcount);
     return failcount == 0 ? 0 : -1;
 }

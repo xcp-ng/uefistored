@@ -9,6 +9,7 @@
 #include "storage.h"
 #include "data/bigbase64.h"
 #include "data/bigrequest.h"
+#include "data/bigrequest2.h"
 #include "common.h"
 #include "log.h"
 #include "test_common.h"
@@ -340,6 +341,81 @@ static void test_big_request(void)
     base64_from_response(buffer, 4096*8, big_request);
 }
 
+
+
+static const char *expected_vars[] = {
+    "Boot0002",
+    "Boot0003",
+    "Boot0004",
+    "BootCurrent",
+    "BootOptionSupport",
+    "BootOrder",
+    "ConIn",
+    "ConInDev",
+    "ConOut",
+    "ConOutDev",
+    "ErrOut",
+    "ErrOutDev",
+    "Key0000",
+    "Lang",
+    "LangCodes",
+    "MTC",
+    "MemoryTypeInformation",
+    "OsIndicationsSupported",
+    "PlatformLang",
+    "PlatformLangCodes",
+    "PlatformRecovery0000",
+    "SecureBoot",
+    "SetupMode",
+    "Timeout"
+};
+
+static void test_big_request2(void)
+{
+    variable_t vars[32] = {0};
+    char buffer[4096*8];
+    char *big_request = BIG_REQUEST2;
+	uint8_t plaintext[BIG_MESSAGE_SIZE];
+    char ascii[128] = {'\0'};
+    const char *name;
+    int ret;
+    bool found;
+
+    ret = base64_from_response(buffer, 4096*8, big_request);
+    printf("base64_from_response return: %d\n", ret);
+	ret = base64_to_blob(plaintext, BIG_MESSAGE_SIZE, buffer, strlen(buffer));
+
+    printf("blob size: %d\n", ret);
+	from_blob_to_vars(vars, 32, plaintext, (size_t)ret);
+
+    int i,j;
+
+    for ( i=0; i<sizeof(expected_vars)/sizeof(expected_vars[0]); i++ )
+    {
+        name = expected_vars[i];
+        found = false;
+
+        for ( j=0; j<32; j++ )
+        {
+            uc2_ascii(vars[j].name, ascii, 128);
+
+            if ( strcmp(ascii, name) == 0 )
+            {
+                found = true;
+                break;
+            } 
+        }
+
+        test(found == true);
+    }
+        
+
+    for ( i=0; i<32; i++ )
+    {
+        variable_destroy_noalloc(&vars[i]);
+    }
+}
+
 void test_xapi(void)
 {
     v1_len = strsize16((char16_t*)v1) + sizeof(UTF16);
@@ -366,4 +442,5 @@ void test_xapi(void)
     DO_TEST(test_base64_big);
     DO_TEST(test_base64_big_xml);
     DO_TEST(test_big_request);
+    DO_TEST(test_big_request2);
 }
