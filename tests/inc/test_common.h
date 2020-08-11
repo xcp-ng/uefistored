@@ -10,77 +10,17 @@
 static const EFI_GUID DEFAULT_GUID = { .Data1 = 0xc0defeed };
 static const uint32_t DEFAULT_ATTRS = 0xdeadbeef;
 
-#define DISABLE_STDIO 1
-
 extern int passcount;
 extern int failcount;
 extern int all_passed;
 
-#if DISABLE_STDIO
-static int old_stdout;
-static int old_stderr;
-static bool redirected;
-
-static inline void redirect_init(void)
-{
-    int new_stdout, new_stderr;
-
-    if ( redirected )
-        return;
-
-    fflush(stdout);
-    old_stdout = dup(1);
-    old_stderr = dup(2);
-
-    new_stdout = open("/dev/null", O_WRONLY);
-    dup2(new_stdout, 1);
-    close(new_stdout);
-
-    new_stderr = open("/dev/null", O_WRONLY);
-    dup2(new_stderr, 2);
-    close(new_stderr);
-
-    redirected = true;
-}
-
-static inline void redirect_deinit(void)
-{
-    if ( !redirected )
-        return;
-
-    fflush(stdout);
-    dup2(old_stdout, 1);
-    close(old_stdout);
-
-    fflush(stderr);
-    dup2(old_stderr, 2);
-    close(old_stderr);
-
-    redirected = false;
-}
-
-#define test_printf(...)            \
-    do {                            \
-       redirect_deinit();           \
-       printf(__VA_ARGS__);         \
-       redirect_init();             \
-    } while ( 0 )
-
-#else
-
 #define test_printf printf
-#define redirect_init() do { } while (0)
-#define redirect_deinit() do { } while (0)
-
-#endif
 
 #define DO_TEST(test)                                   \
     do  {                                               \
-        redirect_init();                                \
         pre_test();                                     \
         test();                                         \
         post_test();                                    \
-        redirect_deinit();                              \
     }  while ( 0 )
 
 static inline void  _test(const char *file_name, const char *test_name,

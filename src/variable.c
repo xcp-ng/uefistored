@@ -150,7 +150,7 @@ variable_t *variable_create(const UTF16 *name, const uint8_t *data,
  * Unlike other unserialize_* functions, the return pointer
  * must be freed by the caller.
  */
-variable_t *variable_create_unserialize(uint8_t **ptr)
+variable_t *variable_create_unserialize(const uint8_t **ptr)
 {
     variable_t *var;
     UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};

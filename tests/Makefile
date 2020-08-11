@@ -11,17 +11,18 @@ INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxm
 
 # Add mocks
 TEST_SRCS += mock/XenVariable.c \
-        mock/sys/socket.c
+             mock/sys/socket.c
 
 # Add test files
-TEST_SRCS += src/test_auth.c             \
-        src/test_xapi.c             \
-        src/test_xen_variable_server.c      \
-        src/test_storage.c            \
-        src/edk2/secure_boot.c
+TEST_SRCS +=                            \
+    src/test_deserialization.c          \
+    src/edk2/secure_boot.c              \
+    src/test_xen_variable_server.c      \
+    src/test_storage.c                  \
+    src/test_xapi.c
 
-TEST_OBJ := $(patsubst %.c,%.o,$(TEST_SRCS))
-OBJ := $(patsubst %.c,%.o,$(SRCS))
+TEST_OBJS := $(patsubst %.c,%.o,$(TEST_SRCS))
+OBJS := $(patsubst %.c,%.o,$(SRCS))
 
 .PHONY: all
 all: test-nosan test
@@ -33,11 +34,11 @@ all: test-nosan test
 		./test-nosan
 	./$<
 
-test: src/main.c $(OBJ) $(TEST_OBJ) keys/.done $(HDRS)
-	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJ) $(TEST_OBJ) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak
+test: src/main.c $(OBJS) $(TEST_OBJS) keys/.done $(HDRS)
+	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) $(TEST_OBJS) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak
 
-test-nosan: src/main.c $(TEST_OBJ) $(OBJ) keys $(HDRS)
-	$(CC) -o $@ $< $(INC) $(OBJ) $(TEST_OBJ) $(CFLAGS)
+test-nosan: src/main.c $(TEST_OBJS) $(OBJS) keys $(HDRS)
+	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS)
 
 .PHONY: valgrind
 valgrind: test-nosan
@@ -53,7 +54,7 @@ valgrind: test-nosan
 
 .PHONY: clean
 clean:
-	rm -f $(OBJ) $(TEST_OBJ) test test-nosan
+	rm -f $(OBJS) $(TEST_OBJS) test test-nosan
 	$(MAKE) -C fuzz/
 
 .PHONY: keys
@@ -65,5 +66,6 @@ keys/.done:
 	@cd keys && ../scripts/create-keys.sh
 	@touch $@
 
-print-%:
-	@:$(info $($*))
+.PHONY: print
+print:
+	@echo "$(OBJS) $(TEST_OBJS)"

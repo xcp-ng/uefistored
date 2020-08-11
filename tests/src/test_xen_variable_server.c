@@ -315,7 +315,7 @@ static void test_success_get_next_var_two(void)
     EFI_STATUS status;
     size_t varname_sz = TEST_VARNAME_BUF_SZ;
     char16_t buf[TEST_VARNAME_BUF_SZ] = {0};
-    char16_t copies[2][TEST_VARNAME_BUF_SZ] = {0};
+    char16_t copies[2][TEST_VARNAME_BUF_SZ] = {{0}};
     EFI_GUID guid;
     uint8_t *ptr;
 

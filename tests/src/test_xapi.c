@@ -240,8 +240,8 @@ void test_base64_multiple(void)
     uint8_t buf[BUFSZ] = {0};
     uint8_t *p = (uint8_t*)buf;
     uint8_t blob[BUFSZ] = {0};
-    variable_t orig[VARCNT] = {0};
-    variable_t var[VARCNT] = {0};
+    variable_t orig[VARCNT] = {{0}};
+    variable_t var[VARCNT] = {{0}};
 
     /* Setup */
     variable_create_noalloc(&orig[0], FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTRS);
@@ -274,7 +274,7 @@ void test_base64_big(void)
     int ret;
     int i;
     uint8_t pt[4096*4];
-    variable_t vars[256] = {0};
+    variable_t vars[256] = {{0}};
 
     ret = base64_to_blob(pt, 4096*4, BIG_BASE64, strlen(BIG_BASE64));
     test(ret > 0);
@@ -306,7 +306,7 @@ void test_base64_big_xml(void)
     int i;
     char base64[4096*4];
     uint8_t pt[4096*4];
-    variable_t vars[256] = {0};
+    variable_t vars[256] = {{0}};
 
     ret = base64_from_response_body(base64, 4096*4, BIG_BASE64_XML);
     test( ret == 0 );
@@ -372,7 +372,7 @@ static const char *expected_vars[] = {
 
 static void test_big_request2(void)
 {
-    variable_t vars[32] = {0};
+    variable_t vars[32] = {{0}};
     char buffer[4096*8];
     char *big_request = BIG_REQUEST2;
 	uint8_t plaintext[BIG_MESSAGE_SIZE];

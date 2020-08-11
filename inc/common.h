@@ -47,7 +47,6 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n);
 void uc2_ascii_safe(UTF16 *uc2, size_t uc2_len, char *ascii, size_t len);
 void uc2_ascii(UTF16 *uc2, char *ascii, size_t len);
 
-typedef int (*var_initializer_t)(variable_t *, size_t);
 variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n);
 
 void print_variable(variable_t *var);

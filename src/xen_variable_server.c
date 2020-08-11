@@ -19,10 +19,10 @@
 #include "varnames.h"
 #include "variables_service.h"
 #include "xen_variable_server.h"
+#include "xapi.h"
 
 //#define VALIDATE_WRITES
 
-#if DEBUG_XEN_VARIABLE_SERVER
 /**
  * dprint_vname -  Debug print a variable name
  *
@@ -36,20 +36,12 @@ do { \
     memset(strbuf, '\0', 512); \
 } while ( 0 )
 
-#else
-#define dprint_vname(...) do { } while ( 0 )
-#endif
-
-#if DEBUG_XEN_VARIABLE_SERVER
 #define eprint_vname(format, vn, ...) \
 do { \
     uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
     ERROR(format, strbuf __VA_ARGS__); \
     memset(strbuf, '\0', 512); \
 } while( 0 )
-#else
-#define eprint_vname(...) do { } while ( 0 )
-#endif
 
 static int set_setup_mode(uint8_t val)
 {
@@ -83,7 +75,6 @@ static int set_secure_boot(uint8_t val)
 
 static void dprint_attrs(uint32_t attr)
 {
-#if DEBUG_XEN_VARIABLE_SERVER
     DPRINTF("0x%x:", attr);
     if ( attr & EFI_VARIABLE_NON_VOLATILE )
         DPRINTF("EFI_VARIABLE_NON_VOLATILE,");
@@ -99,7 +90,6 @@ static void dprint_attrs(uint32_t attr)
         DPRINTF("EFI_VARIABLE_APPEND_WRITE,");
     if ( attr & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
         DPRINTF("EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS,");
-#endif
 }
 
 static void buffer_too_small(void *comm_buf, size_t required_size)
@@ -112,11 +102,9 @@ static void buffer_too_small(void *comm_buf, size_t required_size)
 
 void print_uc2(const char *TAG, void *vn)
 {
-#if DEBUG_XEN_VARIABLE_SERVER
     uc2_ascii(vn, strbuf, 512);
     DEBUG("%s:%s\n", TAG, strbuf);
     memset(strbuf, '\0', 512);
-#endif
 }
 
 #ifdef VALIDATE_WRITES
@@ -172,10 +160,11 @@ static void handle_get_variable(void *comm_buf)
     uint8_t data[MAX_VARIABLE_DATA_SIZE];
     UTF16 *name;
     EFI_STATUS status;
-    uint8_t *ptr;
+    uint8_t *ptr = comm_buf;
+    const uint8_t *inptr = comm_buf;
 
-    ptr = comm_buf;
-    version = unserialize_uint32(&ptr);
+    inptr = comm_buf;
+    version = unserialize_uint32(&inptr);
 
     if ( version != VARSTORED_VERSION )
     {
@@ -185,7 +174,7 @@ static void handle_get_variable(void *comm_buf)
         return;
     }
 
-    if ( unserialize_uint32(&ptr) != COMMAND_GET_VARIABLE )
+    if ( unserialize_uint32(&inptr) != COMMAND_GET_VARIABLE )
     {
         ERROR("BUG in varstored, wrong command\n");
         ptr = comm_buf;
@@ -193,7 +182,7 @@ static void handle_get_variable(void *comm_buf)
         return;
     }
 
-    namesz = unserialize_namesz(&ptr);
+    namesz = unserialize_namesz(&inptr);
 
     if ( namesz <= 0 )
     {
@@ -219,10 +208,10 @@ static void handle_get_variable(void *comm_buf)
         return;
     }
 
-    unserialize_name(&ptr, BUFFER_REMAINING(comm_buf, ptr), name, namesz + sizeof(UTF16));
-    unserialize_guid(&ptr, &guid);
+    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, ptr), name, namesz + sizeof(UTF16));
+    unserialize_guid(&inptr, &guid);
 
-    buflen = unserialize_uint64(&ptr);
+    buflen = unserialize_uint64(&inptr);
 
     status = get_variable(name, &guid, &attrs, &buflen, data);
 
@@ -259,9 +248,10 @@ static void handle_query_variable_info(void *comm_buf)
     uint64_t max_variable_storage;
     uint64_t remaining_variable_storage;
     uint64_t max_variable_size;
+    const uint8_t *inptr = comm_buf;
 
     ptr = comm_buf;
-    version = unserialize_uint32(&ptr);
+    version = unserialize_uint32(&inptr);
 
     if ( version != VARSTORED_VERSION )
     {
@@ -272,7 +262,7 @@ static void handle_query_variable_info(void *comm_buf)
         return;
     }
 
-    command = unserialize_uint32(&ptr);
+    command = unserialize_uint32(&inptr);
 
     if ( command != COMMAND_QUERY_VARIABLE_INFO )
     {
@@ -283,7 +273,7 @@ static void handle_query_variable_info(void *comm_buf)
         return;
     }
 
-    attrs = unserialize_uint32(&ptr);
+    attrs = unserialize_uint32(&inptr);
 
     status = query_variable_info(attrs, &max_variable_storage, &remaining_variable_storage, &max_variable_size);;
 
@@ -296,7 +286,6 @@ static void handle_query_variable_info(void *comm_buf)
 
     ptr = comm_buf;
     serialize_result(&ptr, status);
-    printf(">>>>>>>>>> 0x%02lx\n", max_variable_storage);
     serialize_value(&ptr, max_variable_storage);
     serialize_value(&ptr, remaining_variable_storage);
     serialize_value(&ptr, max_variable_size);
@@ -312,6 +301,7 @@ static void print_set_var(UTF16 *name, size_t len, uint32_t attrs)
 static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr;
+    const uint8_t *inptr = comm_buf;
     EFI_GUID guid;
     int namesz;
     size_t datasz;
@@ -322,7 +312,7 @@ static void handle_set_variable(void *comm_buf)
     EFI_STATUS status;
 
     ptr = comm_buf;
-    version = unserialize_uint32(&ptr);
+    version = unserialize_uint32(&inptr);
 
     if ( version != VARSTORED_VERSION )
     {
@@ -333,7 +323,7 @@ static void handle_set_variable(void *comm_buf)
         return;
     }
 
-    command = unserialize_uint32(&ptr);
+    command = unserialize_uint32(&inptr);
     if ( command != COMMAND_SET_VARIABLE )
     {
         ERROR("BUG: varstored accidentally passed a non SET_VARIABLE buffer to the"
@@ -343,7 +333,7 @@ static void handle_set_variable(void *comm_buf)
         return;
     }
 
-    namesz = unserialize_namesz(&ptr);
+    namesz = unserialize_namesz(&inptr);
 
     if ( namesz <= 0 )
     {
@@ -361,11 +351,11 @@ static void handle_set_variable(void *comm_buf)
     }
 
     name = malloc(namesz + sizeof(UTF16));
-    unserialize_name(&ptr, BUFFER_REMAINING(comm_buf, ptr), name, namesz + sizeof(UTF16));
-    unserialize_guid(&ptr, &guid);
+    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), name, namesz + sizeof(UTF16));
+    unserialize_guid(&inptr, &guid);
 
-    datasz = unserialize_data(&ptr, dp, MAX_VARIABLE_DATA_SIZE);
-    attrs = unserialize_uint32(&ptr);
+    datasz = unserialize_data(&inptr, dp, MAX_VARIABLE_DATA_SIZE);
+    attrs = unserialize_uint32(&inptr);
 
     print_set_var(name, namesz, attrs);
 
@@ -378,7 +368,7 @@ static void handle_set_variable(void *comm_buf)
     free(name);
 }
 
-static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
+static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
                                                 uint64_t *namesz,
                                                 UTF16 **name,
                                                 uint64_t *guest_bufsz,
@@ -386,23 +376,23 @@ static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
 {
     uint32_t command;
     bool efi_at_runtime;
-    uint8_t *ptr = comm_buf;
+    const uint8_t *inptr = comm_buf;
     uint32_t version;
 
     if ( !comm_buf || !namesz || !name || !guid )
         return EFI_DEVICE_ERROR;
 
-    version = unserialize_uint32(&ptr);
+    version = unserialize_uint32(&inptr);
 
     if ( version != VARSTORED_VERSION )
         WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
 
-    command = unserialize_uint32(&ptr);
+    command = unserialize_uint32(&inptr);
 
     assert(command == COMMAND_GET_NEXT_VARIABLE);
 
-    *guest_bufsz = unserialize_uintn(&ptr);
-    *namesz = unserialize_namesz(&ptr);
+    *guest_bufsz = unserialize_uintn(&inptr);
+    *namesz = unserialize_namesz(&inptr);
 
     if ( *namesz > MAX_VARIABLE_NAME_SIZE )
         return EFI_DEVICE_ERROR;
@@ -412,11 +402,11 @@ static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
     if ( !*name )
         return EFI_DEVICE_ERROR;
 
-    unserialize_name(&ptr, BUFFER_REMAINING(comm_buf, ptr), *name, *namesz + sizeof(UTF16));
-    unserialize_guid(&ptr, guid);
+    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), *name, *namesz + sizeof(UTF16));
+    unserialize_guid(&inptr, guid);
 
     /* TODO: use the guid according to spec */
-    efi_at_runtime = unserialize_boolean(&ptr);
+    efi_at_runtime = unserialize_boolean(&inptr);
 
     if ( efi_at_runtime )
     {
@@ -437,6 +427,7 @@ static EFI_STATUS unserialize_get_next_variable(void *comm_buf,
 static void handle_get_next_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
+    const uint8_t *inptr = comm_buf;
     uint64_t guest_bufsz;
     UTF16 *name;
     uint64_t namesz;
@@ -447,7 +438,7 @@ static void handle_get_next_variable(void *comm_buf)
 
     memset(&next, 0, sizeof(next));
 
-    status = unserialize_get_next_variable(ptr, &namesz, &name, &guest_bufsz, &guid);
+    status = unserialize_get_next_variable(inptr, &namesz, &name, &guest_bufsz, &guid);
 
     if ( status )
     {
@@ -491,7 +482,7 @@ cleanup1:
 
 void xen_variable_server_handle_request(void *comm_buf)
 {
-    uint8_t *ptr;
+    const uint8_t *inptr = comm_buf;
     uint32_t command;
 
     if ( !comm_buf )
@@ -499,13 +490,10 @@ void xen_variable_server_handle_request(void *comm_buf)
         ERROR("comm buffer is null!\n");
         return;
     }
-
-    ptr = comm_buf;
-
     /* advance the pointer passed the version field */
-    unserialize_uint32(&ptr);
+    unserialize_uint32(&inptr);
 
-    command = unserialize_uint32(&ptr);
+    command = unserialize_uint32(&inptr);
 
     switch ( command )
     {
@@ -547,41 +535,37 @@ void init_secure_boot(variable_t variables[MAX_VAR_COUNT], size_t n)
     set_secure_boot(0);
 }
 
-int xen_variable_server_init(var_initializer_t init_vars)
+int xen_variable_server_init(void)
 {
-    int ret;
+    int ret, i;
+    char *name;
     variable_t variables[MAX_VAR_COUNT];
-    variable_t *var;
 
     memset(variables, 0, sizeof(variables));
 
     /* Initialize UEFI variables */
-    ret = storage_init();
+    storage_init();
+
+    /* TODO: if there is an error, prevent boot.  If vars are empty, allow boot */
+    ret = xapi_get_variables(variables, MAX_VAR_COUNT);
+
     if ( ret < 0 )
     {
-        ERROR("Failed to initialize db: %d\n", ret);
-        return ret;
+        INFO("failed to get vars from xapi, starting with (ALMOST) blank DB\n");
     }
 
-    if ( init_vars )
+    for ( i=0; i<ret; i++ )
     {
-        /* TODO: if there is an error, prevent boot.  If vars are empty, allow boot */
-        ret = init_vars(variables, MAX_VAR_COUNT);
+        ret = storage_set(variables[i].name, variables[i].data,
+                          variables[i].datasz, variables[i].attrs);
 
-        if ( ret < 0 )
+        if ( ret < 0 && variables[i].namesz > 0 )
         {
-            INFO("failed to get vars from xapi, starting with (ALMOST) blank DB\n");
-        }
-
-        if ( ret > 0 )
-        {
-            for_each_variable(variables, var) 
-            {
-                ret = storage_set(var->name, var->data, var->datasz, var->attrs);
-
-                if ( ret < 0 )
-                    ERROR("failed to set variable\n");
-            }
+            name = malloc(variables[i].namesz / 2);
+            memset(name, 0, 512);
+            uc2_ascii_safe(variables[i].name, variables[i].namesz, name, 512);
+            ERROR("failed to set variable: %s\n", name);
+            free(name);
         }
     }
 

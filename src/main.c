@@ -306,8 +306,8 @@ int setup_portio(xendevicemodel_handle *dmod,
     return 0;
 }
 
+#if 0
 #define AUTH_FILE "/auth/file/path/"
-#define MB(x) (x << 20)
 
 static void *auth_file;
 
@@ -381,6 +381,7 @@ error:
     fclose(stream);
     return ret;
 }
+#endif
 
 char *varstored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int domid, unsigned int *len)
 {
@@ -926,7 +927,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    ret = xen_variable_server_init(xapi_get_efi_vars);
+    ret = xen_variable_server_init();
 
     if ( ret < 0 )
     {

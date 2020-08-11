@@ -48,6 +48,6 @@ int variable_set_guid(variable_t *var, const EFI_GUID *guid);
 int variable_set_name(variable_t *var, const UTF16 *name);
 void variable_printf(const variable_t *var);
 uint64_t variable_size(const variable_t *var);
-variable_t *variable_create_unserialize(uint8_t **ptr);
+variable_t *variable_create_unserialize(const uint8_t **ptr);
 
 #endif // __H_VARIABLE_

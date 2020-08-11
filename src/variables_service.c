@@ -95,7 +95,7 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
 
     if ( ret < 0 )
     {
-        ERROR("Failed to set variable in db\n");
+        ERROR("Failed to set variable %s in db\n", strbuf);
         return EFI_OUT_OF_RESOURCES;
     }
 

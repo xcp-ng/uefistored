@@ -81,7 +81,7 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status)
  * Returns:
  *    The size of the data field.
  */
-int unserialize_data(uint8_t **ptr, void *buf, size_t buflen)
+int unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
 {
     uint64_t ret;
 
@@ -97,7 +97,7 @@ int unserialize_data(uint8_t **ptr, void *buf, size_t buflen)
     return (int)ret;
 }
 
-uint32_t unserialize_uint32(uint8_t **ptr)
+uint32_t unserialize_uint32(const uint8_t **ptr)
 {
     uint32_t ret;
 
@@ -107,7 +107,7 @@ uint32_t unserialize_uint32(uint8_t **ptr)
     return ret;
 }
 
-uint64_t unserialize_uint64(uint8_t **ptr)
+uint64_t unserialize_uint64(const uint8_t **ptr)
 {
     uint64_t ret;
 
@@ -117,18 +117,18 @@ uint64_t unserialize_uint64(uint8_t **ptr)
     return ret;
 }
 
-uint64_t unserialize_uintn(uint8_t **ptr)
+uint64_t unserialize_uintn(const uint8_t **ptr)
 {
     return unserialize_uint64(ptr);
 }
 
-void unserialize_guid(uint8_t **ptr, EFI_GUID *guid)
+void unserialize_guid(const uint8_t **ptr, EFI_GUID *guid)
 {
     memcpy(guid, *ptr, sizeof(EFI_GUID));
     *ptr += sizeof(EFI_GUID);
 }
 
-bool unserialize_boolean(uint8_t **ptr)
+bool unserialize_boolean(const uint8_t **ptr)
 {
     bool val;
 
@@ -138,7 +138,7 @@ bool unserialize_boolean(uint8_t **ptr)
     return val;
 }
 
-uint64_t unserialize_namesz(uint8_t **ptr)
+uint64_t unserialize_namesz(const uint8_t **ptr)
 {
     return unserialize_uint64(ptr);
 }
@@ -151,7 +151,7 @@ uint64_t unserialize_namesz(uint8_t **ptr)
  * Returns -1 if error, otherwise the length of the name 
  * (not including null-terminator).
  */
-int unserialize_name(uint8_t **ptr, size_t buf_sz, void *name, size_t n)
+int unserialize_name(const uint8_t **ptr, size_t buf_sz, void *name, size_t n)
 {
     uint64_t namesz = n - sizeof(UTF16);
 
@@ -166,7 +166,7 @@ int unserialize_name(uint8_t **ptr, size_t buf_sz, void *name, size_t n)
     return namesz;
 }
 
-EFI_STATUS unserialize_result(uint8_t **ptr)
+EFI_STATUS unserialize_result(const uint8_t **ptr)
 {
     EFI_STATUS status;
 
@@ -176,13 +176,13 @@ EFI_STATUS unserialize_result(uint8_t **ptr)
     return status;
 }
 
-void unserialize_variable_list_header(uint8_t **ptr, struct variable_list_header *hdr)
+void unserialize_variable_list_header(const uint8_t **ptr, struct variable_list_header *hdr)
 {
     memcpy(hdr, *ptr, sizeof(*hdr));
 	*ptr += sizeof(*hdr);
 }
 
-int unserialize_var_cached(uint8_t **ptr, variable_t *var)
+int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 {
     UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
     EFI_GUID guid;
@@ -198,6 +198,7 @@ int unserialize_var_cached(uint8_t **ptr, variable_t *var)
 
 	if ( namesz == 0 || namesz > MAX_VARIABLE_NAME_SIZE )
         return -1;
+
 
 	memcpy(name, *ptr, namesz);
 	*ptr += namesz;
@@ -220,6 +221,7 @@ int unserialize_var_cached(uint8_t **ptr, variable_t *var)
     *ptr += VAR_PADDING;
 
     ret = variable_create_noalloc(var, name, data, datasz, &guid, attrs);
+
     free(data);
 
     return ret;
@@ -324,7 +326,7 @@ int serialize_variable_list(uint8_t **ptr, size_t sz, const variable_t *var, siz
  *
  * Returns the number of variables unserializedr.
  */
-uint64_t unserialize_variable_list(uint8_t **ptr)
+uint64_t unserialize_variable_list(const uint8_t **ptr)
 {
     variable_t *var;
     int ret = 0;

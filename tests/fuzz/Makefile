@@ -32,15 +32,18 @@ FUZZ_SHORT := 30s
 .PHONY: all
 all: $(MEM_TESTS) $(ADDR_TESTS) $(OFLOW_TESTS)
 
-$(BIN_DIR)%.mem: %.c $(OBJS) | $(BIN_DIR)
+$(BIN_DIR)%.mem: %.c $(OBJS)
+	$(MKDIR) $(shell dirname $@)
 	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJS) -fsanitize=fuzzer,memory -g
 	$(MKDIR) $@.corpus
 
-$(BIN_DIR)%.addr: %.c $(OBJS) | $(BIN_DIR)
+$(BIN_DIR)%.addr: %.c $(OBJS)
+	$(MKDIR) $(shell dirname $@)
 	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJS) -fsanitize=fuzzer,address -g
 	$(MKDIR) $@.corpus
 
-$(BIN_DIR)%.oflow: %.c $(OBJS) | $(BIN_DIR)
+$(BIN_DIR)%.oflow: %.c $(OBJS)
+	$(MKDIR) $(shell dirname $@)
 	$(CC) -o $@ $< $(INC) $(CFLAGS) $(OBJS) -fsanitize=fuzzer,signed-integer-overflow -g
 	$(MKDIR) $@.corpus
 
@@ -52,6 +55,7 @@ $(BIN_DIR):
 clean:
 	$(RM) $(MEM_TESTS) $(ADDR_TESTS) $(OFLOW_TESTS)
 	$(RM) -r $(BIN_DIR)
+	$(RM) $(OBJS)
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
