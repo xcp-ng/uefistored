@@ -66,10 +66,4 @@ void dprint_data(void *data, size_t datasz);
             varstored_fprintf(stdout, __VA_ARGS__);       \
     } while ( 0 )
 
-/* Only useful for development */
-#if 1
-#define TRACE()  DEBUG("%s: %d\n", __func__, __LINE__)
-#else
-#define TRACE() do { } while ( 0 )
-#endif
 #endif // __H_LOG__
