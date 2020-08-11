@@ -49,6 +49,10 @@ test-nosan: ## Run varstored unit tests without address sanitizers
 	$(MAKE) test-nosan -C tests/
 	cd tests && ./$@
 
+.PHONY: deploy
+deploy:     ## Deploy varstored to a XCP-ng host
+	scripts/deploy.sh
+
 .PHONY: help
 help:
 	@printf "\nvarstored - UEFI Secure Boot support for Guest VMs\n\n"
