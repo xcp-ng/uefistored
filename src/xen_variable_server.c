@@ -43,36 +43,6 @@ do { \
     memset(strbuf, '\0', 512); \
 } while( 0 )
 
-static int set_setup_mode(uint8_t val)
-{
-    int ret;
-
-    ret = storage_set(SETUP_MODE_NAME,
-                    &val,
-                    sizeof(val),
-                    EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
-
-    if ( ret < 0 )
-        ERROR("%s:%d: Failed to set SETUP_MODE_NAME to %u!\n", __func__, __LINE__, val);
-
-    return ret;
-}
-
-static int set_secure_boot(uint8_t val)
-{
-    int ret;
-
-    ret = storage_set(SECURE_BOOT_NAME,
-                   &val,
-                   sizeof(val),
-                   EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
-
-    if ( ret < 0 )
-        ERROR("%s:%d: Failed to set SECURE_BOOT_NAME to %u!\n", __func__, __LINE__, val);
-
-    return ret;
-}
-
 static void dprint_attrs(uint32_t attr)
 {
     DPRINTF("0x%x:", attr);
@@ -518,23 +488,6 @@ void xen_variable_server_handle_request(void *comm_buf)
     }
 }
 
-void init_setup_mode(variable_t variables[MAX_VAR_COUNT], size_t n)
-{
-    /* If SETUP_MODE_NAME is already set, then we don't mess with it */
-    if ( find_variable(SETUP_MODE_NAME, variables, n) )
-        return;
-
-    set_setup_mode(1);
-}
-
-void init_secure_boot(variable_t variables[MAX_VAR_COUNT], size_t n)
-{
-    if ( find_variable(SECURE_BOOT_NAME, variables, n) )
-        return;
-
-    set_secure_boot(0);
-}
-
 int xen_variable_server_init(void)
 {
     int ret, i;
@@ -568,9 +521,6 @@ int xen_variable_server_init(void)
             free(name);
         }
     }
-
-    init_setup_mode(variables, storage_count());
-    init_secure_boot(variables, storage_count());
 
     return 0;
 }
