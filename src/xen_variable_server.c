@@ -21,8 +21,6 @@
 #include "xen_variable_server.h"
 #include "xapi.h"
 
-//#define VALIDATE_WRITES
-
 static void buffer_too_small(void *comm_buf, size_t required_size)
 {
     uint8_t *ptr = comm_buf;
@@ -330,8 +328,6 @@ static void handle_get_next_variable(void *comm_buf)
     }
     else if ( next.namesz > guest_bufsz )
     {
-        WARNING("GetNextVariableName(), buffer too small: namesz: %lu, guest_bufsz: %lu\n",
-                next.namesz, guest_bufsz);
         buffer_too_small(comm_buf, strsize16(next.name));
         goto cleanup2;
     }
@@ -402,7 +398,7 @@ int xen_variable_server_init(void)
 
     if ( ret < 0 )
     {
-        INFO("failed to get vars from xapi, starting with (ALMOST) blank DB\n");
+        INFO("failed to get vars from xapi, starting with blank variable store\n");
     }
 
     for ( i=0; i<ret; i++ )
