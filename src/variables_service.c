@@ -33,7 +33,6 @@ static bool is_ro(UTF16 *variable)
     if ( !variable )
         return false;
 
-    /* TODO: simply save and use the attrs */
     return strcmp16(variable, SECURE_BOOT_NAME) == 0;
 }
 

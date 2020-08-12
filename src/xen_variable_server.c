@@ -271,7 +271,6 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
     unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), *name, *namesz + sizeof(UTF16));
     unserialize_guid(&inptr, guid);
 
-    /* TODO: use the guid according to spec */
     efi_at_runtime = unserialize_boolean(&inptr);
 
     if ( efi_at_runtime )
