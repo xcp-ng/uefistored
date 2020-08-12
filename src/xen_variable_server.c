@@ -23,45 +23,6 @@
 
 //#define VALIDATE_WRITES
 
-/**
- * dprint_vname -  Debug print a variable name
- *
- * WARNING: this only prints ASCII characters correctly.
- * Any char code above 255 will be displayed incorrectly.
- */
-#define dprint_vname(format, vn, ...) \
-do { \
-    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
-    DEBUG(format, strbuf __VA_ARGS__); \
-    memset(strbuf, '\0', 512); \
-} while ( 0 )
-
-#define eprint_vname(format, vn, ...) \
-do { \
-    uc2_ascii_safe(vn, strsize16(vn), strbuf, 512); \
-    ERROR(format, strbuf __VA_ARGS__); \
-    memset(strbuf, '\0', 512); \
-} while( 0 )
-
-static void dprint_attrs(uint32_t attr)
-{
-    DPRINTF("0x%x:", attr);
-    if ( attr & EFI_VARIABLE_NON_VOLATILE )
-        DPRINTF("EFI_VARIABLE_NON_VOLATILE,");
-    if ( attr & EFI_VARIABLE_BOOTSERVICE_ACCESS )
-        DPRINTF("EFI_VARIABLE_BOOTSERVICE_ACCESS,");
-    if ( attr & EFI_VARIABLE_RUNTIME_ACCESS )
-        DPRINTF("EFI_VARIABLE_RUNTIME_ACCESS,");
-    if ( attr & EFI_VARIABLE_HARDWARE_ERROR_RECORD )
-        DPRINTF("EFI_VARIABLE_HARDWARE_ERROR_RECORD,");
-    if ( attr & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS )
-        DPRINTF("EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS,");
-    if ( attr & EFI_VARIABLE_APPEND_WRITE )
-        DPRINTF("EFI_VARIABLE_APPEND_WRITE,");
-    if ( attr & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
-        DPRINTF("EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS,");
-}
-
 static void buffer_too_small(void *comm_buf, size_t required_size)
 {
     uint8_t *ptr = comm_buf;
@@ -69,57 +30,6 @@ static void buffer_too_small(void *comm_buf, size_t required_size)
     serialize_result(&ptr, EFI_BUFFER_TOO_SMALL);
     serialize_uintn(&ptr, (uint64_t)required_size);
 }
-
-void print_uc2(const char *TAG, void *vn)
-{
-    uc2_ascii(vn, strbuf, 512);
-    DEBUG("%s:%s\n", TAG, strbuf);
-    memset(strbuf, '\0', 512);
-}
-
-#ifdef VALIDATE_WRITES
-static void validate(void *name, size_t len, void *data, size_t datasz, uint32_t attrs)
-{
-    int ret;
-    uint8_t test_data[MAX_VARIABLE_DATA_SIZE];
-    uint32_t test_attrs = 0;
-    size_t test_datasz;
-
-    (void) len;
-
-    ret = storage_get(name, test_data, MAX_VARIABLE_DATA_SIZE, &test_datasz, &test_attrs);
-
-    if ( datasz == 0 && ret == VAR_NOT_FOUND )
-    {
-        DEBUG("Variable successfully deleted!\n");
-        return;
-    }
-    else if ( ret != 0 )
-    {
-        ERROR("%s: failed to get variable with storage_get(), ret=%d!\n", __func__, ret);
-        return;
-    }
-
-    if ( memcmp(test_data, data, datasz) )
-        ERROR("Variable does not match!\n");
-    else
-        INFO("Variables match!\n");
-
-    if ( attrs != test_attrs )
-        ERROR("Attrs does not match!\n");
-    else
-        INFO("Attrs match!\n");
-
-    dprint_vname("Validate: %s\n", name);
-    DPRINTF("FROM DB: ");
-    dprint_data(test_data, test_datasz);
-    DPRINTF("FROM OVMF: ");
-    dprint_data(data, datasz);
-    DEBUG("*************************\n");
-}
-#else
-#define validate(...) do { } while ( 0 )
-#endif
 
 static void handle_get_variable(void *comm_buf)
 {
@@ -200,8 +110,6 @@ static void handle_get_variable(void *comm_buf)
     }
 
 
-    dprint_vname("cmd:GET_VARIABLE: %s\n", name);
-
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_uint32(&ptr, attrs);
@@ -259,13 +167,6 @@ static void handle_query_variable_info(void *comm_buf)
     serialize_value(&ptr, max_variable_storage);
     serialize_value(&ptr, remaining_variable_storage);
     serialize_value(&ptr, max_variable_size);
-}
-
-static void print_set_var(UTF16 *name, size_t len, uint32_t attrs)
-{
-    dprint_vname("cmd:SET_VARIABLE: %s, attrs=", name);
-    dprint_attrs(attrs);
-    DPRINTF("\n");
 }
 
 static void handle_set_variable(void *comm_buf)
@@ -327,10 +228,7 @@ static void handle_set_variable(void *comm_buf)
     datasz = unserialize_data(&inptr, dp, MAX_VARIABLE_DATA_SIZE);
     attrs = unserialize_uint32(&inptr);
 
-    print_set_var(name, namesz, attrs);
-
     status = set_variable(name, &guid, attrs, datasz, dp);
-    validate(name, namesz, dp, datasz, attrs);
 
     ptr = comm_buf;
     serialize_result(&ptr, status);

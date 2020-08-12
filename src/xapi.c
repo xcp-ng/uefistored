@@ -640,7 +640,6 @@ int get_response_content(char *response, char *outstr, size_t n)
     body = response_body(response);
 
     if (!success(body)) {
-        ERROR("Response from XAPI is not Success\n");
         return -2;
     }
 
