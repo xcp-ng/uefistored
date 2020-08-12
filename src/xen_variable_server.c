@@ -401,7 +401,7 @@ int xen_variable_server_init(void)
 
     for ( i=0; i<ret; i++ )
     {
-        ret = storage_set(variables[i].name, variables[i].data,
+        ret = storage_set(variables[i].name, &variables[i].guid, variables[i].data,
                           variables[i].datasz, variables[i].attrs);
 
         if ( ret < 0 && variables[i].namesz > 0 )

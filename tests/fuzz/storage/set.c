@@ -12,6 +12,7 @@ static int fuzz_set(const uint8_t *dp, size_t size)
     void *data;
     uint32_t attrs;
     const uint8_t *p;
+    EFI_GUID guid = {0};
 
     if ( size % 2 != 0 || size < 4 )
         return -1;
@@ -41,7 +42,7 @@ static int fuzz_set(const uint8_t *dp, size_t size)
         attrs = (uint32_t)dp[0];
     }
 
-    ret = storage_set(name, data, size, attrs);
+    ret = storage_set(name, &guid, data, size, attrs);
 
 cleanup:
     free(data);

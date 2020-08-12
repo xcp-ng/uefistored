@@ -39,7 +39,7 @@ static void test_set_and_get(void)
 
     memset(var1.data, 0, var1.datasz);
 
-    ret = storage_set(var1.name, var1.data, var1.datasz, var1.attrs);
+    ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
     ret = storage_get(var1.name, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
@@ -65,7 +65,7 @@ static void test_set_and_get2(void)
     strncpy16(tmp.name, var1.name, MAX_VARIABLE_NAME_SIZE);
     tmp.namesz = var1.namesz;
 
-    ret = storage_set(var1.name, var1.data, var1.datasz, var1.attrs);
+    ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
     ret = storage_get(tmp.name, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
@@ -80,7 +80,7 @@ static void test_set_and_get2(void)
     strncpy16(tmp.name, var2.name, MAX_VARIABLE_NAME_SIZE);
     tmp.namesz = var2.namesz;
 
-    ret = storage_set(var2.name, var2.data, var2.datasz, var2.attrs);
+    ret = storage_set(var2.name, &var1.guid, var2.data, var2.datasz, var2.attrs);
     test( ret == 0 );
 
     ret = storage_get(tmp.name, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
@@ -103,8 +103,8 @@ static void test_next(void)
     memset(&after, 0, sizeof(after));
     memset(&final, 0, sizeof(final));
 
-    storage_set(var1.name, var1.data, var1.datasz, var1.attrs);
-    storage_set(var2.name, var2.data, var2.datasz, var2.attrs);
+    storage_set(var1.name, &var1.guid, var1.data, var1.datasz, var1.attrs);
+    storage_set(var2.name, &var1.guid, var2.data, var2.datasz, var2.attrs);
 
     ret = storage_next(&next);
     test( ret == 1 );

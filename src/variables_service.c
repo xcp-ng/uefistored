@@ -84,26 +84,29 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
     return EFI_SUCCESS;
 }
 
-EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t datasz, void *data)
+EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs, size_t datasz, void *data)
 {
+    char *ascii;
+    size_t len;
     int ret;
 
-    if ( !variable || !guid || !data )
+    if ( !name || !guid || !data )
         return -1;
 
-    if ( is_ro(variable) )
+    if ( is_ro(name) )
         return EFI_WRITE_PROTECTED;
 
     if ( !valid_attrs(attrs) )
         return EFI_UNSUPPORTED;
 
-    uc2_ascii_safe(variable, strsize16(variable), strbuf, 512);
-
-    ret = storage_set(variable, data, datasz, attrs);
+    ret = storage_set(name, guid, data, datasz, attrs);
 
     if ( ret < 0 )
     {
-        ERROR("Failed to set variable %s in db\n", strbuf);
+        len = strlen16(name);
+        ascii = malloc(len);
+        uc2_ascii_safe(name, len * 2, ascii, len);
+        ERROR("Failed to set variable %s in db\n", ascii);
         return EFI_OUT_OF_RESOURCES;
     }
 

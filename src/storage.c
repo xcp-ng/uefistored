@@ -128,12 +128,12 @@ int storage_remove(const UTF16 *name)
 }
 
 int storage_set(const UTF16 *name,
+              const EFI_GUID *guid,
               const void *data,
               const size_t datasz,
               const uint32_t attrs)
 {
     int ret;
-    EFI_GUID guid = {0};
     size_t namesz;
     variable_t *var;
 
@@ -183,7 +183,7 @@ int storage_set(const UTF16 *name,
     {
         if ( var->name == NULL )
         {
-            ret = variable_create_noalloc(var, name, data, datasz, &guid, attrs);
+            ret = variable_create_noalloc(var, name, data, datasz, guid, attrs);
 
             if ( ret < 0 )
                 return ret;
