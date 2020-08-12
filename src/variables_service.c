@@ -6,7 +6,10 @@
 #include "varnames.h"
 #include "variable.h"
 
-bool valid_attrs(uint32_t attrs)
+#define UEFI_AUTH_ATTRS (EFI_VARIABLE_APPEND_WRITE | \
+                         EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
+
+static bool valid_attrs(uint32_t attrs)
 {
     if ( attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
         return false;
@@ -15,6 +18,8 @@ bool valid_attrs(uint32_t attrs)
     else if ( (attrs & RT_BS_ATTRS) == EFI_VARIABLE_RUNTIME_ACCESS )
         return false;
     else if ( !(attrs & (RT_BS_ATTRS)) )
+        return false;
+    else if ( attrs & UEFI_AUTH_ATTRS )
         return false;
 
     return true;
@@ -88,6 +93,9 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs, size_t 
 
     if ( is_ro(variable) )
         return EFI_WRITE_PROTECTED;
+
+    if ( !valid_attrs(attrs) )
+        return EFI_UNSUPPORTED;
 
     uc2_ascii_safe(variable, strsize16(variable), strbuf, 512);
 
