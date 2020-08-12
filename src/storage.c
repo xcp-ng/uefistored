@@ -55,11 +55,11 @@ void storage_destroy(void)
     memset(variables, 0, sizeof(variables));
 }
 
-int storage_exists(const UTF16 *name)
+int storage_exists(const UTF16 *name, const EFI_GUID *guid)
 {
     variable_t *var = NULL;
 
-    var = find_variable(name, variables, MAX_VAR_COUNT);
+    var = find_variable(name, guid, variables, MAX_VAR_COUNT);
 
     if ( !var )
         return VAR_NOT_FOUND;
@@ -68,20 +68,20 @@ int storage_exists(const UTF16 *name)
 }
 
 int storage_get(const UTF16 *name,
-              void *dest, size_t n,
-              size_t *len, uint32_t *attrs)
+                const EFI_GUID *guid,
+                void *dest,
+                size_t n,
+                size_t *len,
+                uint32_t *attrs)
 {
     variable_t *var = NULL;
 
-    if ( !name )
-        return -1;
-
-    if ( !len )
+    if ( !name || !guid || !len || !attrs )
         return -1;
 
     *len = 0;
 
-    var = find_variable(name, variables, MAX_VAR_COUNT);
+    var = find_variable(name, guid, variables, MAX_VAR_COUNT);
 
     if ( !var )
         return VAR_NOT_FOUND;

@@ -42,7 +42,7 @@ static void test_set_and_get(void)
     ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
-    ret = storage_get(var1.name, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
+    ret = storage_get(var1.name, &tmp.guid, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( var1.namesz == tmp.namesz );
@@ -68,7 +68,7 @@ static void test_set_and_get2(void)
     ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
-    ret = storage_get(tmp.name, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
+    ret = storage_get(tmp.name, &tmp.guid, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( var1.namesz == tmp.namesz );
@@ -83,7 +83,7 @@ static void test_set_and_get2(void)
     ret = storage_set(var2.name, &var1.guid, var2.data, var2.datasz, var2.attrs);
     test( ret == 0 );
 
-    ret = storage_get(tmp.name, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
+    ret = storage_get(tmp.name, &tmp.guid, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
     test( ret == 0 );
 
     test( variable_eq(&var2, &tmp) );

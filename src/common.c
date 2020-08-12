@@ -180,8 +180,7 @@ void dprint_data(void *data, size_t datasz)
     DPRINTF("\n");
 }
 
-/* TODO: filter on guid */
-variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT], size_t n)
+variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid, variable_t variables[MAX_VAR_COUNT], size_t n)
 {
     variable_t *var;
     size_t i;
@@ -193,7 +192,8 @@ variable_t *find_variable(const UTF16 *name, variable_t variables[MAX_VAR_COUNT]
     {
         var = &variables[i];
 
-        if ( strcmp16((UTF16*)var->name, name) == 0 )
+        if ( strcmp16((UTF16*)var->name, name) == 0 &&
+             memcmp(guid, &var->guid, sizeof(*guid)) == 0 )
             return var;
     }
 
