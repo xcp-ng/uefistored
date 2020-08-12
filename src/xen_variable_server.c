@@ -422,8 +422,3 @@ int xen_variable_server_init(void)
 
     return 0;
 }
-
-int xen_variable_server_deinit(void)
-{
-    return 0;
-}
