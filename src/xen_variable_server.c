@@ -374,8 +374,6 @@ void xen_variable_server_handle_request(void *comm_buf)
             handle_query_variable_info(comm_buf);
             break;
         case COMMAND_NOTIFY_SB_FAILURE:
-            DEBUG("cmd:NOTIFY_SB_FAILURE\n");
-            break;
         default:
             ERROR("cmd: unknown\n");
             break;
