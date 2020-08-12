@@ -145,7 +145,7 @@ static char *response_body(char *response)
     return body + 4;
 }
 
-int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded,
+int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded,
                    size_t encoded_size)
 {
     size_t ret;
@@ -175,7 +175,7 @@ int base64_to_blob(uint8_t *plaintext, size_t n, char *encoded,
     return ret > INT_MAX ? -2 : (int)ret;
 }
 
-char *blob_to_base64(uint8_t *buffer, size_t length)
+char *bytes_to_base64(uint8_t *buffer, size_t length)
 {
     BIO *bio = NULL, *b64 = NULL;
     BUF_MEM *bufferPtr = NULL;
@@ -271,10 +271,10 @@ static int retrieve_vars(variable_t *vars, size_t n)
     return cnt;
 }
 
-int from_blob_to_vars(variable_t *vars, size_t n, const uint8_t *blob, size_t blob_sz)
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz)
 {
     int ret;
-    const uint8_t *ptr = blob;
+    const uint8_t *ptr = bytes;
     struct variable_list_header hdr;
     uint64_t i;
 
@@ -300,7 +300,7 @@ static char *variables_base64(void)
 {
     int ret;
     char *base64 = NULL;
-    uint8_t *blob, *p;
+    uint8_t *bytes, *p;
     size_t size;
     variable_t vars[MAX_VAR_COUNT];
 
@@ -313,21 +313,21 @@ static char *variables_base64(void)
         return NULL;
 
     size = list_size(vars, ret);
-    blob = malloc(size);
+    bytes = malloc(size);
 
-    if (!blob)
+    if (!bytes)
         return NULL;
 
-    p = blob;
+    p = bytes;
     ret = serialize_variable_list(&p, size, vars, (size_t)ret);
 
     if (ret < 0)
         goto end;
 
-    base64 = blob_to_base64(blob, size);
+    base64 = bytes_to_base64(bytes, size);
 
 end:
-    free(blob);
+    free(bytes);
     return base64;
 }
 
@@ -897,10 +897,10 @@ int xapi_get_variables(variable_t *vars, size_t n)
         return ret;
     }
 
-    ret = base64_to_blob(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64));
+    ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64));
 
     if (ret < 0)
         return ret;
 
-    return from_blob_to_vars(vars, n, plaintext, (size_t)ret);
+    return from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
 }
