@@ -49,6 +49,11 @@ test-nosan: ## Run uefistored unit tests without address sanitizers
 	$(MAKE) test-nosan -C tests/
 	cd tests && ./$@
 
+.PHONY: install
+install: uefistored   ## Install uefistored
+	mkdir -p $(DESTDIR)/usr/sbin/
+	cp $< $(DESTDIR)/usr/sbin/$<
+
 .PHONY: deploy
 deploy:     ## Deploy uefistored to a XCP-ng host
 	scripts/deploy.sh
