@@ -30,7 +30,7 @@ void log_init(const char *filename)
 
         memset(logfile_name, '\0', LOG_FILE_MAX);
 
-        ret = snprintf(logfile_name, LOG_FILE_MAX, "/var/log/varstored-%d.log", getpid());
+        ret = snprintf(logfile_name, LOG_FILE_MAX, "/var/log/uefistored-%d.log", getpid());
 
         if ( ret < 0 )
             ERROR("BUG: snprintf() error");

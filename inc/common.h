@@ -28,14 +28,14 @@
 
 #define MAX_VAR_COUNT 512
 
-#define VARSTORED_ERROR 1
+#define UEFISTORED_ERROR 1
 #define VAR_NOT_FOUND (-10)
 
 #define PAGE_SIZE (4<<10)
 
 #define RT_BS_ATTRS (EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS)
 
-/* OVMF XenVariable loads 16 pages of shared memory to pass varstored the command */
+/* OVMF XenVariable loads 16 pages of shared memory to pass uefistored the command */
 #define SHMEM_PAGES 16
 #define SHMEM_SIZE (SHMEM_PAGES * PAGE_SIZE)
 

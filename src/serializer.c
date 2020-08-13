@@ -267,7 +267,7 @@ static uint64_t payload_size(const variable_t *var, size_t n)
     {
         sum += variable_size(&var[i]);
 
-        /* Pad w/ 48 bytes  -- require by XenServer's varstored */
+        /* Pad w/ 48 bytes  -- require by XenServer's uefistored */
         sum += VAR_PADDING;
     }
 

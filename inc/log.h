@@ -20,7 +20,7 @@ void dprint_data(void *data, size_t datasz);
 
 #define USE_STREAM 0
 
-#define varstored_fprintf(stream, ...)                    \
+#define uefistored_fprintf(stream, ...)                    \
     do {                                                \
         fprintf(stream, __VA_ARGS__);                       \
         fflush(stream);                                     \
@@ -31,7 +31,7 @@ void dprint_data(void *data, size_t datasz);
         if ( _logfd > 0 )                                                 \
             dprintf(_logfd, "ERROR: " __VA_ARGS__);       \
         if (  USE_STREAM )                                                 \
-            varstored_fprintf(stderr, "ERROR: " __VA_ARGS__);       \
+            uefistored_fprintf(stderr, "ERROR: " __VA_ARGS__);       \
     } while ( 0 )
 
 #define WARNING(...)                                                  \
@@ -39,7 +39,7 @@ void dprint_data(void *data, size_t datasz);
         if ( _logfd > 0 )                                                 \
             dprintf(_logfd, "WARNING: " __VA_ARGS__);       \
         if (  USE_STREAM )                                                 \
-            varstored_fprintf(stderr, "WARNING: " __VA_ARGS__);       \
+            uefistored_fprintf(stderr, "WARNING: " __VA_ARGS__);       \
     } while ( 0 )
 
 #define INFO(...)                                                   \
@@ -47,7 +47,7 @@ void dprint_data(void *data, size_t datasz);
         if ( _logfd > 0 )                                                 \
             dprintf(_logfd,  "INFO: "   __VA_ARGS__);     \
         if (  USE_STREAM )                                                 \
-            varstored_fprintf(stdout, "INFO: " __VA_ARGS__);       \
+            uefistored_fprintf(stdout, "INFO: " __VA_ARGS__);       \
     } while ( 0 )
 
 #define DEBUG(...)                                              \
@@ -55,7 +55,7 @@ void dprint_data(void *data, size_t datasz);
         if ( _logfd > 0 )                                             \
             dprintf(_logfd, "DEBUG: "  __VA_ARGS__);   \
         if (  USE_STREAM )                                                 \
-            varstored_fprintf(stdout, "DEBUG: " __VA_ARGS__);       \
+            uefistored_fprintf(stdout, "DEBUG: " __VA_ARGS__);       \
     } while ( 0 )
 
 #define DPRINTF(...)                                              \
@@ -63,7 +63,7 @@ void dprint_data(void *data, size_t datasz);
         if ( _logfd > 0 )                                             \
             dprintf(_logfd, __VA_ARGS__);   \
         if (  USE_STREAM )                                                 \
-            varstored_fprintf(stdout, __VA_ARGS__);       \
+            uefistored_fprintf(stdout, __VA_ARGS__);       \
     } while ( 0 )
 
 #endif // __H_LOG__

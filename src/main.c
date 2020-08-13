@@ -60,7 +60,7 @@ static char *root_path;
 #define UNUSED(var) ((void)var);
 
 #define USAGE                           \
-    "Usage: varstored <options> \n"   \
+    "Usage: uefistored <options> \n"   \
     "\n"                                \
     "    --domain <domid> \n"           \
     "    --resume \n"                   \
@@ -74,7 +74,7 @@ static char *root_path;
     "    --arg <name>:<val> \n\n"
 
 #define UNIMPLEMENTED(opt)                                      \
-        ERROR(opt " option not implemented!\n")
+        INFO(opt " option not implemented!\n")
 
 static char *pidfile;
 
@@ -172,7 +172,7 @@ static unsigned long io_port_addr;
 /**
  * map_guest_memory - Map in a page from the guest address space
  *
- * Map the GFNs from start to (start + SHMEM_PAGES) from guest space to varstored
+ * Map the GFNs from start to (start + SHMEM_PAGES) from guest space to uefistored
  * as shared memory.
  */
 void *map_guest_memory(xen_pfn_t start)
@@ -383,7 +383,7 @@ error:
 }
 #endif
 
-char *varstored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int domid, unsigned int *len)
+char *uefistored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int domid, unsigned int *len)
 {
     char stringbuf[0x80];
 
@@ -391,12 +391,12 @@ char *varstored_xs_read_string(struct xs_handle *xsh, const char *xs_path, int d
     return xs_read(xsh, XBT_NULL, stringbuf, len);
 }
 
-bool varstored_xs_read_bool(struct xs_handle *xsh, const char *xs_path, int domid)
+bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path, int domid)
 {
     char *data;
     unsigned int len;
 
-    data = varstored_xs_read_string(xsh, xs_path, domid, &len);
+    data = uefistored_xs_read_string(xsh, xs_path, domid, &len);
     if ( !data )
         return false;
 
@@ -545,7 +545,7 @@ static void cleanup(void)
 
 static void signal_handler(int sig)
 {
-    INFO("varstored-ng signal: %s\n", strsignal(sig));
+    INFO("uefistored signal: %s\n", strsignal(sig));
     cleanup();
     signal(sig, SIG_DFL);
     raise(sig);
@@ -730,8 +730,9 @@ int main(int argc, char **argv)
         }
     }
 
+
     if ( !root_path )
-        snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
+        snprintf(root_path, PATH_MAX, "/var/run/uefistored-root-%d", getpid());
 
     if ( xapi_init() < 0 )
         goto err;
@@ -806,7 +807,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    /* Restrict varstored's privileged accesses */
+    /* Restrict uefistored's privileged accesses */
     ret = xentoolcore_restrict_all(domid);
     if ( ret < 0 )
     {
@@ -900,11 +901,11 @@ int main(int argc, char **argv)
 
     
     /* Check secure boot is enabled */
-    secureboot_enabled = varstored_xs_read_bool(xsh, "/local/domain/%u/platform/secureboot", domid);
+    secureboot_enabled = uefistored_xs_read_bool(xsh, "/local/domain/%u/platform/secureboot", domid);
     INFO("Secure boot enabled: %s\n", secureboot_enabled ? "true" : "false");
 
     /* Check enforcment level */
-    enforcement_level = varstored_xs_read_bool(xsh, "/local/domain/%u/platform/auth-enforce", domid);
+    enforcement_level = uefistored_xs_read_bool(xsh, "/local/domain/%u/platform/auth-enforce", domid);
     INFO("Authenticated variables: %s\n", enforcement_level ? "enforcing" : "permissive");
 
     if ( write_pidfile() < 0 )
@@ -935,7 +936,11 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    /* Store the varstored pid in XenStore to signal to XAPI that varstored is alive */
+    /*
+     * Store the uefistored pid in XenStore to signal to XAPI that uefistored is alive
+     *
+     * Must be named varstored-pid for XAPI.
+     */
     ret =  snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid", domid);
     if ( ret < 0 )
     {

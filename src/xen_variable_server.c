@@ -44,7 +44,7 @@ static void handle_get_variable(void *comm_buf)
     inptr = comm_buf;
     version = unserialize_uint32(&inptr);
 
-    if ( version != VARSTORED_VERSION )
+    if ( version != UEFISTORED_VERSION )
     {
         ERROR("Unsupported version of XenVariable RPC protocol\n");
         ptr = comm_buf;
@@ -54,7 +54,7 @@ static void handle_get_variable(void *comm_buf)
 
     if ( unserialize_uint32(&inptr) != COMMAND_GET_VARIABLE )
     {
-        ERROR("BUG in varstored, wrong command\n");
+        ERROR("BUG in uefistored, wrong command\n");
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
@@ -129,9 +129,9 @@ static void handle_query_variable_info(void *comm_buf)
     ptr = comm_buf;
     version = unserialize_uint32(&inptr);
 
-    if ( version != VARSTORED_VERSION )
+    if ( version != UEFISTORED_VERSION )
     {
-        ERROR("Bad varstored version: %u\n", version);
+        ERROR("Bad uefistored version: %u\n", version);
         status = EFI_UNSUPPORTED;
         ptr = comm_buf;
         serialize_result(&ptr, status);
@@ -183,7 +183,7 @@ static void handle_set_variable(void *comm_buf)
     ptr = comm_buf;
     version = unserialize_uint32(&inptr);
 
-    if ( version != VARSTORED_VERSION )
+    if ( version != UEFISTORED_VERSION )
     {
         ERROR("Invalid XenVariable OVMF module version number: %d, only supports version 1\n",
               version);
@@ -195,7 +195,7 @@ static void handle_set_variable(void *comm_buf)
     command = unserialize_uint32(&inptr);
     if ( command != COMMAND_SET_VARIABLE )
     {
-        ERROR("BUG: varstored accidentally passed a non SET_VARIABLE buffer to the"
+        ERROR("BUG: uefistored accidentally passed a non SET_VARIABLE buffer to the"
               "%s function!, returning EFI_DEVICE_ERROR\n", __func__);
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
@@ -250,7 +250,7 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
 
     version = unserialize_uint32(&inptr);
 
-    if ( version != VARSTORED_VERSION )
+    if ( version != UEFISTORED_VERSION )
         WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
 
     command = unserialize_uint32(&inptr);

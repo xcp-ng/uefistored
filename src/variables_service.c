@@ -66,9 +66,9 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
         return EFI_BUFFER_TOO_SMALL;
     }
     /*
-     * This should NEVER happen.  Indicates a varstored bug.  This means we
+     * This should NEVER happen.  Indicates a uefistored bug.  This means we
      * saved a value into our variables database that is actually larger than
-     * the shared memory between varstored and OVMF XenVariable.  XenVariable's
+     * the shared memory between uefistored and OVMF XenVariable.  XenVariable's
      * SetVariable() should prevent this!
      *
      * TODO: make this more precise.  Subtract size of other serialized fields.

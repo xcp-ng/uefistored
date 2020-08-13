@@ -15,12 +15,12 @@ OBJS := $(patsubst %.c,%.o,$(SRCS))
 INC := -Iinc/ -Ilibs/
 CFLAGS := -g -Wall -Werror -lssl -lcrypto -lxml2 -I/usr/include/libxml2
 
-all:        ## Build varstored (same as varstored target)
-all: varstored
+all:        ## Build uefistored (same as uefistored target)
+all: uefistored
 
 
-varstored:  ## Build varstored
-varstored: src/main.c $(OBJS)
+uefistored:  ## Build uefistored
+uefistored: src/main.c $(OBJS)
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
@@ -28,7 +28,7 @@ varstored: src/main.c $(OBJS)
 
 .PHONY: clean
 clean:
-	rm -f varstored $(OBJS)
+	rm -f uefistored $(OBJS)
 
 .PHONY: clean-test
 clean-test:
@@ -40,22 +40,22 @@ tools:
 	$(MAKE) -C tools
 
 .PHONY: test
-test:       ## Run varstored unit tests with address sanitizers
+test:       ## Run uefistored unit tests with address sanitizers
 	$(MAKE) -C tests/
 	cd tests && ./$@
 
 .PHONY: test-nosan
-test-nosan: ## Run varstored unit tests without address sanitizers
+test-nosan: ## Run uefistored unit tests without address sanitizers
 	$(MAKE) test-nosan -C tests/
 	cd tests && ./$@
 
 .PHONY: deploy
-deploy:     ## Deploy varstored to a XCP-ng host
+deploy:     ## Deploy uefistored to a XCP-ng host
 	scripts/deploy.sh
 
 .PHONY: help
 help:
-	@printf "\nvarstored - UEFI Secure Boot support for Guest VMs\n\n"
+	@printf "\nuefistored - UEFI Secure Boot support for Guest VMs\n\n"
 	@fgrep -h "##" Makefile Env.mk | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 	@printf "\n"
 

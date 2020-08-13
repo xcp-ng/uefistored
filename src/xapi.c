@@ -45,7 +45,7 @@ static bool socket_path_initialized = false;
     "POST / HTTP/1.1\r\n"                                                      \
     "Host: _var_lib_xcp_xapi\r\n"                                              \
     "Accept-Encoding: identity\r\n"                                            \
-    "User-Agent: varstored/0.1\r\n"                                            \
+    "User-Agent: uefistored/0.1\r\n"                                            \
     "Connection: close\r\n"                                                    \
     "Content-Type: text/xml\r\n"                                               \
     "Content-Length: %lu\r\n"                                                  \
@@ -453,7 +453,7 @@ int xapi_set_efi_vars(void)
     "POST / HTTP/1.1\r\n"                                                      \
     "Host: _var_lib_xcp_xapi\r\n"                                              \
     "Accept-Encoding: identity\r\n"                                            \
-    "User-Agent: varstored/0.1\r\n"                                            \
+    "User-Agent: uefistored/0.1\r\n"                                            \
     "Connection: close\r\n"                                                    \
     "Content-Type: text/xml\r\n"                                               \
     "Content-Length: 307\r\n"                                                  \
