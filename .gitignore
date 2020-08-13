@@ -1,5 +1,5 @@
 *.o
-varstored
+uefistored
 xcp-ng-build-env/
 tests/keys/
 varserviced
