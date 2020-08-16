@@ -440,9 +440,16 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 
 static void cleanup(void)
 {
-    if ( !saved_efi_vars && xapi_set_efi_vars() >= 0 )
+    int ret;
+
+    if ( !saved_efi_vars )
     {
-        saved_efi_vars = true;
+        ret = xapi_set_efi_vars();
+
+        if ( ret == 0 )
+            ret = xapi_write_save_file();
+
+        saved_efi_vars = ret == 0;
     }
 
     storage_destroy();
@@ -656,6 +663,7 @@ int main(int argc, char **argv)
             break;
 
         case 'b':
+            /* We currently only support the xapi backend */
             UNIMPLEMENTED("backend");
             break;
 

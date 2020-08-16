@@ -16,6 +16,8 @@ int xapi_parse_arg(char *arg);
 int xapi_variables_request(variable_t *variables, size_t n);
 int xapi_variables_read_file(variable_t *vars, size_t n, char *fname);
 
+int xapi_write_save_file(void);
+
 /* Helpers */
 int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz);
 int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded, size_t encoded_size);

@@ -152,7 +152,7 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
     if ( !fname || !vars )
         return -1;
 
-    file = fopen(fname,"r");
+    file = fopen(fname, "r");
 
     if ( !file )
         return -1;
@@ -370,38 +370,62 @@ static int retrieve_vars(variable_t *vars, size_t n)
     return cnt;
 }
 
-static char *variables_base64(void)
+/**
+ * Return all variables in storage as a list of bytes, in legacy varstore
+ * format with header.
+ *
+ * Parameters
+ * 
+ *  size: the size of the returned byte array
+ */
+static uint8_t *variable_list_bytes(size_t *size)
 {
     int ret;
-    char *base64 = NULL;
     uint8_t *bytes, *p;
-    size_t size;
     variable_t vars[MAX_VAR_COUNT];
 
     ret = retrieve_vars(vars, MAX_VAR_COUNT);
 
-    if (ret < 0)
+    if (ret <= 0)
         return NULL;
 
-    if (ret == 0)
-        return NULL;
-
-    size = list_size(vars, ret);
-    bytes = malloc(size);
+    *size = list_size(vars, ret);
+    bytes = malloc(*size);
 
     if (!bytes)
         return NULL;
 
     p = bytes;
-    ret = serialize_variable_list(&p, size, vars, (size_t)ret);
+    ret = serialize_variable_list(&p, *size, vars, (size_t)ret);
 
-    if (ret < 0)
-        goto end;
+    if ( ret < 0 )
+    {
+        free(bytes);
+        return NULL;
+    }
+
+    return bytes;
+}
+
+/**
+ * Return all stored variables in legacy varstore format
+ * as a base64 string.
+ */
+static char *variable_list_base64(void)
+{
+    char* base64;
+    uint8_t *bytes;
+    size_t size;
+
+    bytes = variable_list_bytes(&size);
+
+    if (!bytes)
+        return NULL;
 
     base64 = bytes_to_base64(bytes, size);
 
-end:
     free(bytes);
+
     return base64;
 }
 
@@ -425,7 +449,7 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     char *body;
     size_t base64_size, body_len, hdr_len;
 
-    base64 = variables_base64();
+    base64 = variable_list_base64();
     if (!base64)
         return -1;
 
@@ -509,6 +533,11 @@ static int send_request(char *message, char *buf, size_t bufsz)
     return http_status(buf);
 }
 
+/**
+ * Save vars to XAPI database.
+ *
+ * Returns 0 on success, otherwise -1.
+ */
 int xapi_set_efi_vars(void)
 {
     char buffer[BIG_MESSAGE_SIZE];
@@ -1011,6 +1040,39 @@ int xapi_init(bool resume)
             ERROR("failed to set variable\n");
         }
     }
+
+    return 0;
+}
+
+/**
+ * Write variables with headder to save file.
+ *
+ * Return 0 on success, otherwise -1.
+ */
+int xapi_write_save_file(void)
+{
+    int ret;
+    FILE *file;
+    uint8_t *bytes;
+    size_t size;
+
+    bytes = variable_list_bytes(&size);
+
+    if (!bytes)
+        return -1;
+
+    if (!xapi_save_path)
+        return -1;
+
+    file = fopen(xapi_save_path, "w");
+
+    if (!file)
+        return -1;
+
+    ret = fwrite(bytes, 1, size, file);
+
+    if (ret != size)
+        return -1;
 
     return 0;
 }
