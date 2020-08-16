@@ -32,11 +32,17 @@
 #include "xapi.h"
 #include "xen_variable_server.h"
 
+#define MAX_RESUME_FILE_SIZE (16 * PAGE_SIZE)
+
 #define IOREQ_SERVER_TYPE 0
 #define IOREQ_SERVER_FRAME_NR 2
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
 static bool saved_efi_vars;
+static bool resume;
+
+extern char *xapi_resume_path;
+extern char *xapi_save_path;
 
 static evtchn_port_t bufioreq_local_port;
 static evtchn_port_t bufioreq_remote_port;
@@ -537,6 +543,18 @@ static int install_sighandlers(void)
     return ret;
 }
 
+static void printargs(int argc, char **argv)
+{
+    int i;
+
+    DPRINTF("\nargs: ");
+    for ( i=0; i<argc; i++ )
+    {
+        DPRINTF("%s ", argv[i]);
+    }
+    DPRINTF("\n");
+}
+
 int main(int argc, char **argv)
 {
     xc_dominfo_t domain_info;
@@ -579,6 +597,8 @@ int main(int argc, char **argv)
 
     log_init(NULL);
 
+    printargs(argc, argv);
+
     install_sighandlers();
 
     while ( 1 )
@@ -608,7 +628,7 @@ int main(int argc, char **argv)
             break;
 
         case 'r':
-            UNIMPLEMENTED("resume");
+            resume = true;
             break;
 
         case 'n':
@@ -657,7 +677,7 @@ int main(int argc, char **argv)
     if ( !root_path )
         snprintf(root_path, PATH_MAX, "/var/run/uefistored-root-%d", getpid());
 
-    if ( xapi_init() < 0 )
+    if ( xapi_init(resume) < 0 )
         goto err;
 
     /* Gain access to the hypervisor */
@@ -821,7 +841,6 @@ int main(int argc, char **argv)
         ERROR("Couldn\'t open xenstore: %d, %s", errno, strerror(errno));
         goto err;
     }
-
     
     /* Check secure boot is enabled */
     secureboot_enabled = uefistored_xs_read_bool(xsh, "/local/domain/%u/platform/secureboot", domid);
@@ -838,6 +857,7 @@ int main(int argc, char **argv)
     }
 
     ret = chroot(root_path);
+
     if ( ret < 0 )
     {
         ERROR("chroot to dir %s failed!\n", root_path);
@@ -845,26 +865,26 @@ int main(int argc, char **argv)
     }
 
     ret = xapi_connect();
+
     if ( ret < 0 )
     {
         ERROR("failed to connect XAPI database\n");
         goto err;
     }
 
-    ret = xen_variable_server_init();
+    storage_init();
+
+    ret = xapi_init(resume);
 
     if ( ret < 0 )
-    {
-        ERROR("Error in variable db initialization\n");
         goto err;
-    }
 
     /*
      * Store the uefistored pid in XenStore to signal to XAPI that uefistored is alive
      *
      * Must be named varstored-pid for XAPI.
      */
-    ret =  snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid", domid);
+    ret = snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid", domid);
     if ( ret < 0 )
     {
         ERROR("buffer error: %d, %s\n", errno, strerror(errno));

@@ -86,10 +86,10 @@ void test_xapi_set_efi_vars(void)
     remove("./mock_socket");
 }
 
-static void test_blob(void)
+static void test_bytes(void)
 {
-    uint8_t blob[4096] = {0};
-    uint8_t *p = (uint8_t*)blob;
+    uint8_t bytes[4096] = {0};
+    uint8_t *p = (uint8_t*)bytes;
     variable_t orig = {0};
     variable_t var = {0};
 
@@ -97,7 +97,7 @@ static void test_blob(void)
     variable_create_noalloc(&orig, FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTR);
 
     serialize_variable_list(&p, TEST_PT_SIZE, &orig, 1);
-    from_blob_to_vars(&var, 1, blob, TEST_PT_SIZE);
+    from_bytes_to_vars(&var, 1, bytes, TEST_PT_SIZE);
 
     test(variable_eq(&orig, &var));
     variable_destroy_noalloc(&orig);
@@ -108,6 +108,7 @@ static void test_var_copy(void)
 {
     uint8_t buf[4096] = {0};
     uint8_t *p;
+    const uint8_t *unserial_ptr;
     variable_t orig = {0};
     variable_t *var;
 
@@ -118,14 +119,11 @@ static void test_var_copy(void)
     /* Do the work */
     p = buf;
     serialize_var(&p, &orig);
-    p = buf;
-    var = variable_create_unserialize(&p);
+    unserial_ptr = buf;
+    var = variable_create_unserialize(&unserial_ptr);
 
     variable_printf(var);
     variable_printf(&orig);
-
-    printf("var->namesz=%lu\n", var->namesz);
-    printf("orig.namesz=%lu\n", orig.namesz);
 
     /* Do the test */
     test(variable_eq(var, &orig));
@@ -166,7 +164,7 @@ void test_base64_encode(void)
 
     /* Do the work */
     serialize_variable_list(&p, 4096, &orig, 1);
-    base64 = blob_to_base64(buf, list_size(&orig, 1));
+    base64 = bytes_to_base64(buf, list_size(&orig, 1));
 
     /* Do the test */
     test(strcmp(base64, expected) == 0);
@@ -185,20 +183,20 @@ void test_base64(void)
     char *base64;
     uint8_t buf[4096] = {0};
     uint8_t *p = (uint8_t*)buf;
-    uint8_t blob[4096] = {0};
+    uint8_t bytes[4096] = {0};
     variable_t *orig;
     variable_t var = {0};
 
     /* Setup */
     orig = variable_create(FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTRS);
 
-    /* Convert variable into blob, and then blob into base64 */
+    /* Convert variable into bytes, and then bytes into base64 */
     serialize_variable_list(&p, 4096, orig, 1);
-    base64 = blob_to_base64(buf, list_size(orig, 1));
+    base64 = bytes_to_base64(buf, list_size(orig, 1));
 
-    /* Convert base64 to blob, then blob back to variable */
-    sz = base64_to_blob(blob, 4096, base64, strlen(base64)); 
-    from_blob_to_vars(&var, 1, blob, sz); 
+    /* Convert base64 to bytes, then bytes back to variable */
+    sz = base64_to_bytes(bytes, 4096, base64, strlen(base64)); 
+    from_bytes_to_vars(&var, 1, bytes, sz); 
 
     /* Assert the original variable and the decoded variable are equal */
     test(variable_eq(&var, orig));
@@ -239,7 +237,7 @@ void test_base64_multiple(void)
     const char *expected = EXPECTED_BASE64_MULT;
     uint8_t buf[BUFSZ] = {0};
     uint8_t *p = (uint8_t*)buf;
-    uint8_t blob[BUFSZ] = {0};
+    uint8_t bytes[BUFSZ] = {0};
     variable_t orig[VARCNT] = {{0}};
     variable_t var[VARCNT] = {{0}};
 
@@ -249,12 +247,12 @@ void test_base64_multiple(void)
 
     /* Do the work */
     serialize_variable_list(&p, BUFSZ, orig, sizeof(orig) / sizeof(orig[0]));
-    base64 = blob_to_base64(buf, list_size(orig, VARCNT));
+    base64 = bytes_to_base64(buf, list_size(orig, VARCNT));
 
     /* Test the base64 encoding */
     test(strcmp(base64, expected) == 0);
-    ret = base64_to_blob(blob, BUFSZ, base64, strlen(base64)); 
-    from_blob_to_vars(var, VARCNT, blob, ret); 
+    ret = base64_to_bytes(bytes, BUFSZ, base64, strlen(base64)); 
+    from_bytes_to_vars(var, VARCNT, bytes, ret); 
 
     /* Do the test */
     test(variable_eq(&var[0], &orig[0]));
@@ -276,10 +274,10 @@ void test_base64_big(void)
     uint8_t pt[4096*4];
     variable_t vars[256] = {{0}};
 
-    ret = base64_to_blob(pt, 4096*4, BIG_BASE64, strlen(BIG_BASE64));
+    ret = base64_to_bytes(pt, 4096*4, BIG_BASE64, strlen(BIG_BASE64));
     test(ret > 0);
 
-    ret = from_blob_to_vars(vars, 256, pt, ret); 
+    ret = from_bytes_to_vars(vars, 256, pt, ret); 
 
     for ( i=0; i<ret; i++ )
     {
@@ -311,10 +309,10 @@ void test_base64_big_xml(void)
     ret = base64_from_response_body(base64, 4096*4, BIG_BASE64_XML);
     test( ret == 0 );
 
-    ret = base64_to_blob(pt, 4096*4, base64, strlen(base64));
+    ret = base64_to_bytes(pt, 4096*4, base64, strlen(base64));
     test(ret > 0);
 
-    ret = from_blob_to_vars(vars, 256, pt, ret); 
+    ret = from_bytes_to_vars(vars, 256, pt, ret); 
 
     for ( i=0; i<ret; i++ )
     {
@@ -383,10 +381,10 @@ static void test_big_request2(void)
 
     ret = base64_from_response(buffer, 4096*8, big_request);
     printf("base64_from_response return: %d\n", ret);
-	ret = base64_to_blob(plaintext, BIG_MESSAGE_SIZE, buffer, strlen(buffer));
+	ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, buffer, strlen(buffer));
 
-    printf("blob size: %d\n", ret);
-	from_blob_to_vars(vars, 32, plaintext, (size_t)ret);
+    printf("bytes size: %d\n", ret);
+	from_bytes_to_vars(vars, 32, plaintext, (size_t)ret);
 
     int i,j;
 
@@ -435,7 +433,7 @@ void test_xapi(void)
 
     //DO_TEST(test_xapi_set_efi_vars);
     DO_TEST(test_var_copy);
-    DO_TEST(test_blob);
+    DO_TEST(test_bytes);
     DO_TEST(test_base64);
     DO_TEST(test_base64_multiple);
     DO_TEST(test_base64_encode);

@@ -53,7 +53,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
        return 0;
 
     redirect_init();
-    xen_variable_server_init(NULL);
+    storage_init();
     fuzz_xen_variable_server(data, size);
     redirect_deinit();
     return 0; 

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <openssl/bio.h>
@@ -26,6 +27,7 @@
 #define XAPI_CONNECT_SLEEP 3
 
 #define MAX_RESPONSE_SIZE 4096
+#define MAX_RESUME_FILE_SIZE (8*PAGE_SIZE)
 
 #define VM_UUID_MAX 36
 
@@ -64,12 +66,16 @@ static bool socket_path_initialized = false;
 
 #define SOCKET_MAX 108
 
+static char *xapi_save_path;
+static char *xapi_resume_path;
+
 char socket_path[SOCKET_MAX];
 
 int xapi_parse_arg(char *arg)
 {
     char *p;
 
+    /* TODO: no longer use strncpy, just point a pointer */
     if ((p = strstr(optarg, "socket:")) != NULL) {
         p += sizeof("socket:") - 1;
         strncpy(socket_path, p, SOCKET_MAX);
@@ -83,21 +89,114 @@ int xapi_parse_arg(char *arg)
         xapi_uuid_initialized = true;
 
         return 0;
+    } else if ((p = strstr(optarg, "save:")) != NULL) {
+        p += sizeof("save:") - 1;
+        xapi_save_path = p;
 
+        return 0;
+    } else if ((p = strstr(optarg, "resume:")) != NULL) {
+        p += sizeof("resume:") - 1;
+        xapi_resume_path = p;
+
+        return 0;
     }
+
 
     return 0;
 }
 
-int xapi_init(void)
+/**
+ * Populate an array of variables from byte-serialized form.
+ *
+ * Returns var count on success, otherwise negative error.
+ */
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz)
 {
-    if (!xapi_uuid_initialized) {
-        ERROR("No uuid initialized passed as arg!\n");
+    int ret;
+    const uint8_t *ptr = bytes;
+    struct variable_list_header hdr;
+    int i;
+
+    if (!ptr)
         return -1;
+
+    unserialize_variable_list_header(&ptr, &hdr);
+
+    if (hdr.variable_count > n)
+        return -1;
+
+    for (i = 0; i < hdr.variable_count; i++) {
+        ret = unserialize_var_cached(&ptr, &vars[i]);
+
+        if (ret < 0)
+            break;
     }
 
-    return 0;
+    return i;
 }
+
+/**
+ * Read variables from a file into storage.
+ *
+ * Return the number of variables loaded, otherwise return negative error code.
+ */
+int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
+{
+    int fd;
+    FILE *file = NULL;
+    uint8_t *mem;
+    ssize_t size;
+    int ret;
+    struct stat stat;
+
+    if ( !fname || !vars )
+        return -1;
+
+    file = fopen(fname,"r");
+
+    if ( !file )
+        return -1;
+
+    fd = fileno(file);
+
+    ret = fstat(fd, &stat);
+
+    if ( ret < 0 )
+        goto cleanup1;
+
+    if ( stat.st_size > MAX_RESUME_FILE_SIZE )
+    {
+        ret = -1;
+        goto cleanup1;
+    }
+
+    mem = malloc(stat.st_size);
+
+    if ( !mem )
+    {
+        ret = -1;
+        goto cleanup1;
+    }
+
+    size = fread(mem, 1, stat.st_size, file);
+
+    if ( size != stat.st_size )
+    {
+        ret = -1;
+        goto cleanup2;
+    }
+
+    ret = from_bytes_to_vars(vars, n, mem, size);
+
+cleanup2:
+    free(mem);
+
+cleanup1:
+    fclose(file);
+
+    return ret;
+}
+
 
 /**
  * Return the HTTP Status from a an HTTP response.
@@ -269,31 +368,6 @@ static int retrieve_vars(variable_t *vars, size_t n)
         return -1;
 
     return cnt;
-}
-
-int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz)
-{
-    int ret;
-    const uint8_t *ptr = bytes;
-    struct variable_list_header hdr;
-    uint64_t i;
-
-    if (!ptr)
-        return -1;
-
-    unserialize_variable_list_header(&ptr, &hdr);
-
-    if (hdr.variable_count > n)
-        return -1;
-
-    for (i = 0; i < hdr.variable_count; i++) {
-        ret = unserialize_var_cached(&ptr, &vars[i]);
-
-        if (ret < 0)
-            break;
-    }
-
-    return i > INT_MAX ? INT_MAX : i;
 }
 
 static char *variables_base64(void)
@@ -861,11 +935,11 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 }
 
 /**
- * Returns 0 if successfully retrieved variables.
+ * Request variables from XAPI server.
  *
- * Returns negative errno for errors.
+ * Returns variable count on success, otherwise negative error code.
  */
-int xapi_get_variables(variable_t *vars, size_t n)
+int xapi_variables_request(variable_t *vars, size_t n)
 
 {
     int retries = 5;
@@ -903,4 +977,40 @@ int xapi_get_variables(variable_t *vars, size_t n)
         return ret;
 
     return from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
+}
+
+int xapi_init(bool resume)
+{
+    int i, ret, len;
+    variable_t variables[MAX_VAR_COUNT];
+    variable_t *var;
+
+    memset(variables, 0, sizeof(variables));
+
+    if (!xapi_uuid_initialized) {
+        ERROR("No uuid initialized passed as arg!\n");
+        return -1;
+    }
+
+    if (resume)
+        ret = xapi_variables_read_file(variables, MAX_VAR_COUNT, xapi_resume_path);
+    else
+        ret = xapi_variables_request(variables, MAX_VAR_COUNT);
+
+    if (ret < 0)
+        return ret;
+
+    len = ret;
+
+    for (i=0; i<len; i++) {
+        var = &variables[i];
+        ret = storage_set(var->name, &var->guid, var->data, var->datasz, var->attrs);
+        
+        if ( ret < 0 )
+        {
+            ERROR("failed to set variable\n");
+        }
+    }
+
+    return 0;
 }

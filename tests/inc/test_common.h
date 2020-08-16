@@ -62,6 +62,6 @@ static inline void  _test_eq_int64(const char *file_name, const char *test_name,
 #define test_eq_int64(val1, val2)	\
 	_test_eq_int64(__FILE__, __func__, __LINE__, #val1, #val2, val1, val2)
 
-#define DEFAULT_ATTR (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS)
+#define DEFAULT_ATTR (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS)
 
 #endif //  __H_COMMON_

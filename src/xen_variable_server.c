@@ -173,7 +173,7 @@ static void handle_set_variable(void *comm_buf)
     const uint8_t *inptr = comm_buf;
     EFI_GUID guid;
     int namesz;
-    size_t datasz;
+    int datasz;
     UTF16 *name;
     uint8_t data[MAX_VARIABLE_DATA_SIZE];
     void *dp = data;
@@ -224,9 +224,17 @@ static void handle_set_variable(void *comm_buf)
     unserialize_guid(&inptr, &guid);
 
     datasz = unserialize_data(&inptr, dp, MAX_VARIABLE_DATA_SIZE);
+
+    if ( datasz < 0 )
+    {
+        ptr = comm_buf;
+        serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
+        return;
+    }
+
     attrs = unserialize_uint32(&inptr);
 
-    status = set_variable(name, &guid, attrs, datasz, dp);
+    status = set_variable(name, &guid, attrs, (size_t)datasz, dp);
 
     ptr = comm_buf;
     serialize_result(&ptr, status);
@@ -373,45 +381,9 @@ void xen_variable_server_handle_request(void *comm_buf)
             handle_query_variable_info(comm_buf);
             break;
         case COMMAND_NOTIFY_SB_FAILURE:
+            /* fall through */
         default:
             ERROR("cmd: unknown\n");
             break;
     }
-}
-
-int xen_variable_server_init(void)
-{
-    int ret, i;
-    char *name;
-    variable_t variables[MAX_VAR_COUNT];
-
-    memset(variables, 0, sizeof(variables));
-
-    /* Initialize UEFI variables */
-    storage_init();
-
-    /* TODO: if there is an error, prevent boot.  If vars are empty, allow boot */
-    ret = xapi_get_variables(variables, MAX_VAR_COUNT);
-
-    if ( ret < 0 )
-    {
-        INFO("failed to get vars from xapi, starting with blank variable store\n");
-    }
-
-    for ( i=0; i<ret; i++ )
-    {
-        ret = storage_set(variables[i].name, &variables[i].guid, variables[i].data,
-                          variables[i].datasz, variables[i].attrs);
-
-        if ( ret < 0 && variables[i].namesz > 0 )
-        {
-            name = malloc(variables[i].namesz / 2);
-            memset(name, 0, 512);
-            uc2_ascii_safe(variables[i].name, variables[i].namesz, name, 512);
-            ERROR("failed to set variable: %s\n", name);
-            free(name);
-        }
-    }
-
-    return 0;
 }

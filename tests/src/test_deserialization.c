@@ -16,7 +16,7 @@ void test_deserialization(void)
 
     printf("\n%s\n", __func__);
 
-    ret = from_blob_to_vars(vars, 128, plaintext, sizeof(plaintext));
+    ret = from_bytes_to_vars(vars, 128, plaintext, sizeof(plaintext));
     printf("ret=%d\n", ret);
 
     for ( i=0; i<ret; i++ )

@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-int xen_variable_server_init(void);
 void xen_variable_server_handle_request(void *comm_buff);
 
 EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid,

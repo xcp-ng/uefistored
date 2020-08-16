@@ -9,7 +9,7 @@
 #define UEFI_AUTH_ATTRS (EFI_VARIABLE_APPEND_WRITE | \
                          EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
 
-static bool valid_attrs(uint32_t attrs)
+bool valid_attrs(uint32_t attrs)
 {
     if ( attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
         return false;

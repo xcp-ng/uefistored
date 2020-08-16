@@ -31,7 +31,7 @@ uint32_t unserialize_uint32(const uint8_t **ptr);
 uint64_t unserialize_uint64(const uint8_t **ptr);
 void unserialize_guid(const uint8_t **ptr, EFI_GUID *Guid);
 int unserialize_name(const uint8_t **ptr, size_t buf_sz, void *name, size_t n);
-uint64_t unserialize_namesz(const const uint8_t **ptr);
+uint64_t unserialize_namesz(const uint8_t **ptr);
 bool unserialize_boolean(const uint8_t **ptr);
 EFI_STATUS unserialize_result(const uint8_t **ptr);
 void unserialize_variable_list_header(const uint8_t **ptr, struct variable_list_header *hdr);

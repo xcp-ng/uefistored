@@ -37,6 +37,7 @@ size_t storage_count(void)
 
 void storage_deinit(void)
 {
+    storage_destroy();
 }
 
 void storage_destroy(void)

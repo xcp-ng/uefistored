@@ -16,8 +16,15 @@ static uint8_t RTC_DATA[] = { 0xa, 0xb, 0xc, 0xd };
 static UTF16 CHEER[] =  {'C', 'H', 'E', 'E', 'R'};
 static uint8_t CHEER_DATA[] = { 0xa, 0xb, 0xc, 0xd, 0xf, 0xf };
 
-static variable_t var1;
-static variable_t var2;
+static variable_t var1 = {
+    .attrs = DEFAULT_ATTR,
+    .guid = DEFAULT_GUID
+};
+
+static variable_t var2 = {
+    .attrs = DEFAULT_ATTR,
+    .guid = DEFAULT_GUID
+};
 
 static void pre_test(void)
 {
@@ -36,8 +43,6 @@ static void test_set_and_get(void)
     variable_t tmp = {0};
 
     variable_create_noalloc(&tmp, var1.name, var1.data, var1.datasz, &var1.guid, var1.attrs);
-
-    memset(var1.data, 0, var1.datasz);
 
     ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
@@ -62,13 +67,15 @@ static void test_set_and_get2(void)
 
     tmp.name = malloc(MAX_VARIABLE_NAME_SIZE);
     tmp.data = malloc(MAX_VARIABLE_DATA_SIZE);
-    strncpy16(tmp.name, var1.name, MAX_VARIABLE_NAME_SIZE);
+    memcpy(&tmp.guid, &var1.guid, sizeof(tmp.guid));
     tmp.namesz = var1.namesz;
+    strncpy16(tmp.name, var1.name, MAX_VARIABLE_NAME_SIZE);
 
     ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz, var1.attrs);
     test( ret == 0 );
 
     ret = storage_get(tmp.name, &tmp.guid, tmp.data, MAX_VARIABLE_DATA_SIZE, &tmp.datasz, &tmp.attrs);
+
     test( ret == 0 );
 
     test( var1.namesz == tmp.namesz );
