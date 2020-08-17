@@ -626,7 +626,12 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
     return ret;
 }
 
-static bool success(char *body)
+/**
+ * Return true if body contains "SUCCESS" element, otherwise return false.
+ *
+ * body: an XML string
+ */
+static bool success(char *xml)
 {
     size_t len;
     int ret;
@@ -636,12 +641,12 @@ static bool success(char *body)
     xmlXPathContext *context;
     xmlChar *string;
 
-    if (!body)
+    if (!xml)
         return false;
 
-    len = strlen(body);
+    len = strlen(xml);
 
-    doc = xmlReadMemory(body, len + 1, "noname.xml", 0, 0);
+    doc = xmlReadMemory(xml, len + 1, "noname.xml", 0, 0);
 
     if (!doc) {
         ERROR("xmlReadMemory() error\n");
