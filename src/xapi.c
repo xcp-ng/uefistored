@@ -733,6 +733,15 @@ static int get_value(char *body, char *dest, size_t n)
     }
 
     string = xmlNodeGetContent((xmlNodePtr)obj->nodesetval->nodeTab[0]);
+
+    if (!string) {
+        ERROR("%s: xmlNodeGetContent() error\n", __func__);
+        xmlXPathFreeObject(obj);
+        xmlXPathFreeContext(context);
+        xmlFreeDoc(doc);
+        return -1;
+    }
+
     strncpy(dest, (char *)string, n);
 
     xmlFree(string);
