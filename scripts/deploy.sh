@@ -1,7 +1,7 @@
 #!/bin/bash
 
-UEFI_BIN=/usr/sbin/uefistored
+UEFISTORE=/usr/sbin/uefistored
+VARSTORE=$(ssh root@${XCP_NG_IP} which varstored)
 
-varstore_path=$(ssh root@${XCP_NG_IP} which varstored)
-scp uefistored root@${XCP_NG_IP}:${UEFI_BIN}
-ssh root@${XCP_NG_IP} ln -sf ${UEFI_BIN} ${varstore_path}
+scp uefistored root@${XCP_NG_IP}:${UEFISTORE}
+ssh root@${XCP_NG_IP} ln -sf ${UEFISTORE} ${VARSTORE}
