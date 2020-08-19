@@ -59,7 +59,9 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
     ret = storage_get(variable, guid, tmp, MAX_VARIABLE_DATA_SIZE, &tmpsz, &tmpattrs);
 
     if ( ret == VAR_NOT_FOUND )
+    {
         return EFI_NOT_FOUND;
+    }
     else if ( ret < 0 )
     {
         return EFI_DEVICE_ERROR;
@@ -82,7 +84,9 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
      * TODO: make this more precise.  Subtract size of other serialized fields.
      */
     else if ( tmpsz > MAX_SHARED_OVMF_MEM )
+    {
         return EFI_DEVICE_ERROR;
+    }
 
     memcpy(data, tmp, tmpsz);
     *size = tmpsz;
