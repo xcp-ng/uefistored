@@ -678,10 +678,7 @@ int main(int argc, char **argv)
 
 
     if ( !root_path )
-        snprintf(root_path, PATH_MAX, "/var/run/uefistored-root-%d", getpid());
-
-    if ( xapi_init(resume) < 0 )
-        goto err;
+        snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
 
     /* Gain access to the hypervisor */
     xc_handle = xc_interface_open(0, 0, 0);
