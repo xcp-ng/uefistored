@@ -1098,15 +1098,9 @@ int xapi_init(bool resume)
  */
 int xapi_write_save_file(void)
 {
-    int ret;
     FILE *file;
     uint8_t *bytes;
-    size_t size;
-
-    bytes = variable_list_bytes(&size);
-
-    if (!bytes)
-        return -1;
+    size_t size = 0, ret = 0;
 
     if (!xapi_save_path)
         return -1;
@@ -1116,10 +1110,14 @@ int xapi_write_save_file(void)
     if (!file)
         return -1;
 
-    ret = fwrite(bytes, 1, size, file);
+    bytes = variable_list_bytes(&size);
 
-    if (ret != size)
+    if (!bytes)
         return -1;
 
-    return 0;
+    ret = fwrite(bytes, 1, size, file);
+
+    fclose(file);
+
+    return ret == size ? 0 : -1;
 }
