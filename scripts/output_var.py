@@ -44,8 +44,8 @@ if __name__ == '__main__':
 
     print("\n\nTo test, simply:\n\t$ scp *{guid} root@${{HOST}}:/sys/firmware/efi/efivars/".format(guid=VENDOR_GUID))
     print("\nReboot and verify the different attributes:")
-    print("\t", RUNTIME_NON_VOLATILE_FILE, "- should be visible from Linux after reboot")
-    print("\t", RUNTIME_VOLATILE_FILE, "- should not be visible from Linux after reboot")
-    print("\t", BOOTTIME_NON_VOLATILE_FILE, "- should not be visible from Linux after reboot")
-    print("\t", BOOTTIME_VOLATILE_FILE, "- should not be visible from Linux after reboot")
+    print("\t", RUNTIME_NON_VOLATILE_FILE, "- data should be visible from Linux after reboot")
+    print("\t", RUNTIME_VOLATILE_FILE, "- data should not be visible from Linux after reboot")
+    print("\t", BOOTTIME_NON_VOLATILE_FILE, "- data should not be visible from Linux after reboot")
+    print("\t", BOOTTIME_VOLATILE_FILE, "- data should not be visible from Linux after reboot")
 
