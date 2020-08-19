@@ -50,10 +50,12 @@ void log_deinit(void);
 
 #define DEBUG(...)                                              \
     do {                                                        \
-        if ( _logfd > 0 )                                             \
-            dprintf(_logfd, "DEBUG: "  __VA_ARGS__);   \
-        if (  USE_STREAM )                                                 \
-            uefistored_fprintf(stdout, "DEBUG: " __VA_ARGS__);       \
+        if ( _logfd > 0 )                                       \
+            dprintf(_logfd, "DEBUG:");                          \
+            dprintf(_logfd, "%s:%d: ", __func__, __LINE__);      \
+            dprintf(_logfd, __VA_ARGS__);            \
+        if (  USE_STREAM )                                      \
+            uefistored_fprintf(stdout, "DEBUG: " __VA_ARGS__);  \
     } while ( 0 )
 
 #define DPRINTF(...)                                              \

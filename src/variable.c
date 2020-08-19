@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "log.h"
 #include "storage.h"
 #include "uefi/types.h"
 #include "serializer.h"
@@ -19,40 +20,25 @@ int variable_set_attrs(variable_t *var, const uint32_t attrs)
 
 int variable_set_data(variable_t *var, const uint8_t *data, const uint64_t datasz)
 {
-    uint8_t *new = NULL;
-
     if ( !var || !data || datasz == 0 )
         return -1;
 
     if ( datasz == 0 )
         return -1;
 
-    if ( var->datasz != datasz )
-    {
-        
-        new = malloc(datasz);
+    var->datasz = datasz;
 
-        if ( !new )
-            return -1;
+    if ( var->data )
+        free(var->data);
 
-        if ( var->data )
-        {
-            free(var->data);
-        }
-
-        var->data = new;
-    }
+    var->data = malloc(var->datasz);
 
     if ( !var->data )
     {
-        var->data = malloc(datasz);
-
-        if ( !var->data )
-            return -1;
+        return -1;
     }
 
     memcpy(var->data, data, datasz);
-    var->datasz = datasz;
 
     return 0;
 }
@@ -69,7 +55,6 @@ int variable_set_guid(variable_t *var, const EFI_GUID *guid)
 
 int variable_set_name(variable_t *var, const UTF16 *name)
 {
-    UTF16 *new = NULL;
     uint64_t namesz;
 
     if ( !var || !name )
@@ -80,28 +65,17 @@ int variable_set_name(variable_t *var, const UTF16 *name)
     if ( namesz == 0 )
         return -1;
 
-    if ( var->namesz != namesz )
-    {
-        new = malloc(namesz + sizeof(UTF16));
+    var->namesz = namesz;
 
-        if ( !new )
-            return -1;
+    if ( var->name )
+        free(var->name);
 
-        if ( var->name )
-            free(var->name);
-
-        var->name = new;
-    }
+    var->name = malloc(namesz + sizeof(UTF16)); 
 
     if ( !var->name )
-    {
-        var->name = malloc(namesz + sizeof(UTF16));
-        if ( !var->name )
-            return -1;
-    }
+        return -1;
 
     strncpy16(var->name, name, namesz + sizeof(UTF16));
-    var->namesz = namesz;
 
     return 0;
 }
@@ -253,29 +227,38 @@ void variable_destroy(variable_t *var)
 
 int variable_copy(variable_t *dst, const variable_t *src)
 {
+    int ret;
+
     if ( !dst || !src )
         return -1;
 
-    memcpy(&dst->namesz, &src->namesz, sizeof(dst->namesz));
+    ret = variable_set_name(dst, src->name);
 
-    if ( dst->name )
+    if ( ret < 0 )
     {
-        free(dst->name);
-        dst->name = malloc(dst->namesz + 2);
-        memset(dst->name, 0, dst->namesz + 2);
+        return ret;
     }
 
-    memcpy(&dst->datasz, &src->datasz, sizeof(dst->datasz));
-    
-    if ( dst->data )
+    ret = variable_set_data(dst, src->data, src->datasz);
+
+    if ( ret < 0 )
     {
-        free(dst->data);
-        dst->data = malloc(dst->datasz + 2);
-        memset(dst->data, 0, dst->datasz + 2);
+        return ret;
     }
 
-    memcpy(&dst->attrs, &src->attrs, sizeof(dst->attrs));
-    memcpy(&dst->guid, &src->guid, sizeof(dst->guid));
+    ret = variable_set_guid(dst, &src->guid);
+
+    if ( ret < 0 )
+    {
+        return ret;
+    }
+
+    ret = variable_set_attrs(dst, src->attrs);
+
+    if ( ret < 0 )
+    {
+        return ret;
+    }
 
     return 0;
 }

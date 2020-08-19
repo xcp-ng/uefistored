@@ -52,6 +52,7 @@ variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid, variable_t va
 void print_variable(variable_t *var);
 void dprint_variable(const variable_t *var);
 void dprint_name(const UTF16 *name, size_t namesz);
+void dprint_variable_list(const variable_t *vars, size_t n);
 char *strstrip(char *s);
 
 void dprint_data(const void *data, size_t datasz);

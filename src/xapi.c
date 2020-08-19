@@ -114,7 +114,7 @@ int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t 
     struct variable_list_header hdr;
     int i;
 
-    if (!ptr)
+    if (!vars || !bytes)
         return -1;
 
     unserialize_variable_list_header(&ptr, &hdr);
@@ -191,6 +191,11 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
     }
 
     ret = from_bytes_to_vars(vars, n, mem, size);
+
+#if 1
+    if ( ret >= 0 )
+        dprint_variable_list(vars, ret);
+#endif
 
 cleanup2:
     free(mem);
@@ -340,6 +345,44 @@ size_t list_size(variable_t *variables, size_t n)
  *
  * Returns the count of variables retrieved.
  */
+static int retrieve_nonvolatile_vars(variable_t *vars, size_t n)
+{
+    int ret;
+    size_t cnt = 0;
+    variable_t tmp;
+
+    memset(vars, 0, sizeof(*vars) * n);
+
+    while (cnt < n) {
+        ret = storage_next(&tmp);
+
+        /* Error */
+        if (ret < 0)
+            return ret;
+
+        /* Last variable */
+        if (ret == 0)
+            break;
+
+        if (tmp.attrs & EFI_VARIABLE_NON_VOLATILE)
+        {
+            variable_copy(&vars[cnt++], &tmp);
+            memset(&tmp, 0, sizeof(tmp));
+        }
+    }
+
+    /* Too many variables */
+    if (cnt > INT_MAX)
+        return -1;
+
+    return cnt;
+}
+
+/**
+ * Retrieves variables from db and stores in vars arg
+ *
+ * Returns the count of variables retrieved.
+ */
 static int retrieve_vars(variable_t *vars, size_t n)
 {
     int ret;
@@ -377,16 +420,20 @@ static int retrieve_vars(variable_t *vars, size_t n)
  * format with header.
  *
  * Parameters
- * 
+ *
  *  size: the size of the returned byte array
+ *  nonvolatile: if true, only return nonvolatile variables;
  */
-static uint8_t *variable_list_bytes(size_t *size)
+static uint8_t *variable_list_bytes(size_t *size, bool nonvolatile)
 {
     int ret;
     uint8_t *bytes, *p;
     variable_t vars[MAX_VAR_COUNT];
 
-    ret = retrieve_vars(vars, MAX_VAR_COUNT);
+    if (nonvolatile)
+        ret = retrieve_nonvolatile_vars(vars, MAX_VAR_COUNT);
+    else
+        ret = retrieve_vars(vars, MAX_VAR_COUNT);
 
     if (ret <= 0)
         return NULL;
@@ -419,7 +466,7 @@ static char *variable_list_base64(void)
     uint8_t *bytes;
     size_t size;
 
-    bytes = variable_list_bytes(&size);
+    bytes = variable_list_bytes(&size, true);
 
     if (!bytes)
         return NULL;
@@ -535,6 +582,7 @@ static int send_request(char *message, char *buf, size_t bufsz)
 
     close(fd);
     buf[ret] = '\0';
+
     return http_status(buf);
 }
 
@@ -549,6 +597,7 @@ int xapi_set_efi_vars(void)
     int ret;
 
     ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
+
     if (ret < 0)
         return ret;
 
@@ -1048,7 +1097,14 @@ int xapi_variables_request(variable_t *vars, size_t n)
     if (ret < 0)
         return 0;
 
-    return from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
+    ret = from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
+
+#if 0
+    if ( ret >= 0 )
+        dprint_variable_list(vars, ret);
+#endif
+
+    return ret;
 }
 
 /**
@@ -1112,7 +1168,7 @@ int xapi_write_save_file(void)
     if (!file)
         return -1;
 
-    bytes = variable_list_bytes(&size);
+    bytes = variable_list_bytes(&size, false);
 
     if (!bytes)
         return -1;

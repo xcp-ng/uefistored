@@ -88,7 +88,16 @@ void dprint_name(const UTF16 *name, size_t namesz)
         return;
 
     uc2_ascii_safe(name, namesz, buf, MAX_VARIABLE_NAME_SIZE);
-    DEBUG("Variable(%s)\n", buf);
+    DPRINTF("Variable(%s)\n", buf);
+}
+
+void dprint_variable_list(const variable_t *vars, size_t n)
+{
+    size_t i;
+
+    for (i=0; i<n; i++) { 
+        dprint_variable(&vars[i]);
+    }
 }
 
 
@@ -179,7 +188,7 @@ void dprint_data(const void *data, size_t datasz)
         return;
 
     DPRINTF("DATA: ");
-    for (i=0; i<32 &&i<datasz; i++)
+    for (i=0; i<8 &&i<datasz; i++)
     {
         if (i % 8 == 0)
             DPRINTF("\n%02lx: 0x", i);

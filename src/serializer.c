@@ -21,17 +21,17 @@ void serialize_name(uint8_t **ptr, UTF16 *VariableName)
 {
     uint64_t VarNameSize = strsize16(VariableName);
 
-    memcpy (*ptr, &VarNameSize, sizeof VarNameSize);
+    memcpy(*ptr, &VarNameSize, sizeof VarNameSize);
     *ptr += sizeof VarNameSize;
-    memcpy (*ptr, VariableName, VarNameSize);
+    memcpy(*ptr, VariableName, VarNameSize);
     *ptr += VarNameSize;
 }
 
 void serialize_data(uint8_t **ptr, void *Data, uint64_t DataSize)
 {
-    memcpy (*ptr, &DataSize, sizeof DataSize);
+    memcpy(*ptr, &DataSize, sizeof DataSize);
     *ptr += sizeof DataSize;
-    memcpy (*ptr, Data, DataSize);
+    memcpy(*ptr, Data, DataSize);
     *ptr += DataSize;
 }
 
@@ -43,13 +43,13 @@ void serialize_uintn(uint8_t **ptr, uint64_t var)
 
 void serialize_uint32(uint8_t **ptr, uint32_t var)
 {
-    memcpy (*ptr, &var, sizeof var);
+    memcpy(*ptr, &var, sizeof var);
     *ptr += sizeof var;
 }
 
 void serialize_boolean(uint8_t **ptr, bool var)
 {
-    memcpy (*ptr, &var, sizeof var);
+    memcpy(*ptr, &var, sizeof var);
     *ptr += sizeof var;
 }
 
@@ -60,7 +60,7 @@ void serialize_command(uint8_t **ptr, command_t cmd)
 
 void serialize_guid(uint8_t **ptr, EFI_GUID *guid)
 {
-    memcpy (*ptr, guid, 16);
+    memcpy(*ptr, guid, 16);
     *ptr += 16;
 }
 
@@ -88,7 +88,7 @@ int unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
     memcpy(&ret, *ptr, sizeof(ret));
     *ptr += sizeof(ret);
 
-    if ( ret > buflen || ret > INT_MAX )
+    if (ret > buflen || ret > INT_MAX)
         return -1;
 
     memcpy(buf, *ptr, ret);
@@ -155,7 +155,7 @@ int unserialize_name(const uint8_t **ptr, size_t buf_sz, void *name, size_t n)
 {
     uint64_t namesz = n - sizeof(UTF16);
 
-    if ( namesz > buf_sz || namesz > MAX_VARIABLE_NAME_SIZE )
+    if (namesz > buf_sz || namesz > MAX_VARIABLE_NAME_SIZE)
         return -1;
 
     memcpy(name, *ptr, namesz);
@@ -179,38 +179,37 @@ EFI_STATUS unserialize_result(const uint8_t **ptr)
 void unserialize_variable_list_header(const uint8_t **ptr, struct variable_list_header *hdr)
 {
     memcpy(hdr, *ptr, sizeof(*hdr));
-	*ptr += sizeof(*hdr);
+    *ptr += sizeof(*hdr);
 }
 
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 {
-    UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
+    UTF16 name[MAX_VARIABLE_NAME_SIZE] = { 0 };
     EFI_GUID guid;
     uint8_t *data;
     uint64_t namesz, datasz;
     uint32_t attrs;
     int ret;
 
-	if ( !ptr || !var )
-		return -1;
+    if (!ptr || !var)
+        return -1;
 
     namesz = unserialize_uint64(ptr);
 
-	if ( namesz == 0 || namesz > MAX_VARIABLE_NAME_SIZE )
+    if (namesz == 0 || namesz > MAX_VARIABLE_NAME_SIZE)
         return -1;
 
-
-	memcpy(name, *ptr, namesz);
-	*ptr += namesz;
+    memcpy(name, *ptr, namesz);
+    *ptr += namesz;
 
     datasz = unserialize_uint64(ptr);
 
-	if ( datasz == 0 )
-		return -1;
+    if (datasz == 0)
+        return -1;
 
-	data = malloc(datasz);
+    data = malloc(datasz);
 
-    if ( !data )
+    if (!data)
         return -1;
 
     memcpy(data, *ptr, datasz);
@@ -236,20 +235,20 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
  */
 int serialize_var(uint8_t **p, const variable_t *var)
 {
-    if ( !p || !var )
+    if (!p || !var)
         return -1;
 
-    if ( !var->name || !var->data )
+    if (!var->name || !var->data)
         return -1;
 
     serialize_value(p, var->namesz);
 
-    memcpy(*p, var->name, var->namesz); 
+    memcpy(*p, var->name, var->namesz);
     *p += var->namesz;
 
     serialize_value(p, var->datasz);
 
-    memcpy(*p, var->data, var->datasz); 
+    memcpy(*p, var->data, var->datasz);
     *p += var->datasz;
 
     serialize_value(p, var->guid);
@@ -262,9 +261,8 @@ static uint64_t payload_size(const variable_t *var, size_t n)
 {
     uint64_t sum = 0;
     size_t i;
-    
-    for ( i=0; i<n; i++ )
-    {
+
+    for (i = 0; i < n; i++) {
         sum += variable_size(&var[i]);
 
         /* Pad w/ 48 bytes  -- require by XenServer's uefistored */
@@ -274,15 +272,16 @@ static uint64_t payload_size(const variable_t *var, size_t n)
     return sum;
 }
 
-static void serialize_variable_list_header(uint8_t **ptr, const variable_t *var, size_t n)
+static void serialize_variable_list_header(uint8_t **ptr, const variable_t *var,
+                                           size_t n)
 {
-    struct variable_list_header hdr = {0};
+    struct variable_list_header hdr = { 0 };
 
     memcpy(&hdr.magic, &VARS, sizeof(hdr.magic));
     hdr.version = 1;
     hdr.variable_count = n;
     hdr.payload_size = payload_size(var, n);
-    
+
     memcpy(*ptr, &hdr, sizeof(hdr));
     *ptr += sizeof(hdr);
 }
@@ -292,12 +291,12 @@ static void serialize_variable_list_header(uint8_t **ptr, const variable_t *var,
  *
  * Returns the number of successfully serialized variables, 
  */
-int serialize_variable_list(uint8_t **ptr, size_t sz, const variable_t *var, size_t n)
+int serialize_variable_list(uint8_t **ptr, size_t sz, const variable_t *var,
+                            size_t n)
 {
     size_t i, sum;
 
-    if ( !ptr || !var )
-    {
+    if (!ptr || !var) {
         ERROR("%s: bad ptr\n", __func__);
         return 0;
     }
@@ -305,14 +304,13 @@ int serialize_variable_list(uint8_t **ptr, size_t sz, const variable_t *var, siz
     serialize_variable_list_header(ptr, var, n);
 
     sum = 0;
-    for ( i=0; i<n; i++ )
-    {
+    for (i = 0; i < n; i++) {
         sum += variable_size(&var[i]) + VAR_PADDING;
 
-        if ( sum > sz )
+        if (sum > sz)
             return i;
 
-        if ( serialize_var(ptr, &var[i]) < 0 )
+        if (serialize_var(ptr, &var[i]) < 0)
             return i;
 
         *ptr += VAR_PADDING;
@@ -333,18 +331,18 @@ uint64_t unserialize_variable_list(const uint8_t **ptr)
     struct variable_list_header hdr;
     uint64_t i;
 
-    if ( !ptr )
+    if (!ptr)
         return 0;
 
     unserialize_variable_list_header(ptr, &hdr);
 
-    for ( i=0; i<hdr.variable_count; i++ )
-    {
+    for (i = 0; i < hdr.variable_count; i++) {
         var = variable_create_unserialize(ptr);
-        ret = storage_set(var->name, &var->guid, var->data, var->datasz, var->attrs);
+        ret = storage_set(var->name, &var->guid, var->data, var->datasz,
+                          var->attrs);
         variable_destroy(var);
 
-        if ( ret < 0 )
+        if (ret < 0)
             return i;
     }
 
@@ -367,16 +365,15 @@ void free_variable_list(struct variable_list *list)
 
     cur = list;
 
-    while ( cur->next )
-    {
+    while (cur->next) {
         next = cur->next;
 
-        if ( cur )
+        if (cur)
             free_variable_list_node(cur);
 
         cur = next;
     }
 
-    if ( cur )
+    if (cur)
         free_variable_list_node(cur);
 }

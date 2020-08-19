@@ -346,6 +346,8 @@ void handler_loop(xenevtchn_handle *xce,
 
     while ( true )
     {
+        DEBUG("poll()\n");
+
         ret = poll(&pollfd, 1, -1);
         if ( ret < 0 )
         {
@@ -353,6 +355,7 @@ void handler_loop(xenevtchn_handle *xce,
             usleep(100000);
             continue;
         }
+        DEBUG("poll(), ret=%d\n", ret);
 
         port = xenevtchn_pending(xce);
         if ( port < 0 )
@@ -360,6 +363,7 @@ void handler_loop(xenevtchn_handle *xce,
             ERROR("xenevtchn_pending() error: %d, %s\n", errno, strerror(errno));
             continue;
         }
+        DEBUG("xenevtchn_pending(), port=%u\n", (uint32_t)port);
 
         ret = xenevtchn_unmask(xce, port);
         if ( ret < 0 )
@@ -370,6 +374,7 @@ void handler_loop(xenevtchn_handle *xce,
 
         if ( port == bufioreq_local_port )
         {
+            DEBUG("bufioreq_local_port");
 
             int i;
             buf_ioreq_t *p;
@@ -377,12 +382,12 @@ void handler_loop(xenevtchn_handle *xce,
             for ( i=0; i<IOREQ_BUFFER_SLOT_NUM; i++ ) 
             {
                 p = &buffered_iopage->buf_ioreq[i];
-                /* Do some thing */
                 handle_bufioreq(p);
             }
         }
         else
         {
+            DEBUG("port = %u\n", port);
             for ( i=0; i<vcpu_count; i++ )
             {
                 evtchn_port_t remote_port = remote_vcpu_ports[i];
@@ -411,6 +416,8 @@ void handle_bufioreq(buf_ioreq_t *buf_ioreq)
         ERROR("UNKNOWN buf_ioreq type %02x)\n", buf_ioreq->type);
         return;
     }
+
+    DEBUG("buf_ioreq is valid\n");
 }
 
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, 
@@ -444,6 +451,9 @@ static void cleanup(void)
 
     if ( xapi_write_save_file() < 0 )
         ERROR("Writing save file failed\n");
+
+    if ( xapi_set_efi_vars() < 0 )
+        ERROR("Setting EFI vars in XAPI DB failed\n");
 
     storage_destroy();
 
@@ -824,7 +834,10 @@ int main(int argc, char **argv)
         ERROR("failed to bind evtchns: %d, %s\n", errno, strerror(errno));
         goto err;
     }
+
     bufioreq_local_port = ret;
+
+    DEBUG("bufioreq_local_port=%u\n", bufioreq_local_port);
 
     ret = setup_portio(dmod, fmem, domid, ioservid);
     if ( ret < 0 )
@@ -873,6 +886,8 @@ int main(int argc, char **argv)
     storage_init();
 
     ret = xapi_init(resume);
+
+    DEBUG("xapi_init(), ret=%d\n", ret);
 
     if ( ret < 0 )
         goto err;

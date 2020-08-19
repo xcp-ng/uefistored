@@ -241,17 +241,6 @@ static void handle_set_variable(void *comm_buf)
     set_efi_runtime(unserialize_boolean(&inptr));
 
     status = set_variable(name, &guid, attrs, (size_t)datasz, dp);
-
-    if ( !status )
-    {
-        /*
-         * According to the spec, the new var MUST be saved to hardware in
-         * order to return EFI_SUCCESS.
-         */
-        if ( xapi_set_efi_vars() < 0 )
-            status = EFI_DEVICE_ERROR;
-    }
-
     ptr = comm_buf;
     serialize_result(&ptr, status);
 
