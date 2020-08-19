@@ -3,11 +3,12 @@
 
 #include "common.h"
 #include "test_common.h"
+#include "storage.h"
 #include "xen_variable_server.h"
 
 static void fuzz_xen_variable_server(const uint8_t *data, size_t blocksz)
 {
-    void *p, *mem;
+    void *p, *mem, *backup;
     uint32_t *command;
     size_t blocks, i, total, rem;
 
@@ -37,12 +38,16 @@ static void fuzz_xen_variable_server(const uint8_t *data, size_t blocksz)
         total += rem;
     }
 
-    /* Turn into a command more often */
+    /* Turn into a valid command more often */
     command = mem;
     command[0] = command[0] % 2;
     command[1] = command[1] % 6;
 
-    xen_variable_server_handle_request(mem);
+    for ( i=0; i<MAX_VAR_COUNT+2; i++ )
+    {
+        xen_variable_server_handle_request(mem);
+    }
+
     free(mem);
 }
 
@@ -52,8 +57,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     if ( !data )
        return 0;
 
-    xen_variable_server_init();
+    storage_init();
     fuzz_xen_variable_server(data, size);
+    storage_destroy();
     return 0; 
 }
 
