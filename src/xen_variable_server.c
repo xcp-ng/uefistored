@@ -242,12 +242,21 @@ static void handle_set_variable(void *comm_buf)
 
     status = set_variable(name, &guid, attrs, (size_t)datasz, dp);
 
+    if ( !status )
+    {
+        /*
+         * According to the spec, the new var MUST be saved to hardware in
+         * order to return EFI_SUCCESS.
+         */
+        if ( xapi_set_efi_vars() < 0 )
+            status = EFI_DEVICE_ERROR;
+    }
+
     ptr = comm_buf;
     serialize_result(&ptr, status);
 
     free(name);
 
-    if ( xapi_set_efi_vars() < 0 )
         ERROR("Setting EFI vars in XAPI DB failed\n");
 }
 
