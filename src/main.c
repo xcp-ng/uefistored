@@ -38,8 +38,8 @@
 #define IOREQ_SERVER_FRAME_NR 2
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
-static bool saved_efi_vars;
 static bool resume;
+static bool cleanup_called;
 
 extern char *xapi_resume_path;
 extern char *xapi_save_path;
@@ -440,17 +440,13 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, 
 
 static void cleanup(void)
 {
-    int ret;
+    if ( cleanup_called )
+        return;
 
-    if ( !saved_efi_vars )
-    {
-        ret = xapi_set_efi_vars();
+    cleanup_called = true;
 
-        if ( ret == 0 )
-            ret = xapi_write_save_file();
-
-        saved_efi_vars = ret == 0;
-    }
+    if ( xapi_write_save_file() < 0 )
+        ERROR("Writing save file failed\n");
 
     storage_destroy();
 
