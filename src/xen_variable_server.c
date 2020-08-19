@@ -163,7 +163,7 @@ static void handle_query_variable_info(void *comm_buf)
         return;
     }
 
-    ptr = comm_buf;
+   ptr = comm_buf;
     serialize_result(&ptr, status);
     serialize_value(&ptr, max_variable_storage);
     serialize_value(&ptr, remaining_variable_storage);
@@ -256,8 +256,6 @@ static void handle_set_variable(void *comm_buf)
     serialize_result(&ptr, status);
 
     free(name);
-
-        ERROR("Setting EFI vars in XAPI DB failed\n");
 }
 
 static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
