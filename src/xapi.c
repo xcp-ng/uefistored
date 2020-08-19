@@ -106,9 +106,14 @@ int xapi_parse_arg(char *arg)
 }
 
 /**
- * Populate an array of variables from byte-serialized form.
+ * This function populates an array of variables from byte-serialized form.
  *
- * Returns var count on success, otherwise negative error.
+ * @parm vars the buffer array of variables
+ * @parm n the max size of the array
+ * @parm bytes pointer to the array of bytes of serialized variables
+ * @parm bytes_sz the size of the array of bytes
+ *
+ * @return the number of variables on success, otherwise -1.
  */
 int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz)
 {
@@ -136,9 +141,13 @@ int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t 
 }
 
 /**
- * Read variables from a file into storage.
+ * This function reads variables from a file into an array of variables.
  *
- * Return the number of variables loaded, otherwise return negative error code.
+ * @parm vars an array of variables
+ * @parm n the number of variables in the array
+ * @parm fname the name of the file
+ *
+ * @return the number of variables stored in vars.
  */
 int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
 {
@@ -757,7 +766,14 @@ int get_response_content(char *response, char *outstr, size_t n)
     return 0;
 }
 
-int xapi_vm_get_by_uuid(char *session_id)
+/**
+ * This function sends a VM.get_by_uuid request to XAPI.
+ *
+ * @parm session_id the currently open session id.
+ *
+ * @return 0 on success, -1 on failure.
+ */
+static int xapi_vm_get_by_uuid(char *session_id)
 {
     int status, ret;
     char response[1024] = { 0 };
@@ -771,22 +787,30 @@ int xapi_vm_get_by_uuid(char *session_id)
                           "<param><value><string>%s</string></value></param>"
                           "</params>"
                           "</methodCall>",
-                          session_id, VM_UUID);
+                          session_id, vm_uuid);
 
     if (status != 200) {
         ERROR("Failed to communicate with XAPI\n");
         return -1;
     }
 
-    ret = get_response_content(response, NULL, 0);
-    if (ret < 0) {
-        ERROR("failed to lookup VM\n");
-        return ret;
+    if (!success(response_body(response))) {
+        ERROR("failed to look up VM\n");
+        DEBUG("body=%s\n", response_body(response));
+        return -1;
     }
 
-    return ret;
+    return 0;
 }
 
+/**
+ * This function sends a session.login_with_password request to XAPI.
+ *
+ * @parm session_id the buffer to store the session id.
+ * @parm n the max size of buffer session_id.
+ *
+ * @return 0 on success, -1 on failure.
+ */
 int session_login(char *session_id, size_t n)
 {
     int status, ret;
@@ -813,12 +837,19 @@ int session_login(char *session_id, size_t n)
 
     if (ret < 0) {
         ERROR("failed to login to xapi, ret=%d\n", ret);
-        return ret;
+        return -1;
     }
 
     return 0;
 }
 
+/**
+ * This function sends a session.logout request to XAPI.
+ *
+ * @parm session_id the current session's id.
+ *
+ * @return 0 on success, -1 on failure.
+ */
 int session_logout(char *session_id)
 {
     int status;
@@ -848,12 +879,13 @@ int session_logout(char *session_id)
 }
 
 /**
- * Return the EFI vars string from the XML response for VM.get_NVRAM XAPI
- * request.
+ * This function returns the EFI vars in the VM.get_NVRAM XAPI XML response as Base64.
  *
- * buffer: the destination buffer
- * n: the size of buffer
- * body: the null-terminated XML body
+ * @parm buffer the destination buffer
+ * @parm n the max size of buffer
+ * @parm body the null-terminated XML body
+ *
+ * @return 0 on succes, -1 on failure.
  */
 int base64_from_response_body(char *buffer, size_t n, char *body)
 {
@@ -969,9 +1001,12 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 }
 
 /**
- * Request variables from XAPI server.
+ * This function stores the EFI vars locally after pulling them from XAPI.
  *
- * Returns variable count on success, otherwise negative error code.
+ * @parm vars the array of variables to store EFI vars into
+ * @parm n the max size of the array vars
+ *
+ * @return number of variables stored.
  */
 int xapi_variables_request(variable_t *vars, size_t n)
 
@@ -991,28 +1026,35 @@ int xapi_variables_request(variable_t *vars, size_t n)
     }
 
     if (ret < 0)
-        return ret;
+        return 0;
 
     ret = xapi_vm_get_by_uuid(session_id);
 
     if (ret < 0)
-        return ret;
+        return 0;
 
     ret = xapi_get_nvram(session_id, b64, BIG_MESSAGE_SIZE);
 
     if (ret < 0) {
         ERROR("failed to get NVRAM from xapi, ret=%d\n", ret);
-        return ret;
+        return 0;
     }
 
     ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64));
 
     if (ret < 0)
-        return ret;
+        return 0;
 
     return from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
 }
 
+/**
+ * This function initializes the xapi module.
+ *
+ * @parm resume boolean representing if the VM is resuming.
+ *
+ * @return 0 on success, otherwise -1. 
+ */
 int xapi_init(bool resume)
 {
     int i, ret, len;
@@ -1050,7 +1092,7 @@ int xapi_init(bool resume)
 }
 
 /**
- * Write variables with headder to save file.
+ * Write variables with header to save file.
  *
  * Return 0 on success, otherwise -1.
  */
