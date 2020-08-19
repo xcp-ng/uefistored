@@ -909,8 +909,6 @@ int main(int argc, char **argv)
 
     handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports, vcpu_count, shared_iopage);
 
-    return 0;
-
 err:
     cleanup();
     return -1;
