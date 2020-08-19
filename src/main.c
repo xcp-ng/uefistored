@@ -42,7 +42,6 @@ static bool resume;
 static bool cleanup_called;
 
 extern char *xapi_resume_path;
-extern char *xapi_save_path;
 
 static evtchn_port_t bufioreq_local_port;
 static evtchn_port_t bufioreq_remote_port;
