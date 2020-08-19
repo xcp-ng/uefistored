@@ -31,14 +31,15 @@
 
 #define VM_UUID_MAX 36
 
-static char VM_UUID[VM_UUID_MAX];
+#define SOCKET_MAX 108
 
-static bool xapi_uuid_initialized = false;
+#define OFFSET_SZ 4
 
+static char *vm_uuid;
 extern char root_path[PATH_MAX];
-char socket_path[108];
-
-static bool socket_path_initialized = false;
+static char *socket_path;
+static char *xapi_save_path;
+static char *xapi_resume_path;
 
 /* The maximum number of digits in the Content-Length HTTP field */
 #define MAX_CONTENT_LENGTH_DIGITS 16
@@ -64,13 +65,6 @@ static bool socket_path_initialized = false;
     "</params>"                                                                \
     "</methodCall>"
 
-#define SOCKET_MAX 108
-
-static char *xapi_save_path;
-static char *xapi_resume_path;
-
-char socket_path[SOCKET_MAX];
-
 int xapi_parse_arg(char *arg)
 {
     char *p;
@@ -78,15 +72,13 @@ int xapi_parse_arg(char *arg)
     /* TODO: no longer use strncpy, just point a pointer */
     if ((p = strstr(optarg, "socket:")) != NULL) {
         p += sizeof("socket:") - 1;
-        strncpy(socket_path, p, SOCKET_MAX);
-        socket_path_initialized = true;
+        socket_path = p;
 
         return 0;
 
     } else if ((p = strstr(optarg, "uuid:")) != NULL) {
         p += sizeof("uuid:") - 1;
-        strncpy(VM_UUID, p, VM_UUID_MAX);
-        xapi_uuid_initialized = true;
+        vm_uuid = strstrip(p);
 
         return 0;
     } else if ((p = strstr(optarg, "save:")) != NULL) {
@@ -328,8 +320,6 @@ cleanup:
     return b64text;
 }
 
-#define OFFSET_SZ 4
-
 size_t list_size(variable_t *variables, size_t n)
 {
     size_t i, sz;
@@ -503,6 +493,9 @@ static int send_request(char *message, char *buf, size_t bufsz)
     int ret, fd;
     struct sockaddr_un saddr;
 
+    if (!socket_path)
+        return -1;
+
     saddr.sun_family = AF_UNIX;
     strncpy(saddr.sun_path, socket_path, sizeof(saddr.sun_path));
 
@@ -596,6 +589,9 @@ int xapi_connect(void)
         INFO("%s: retrying...\n", __func__);
         sleep(XAPI_CONNECT_SLEEP);
     }
+
+    if (ret == 200)
+        INFO("XAPI connection successful\n");
 
     return ret;
 }
@@ -992,7 +988,7 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
                           "<param><value><string>%s</string></value></param>"
                           "</params>"
                           "</methodCall>",
-                          session_id, VM_UUID);
+                          session_id, vm_uuid);
 
     if (status != 200)
         return -1;
@@ -1063,18 +1059,19 @@ int xapi_init(bool resume)
 
     memset(variables, 0, sizeof(variables));
 
-    if (!xapi_uuid_initialized) {
+    if (!vm_uuid) {
         ERROR("No uuid initialized passed as arg!\n");
         return -1;
     }
 
-    if (resume)
+    if (resume) {
         ret = xapi_variables_read_file(variables, MAX_VAR_COUNT, xapi_resume_path);
-    else
+    } else {
         ret = xapi_variables_request(variables, MAX_VAR_COUNT);
+    }
 
     if (ret < 0)
-        return ret;
+        return -1;
 
     len = ret;
 
