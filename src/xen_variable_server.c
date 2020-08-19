@@ -91,6 +91,9 @@ static void handle_get_variable(void *comm_buf)
 
     buflen = unserialize_uint64(&inptr);
 
+    /* Let XenVariable inform us if OVMF has exited Boot Services */
+    set_efi_runtime(unserialize_boolean(&inptr));
+
     status = get_variable(name, &guid, &attrs, &buflen, data);
 
     if ( status == EFI_BUFFER_TOO_SMALL )
@@ -234,6 +237,9 @@ static void handle_set_variable(void *comm_buf)
 
     attrs = unserialize_uint32(&inptr);
 
+    /* Let XenVariable inform us if OVMF has exited Boot Services */
+    set_efi_runtime(unserialize_boolean(&inptr));
+
     status = set_variable(name, &guid, attrs, (size_t)datasz, dp);
 
     ptr = comm_buf;
@@ -252,7 +258,6 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
                                                 EFI_GUID *guid)
 {
     uint32_t command;
-    bool efi_at_runtime;
     const uint8_t *inptr = comm_buf;
     uint32_t version;
 
@@ -282,12 +287,8 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
     unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), *name, *namesz + sizeof(UTF16));
     unserialize_guid(&inptr, guid);
 
-    efi_at_runtime = unserialize_boolean(&inptr);
-
-    if ( efi_at_runtime )
-    {
-        /* TODO: does this information get used? */
-    }
+    /* Let XenVariable inform us if OVMF has exited Boot Services */
+    set_efi_runtime(unserialize_boolean(&inptr));
 
     return EFI_SUCCESS;
 }

@@ -9,6 +9,14 @@
 #define UEFI_AUTH_ATTRS (EFI_VARIABLE_APPEND_WRITE | \
                          EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
 
+static bool efi_at_runtime;
+
+void set_efi_runtime(bool runtime)
+{
+    if ( !efi_at_runtime )
+        efi_at_runtime = runtime;
+}
+
 bool valid_attrs(uint32_t attrs)
 {
     if ( attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS )
