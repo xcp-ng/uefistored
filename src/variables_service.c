@@ -66,7 +66,7 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size, voi
     {
         return EFI_DEVICE_ERROR;
     }
-    else if ( !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) )
+    else if ( efi_at_runtime && !(tmpattrs & EFI_VARIABLE_RUNTIME_ACCESS) )
     {
         return EFI_NOT_FOUND;
     }
