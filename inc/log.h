@@ -16,8 +16,6 @@ void log_init(const char *filename);
  */
 void log_deinit(void);
 
-void dprint_data(void *data, size_t datasz);
-
 #define USE_STREAM 0
 
 #define uefistored_fprintf(stream, ...)                    \

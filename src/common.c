@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <ctype.h>
 
 #include "common.h"
 #include "storage.h"
@@ -57,7 +58,7 @@ uint64_t strsize16(const UTF16 *str)
     return strlen16(str) * sizeof(UTF16);
 }
 
-void uc2_ascii_safe(UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)
+void uc2_ascii_safe(const UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)
 {
     int i;
 
@@ -70,7 +71,7 @@ void uc2_ascii_safe(UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)
     ascii[i++] = '\0';
 }
 
-void uc2_ascii(UTF16 *uc2, char *ascii, size_t len)
+void uc2_ascii(const UTF16 *uc2, char *ascii, size_t len)
 {
 
     if ( !uc2 || !ascii )
@@ -79,6 +80,18 @@ void uc2_ascii(UTF16 *uc2, char *ascii, size_t len)
     uc2_ascii_safe(uc2, strsize16(uc2), ascii, len);
 }
 
+void dprint_name(const UTF16 *name, size_t namesz)
+{
+    char buf[MAX_VARIABLE_NAME_SIZE] = {0};
+
+    if ( !name )
+        return;
+
+    uc2_ascii_safe(name, namesz, buf, MAX_VARIABLE_NAME_SIZE);
+    DEBUG("Variable(%s)\n", buf);
+}
+
+
 /**
  * dprint_variable -  Debug print a variable
  *
@@ -86,15 +99,10 @@ void uc2_ascii(UTF16 *uc2, char *ascii, size_t len)
  * Any char code above 255 will be displayed incorrectly.
  */
 
-void dprint_variable(variable_t *var)
+void dprint_variable(const variable_t *var)
 {
-    char buf[MAX_VARIABLE_NAME_SIZE] = {0};
-
-    if ( !var )
-        return;
-
-    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARIABLE_NAME_SIZE);
-    DEBUG("Variable(%s)\n", buf);
+    dprint_name(var->name, var->namesz);
+    dprint_data(var->data, var->datasz);
 }
 
 /**
@@ -162,16 +170,16 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
     return 0;
 }
 
-void dprint_data(void *data, size_t datasz)
+void dprint_data(const void *data, size_t datasz)
 {
-    uint8_t *p = data;
+    const uint8_t *p = data;
     size_t i;
 
     if ( !data )
         return;
 
     DPRINTF("DATA: ");
-    for (i=0; i<datasz; i++)
+    for (i=0; i<32 &&i<datasz; i++)
     {
         if (i % 8 == 0)
             DPRINTF("\n%02lx: 0x", i);
@@ -198,5 +206,31 @@ variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid, variable_t va
     }
 
     return NULL;
+}
+
+/**
+ * Remove any white space from ends of string.
+ */
+char *strstrip(char *s)
+{
+    size_t size;
+    char *end;
+
+    size = strlen(s);
+
+    if ( !size )
+        return s;
+
+    end = s + size - 1;
+
+    while ( end >= s && isspace(*end) )
+        end--;
+
+    *(end + 1) = '\0';
+
+    while ( *s && isspace(*s) )
+        s++;
+
+    return s;
 }
 
