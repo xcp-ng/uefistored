@@ -261,8 +261,6 @@ int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
         return -1;
     }
 
-    assert( ioreq->state < 16 );
-
     if ( ioreq->state != STATE_IOREQ_READY )
     {
         ERROR("IO request not ready, state=0x%02x\n", ioreq->state);
