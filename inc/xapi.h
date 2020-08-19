@@ -10,7 +10,6 @@ int xapi_init(bool);
 int xapi_set_efi_vars(void);
 int xapi_connect(void);
 int xapi_efi_vars(variable_t *variables, size_t sz);
-int xapi_vm_get_by_uuid(char *session_id);
 int xapi_parse_arg(char *arg);
 
 int xapi_variables_request(variable_t *variables, size_t n);
