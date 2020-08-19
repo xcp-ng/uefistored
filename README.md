@@ -59,7 +59,7 @@ NOT SUPPORTED YET.
 
 When a variable is to be authenticated using `EFI_VARIABLE_AUTHENTICATION_2` it
 must be packaged into an `EFI_VARIABLE_AUTHENTICATION_2` decriptor (define by
-the `C struct of the same name).  It's timestamp must be set and its CertType
+the `C` struct of the same name).  It's timestamp must be set and its CertType
 must be set to `EFI_CERT_TYPE_PKCS7_GUID`.  The variable name, guid,
 attributes, timestamp, and new value must be hashed with the SHA256 algorithm
 and then the hash must be signed with an RSA 2048-bit key.  A DER-encoded
