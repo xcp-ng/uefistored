@@ -581,7 +581,7 @@ int xapi_connect(void)
 {
     char response[MAX_RESPONSE_SIZE];
     int retries = XAPI_CONNECT_RETRIES;
-    int ret;
+    int ret = -1;
 
     while (retries-- > 0) {
         ret = send_request(HTTP_LOGIN, response, MAX_RESPONSE_SIZE);
@@ -743,13 +743,12 @@ static int get_value(char *body, char *dest, size_t n)
     return 0;
 }
 
-int get_response_content(char *response, char *outstr, size_t n)
+static int get_response_content(char *response, char *outstr, size_t n)
 
 {
     char *body;
 
-    if (!response) {
-        ERROR("%s, response=(null)\n", response);
+    if (!response || !outstr || n == 0) {
         return -1;
     }
 
@@ -759,10 +758,7 @@ int get_response_content(char *response, char *outstr, size_t n)
         return -2;
     }
 
-    if (outstr && n > 0)
-        return get_value(body, outstr, n);
-
-    return 0;
+    return get_value(body, outstr, n);
 }
 
 /**
@@ -795,7 +791,6 @@ static int xapi_vm_get_by_uuid(char *session_id)
 
     if (!success(response_body(response))) {
         ERROR("failed to look up VM\n");
-        DEBUG("body=%s\n", response_body(response));
         return -1;
     }
 
@@ -1083,9 +1078,7 @@ int xapi_init(bool resume)
         ret = storage_set(var->name, &var->guid, var->data, var->datasz, var->attrs);
         
         if ( ret < 0 )
-        {
             ERROR("failed to set variable\n");
-        }
     }
 
     return 0;
