@@ -151,23 +151,26 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
     struct stat stat;
 
     if ( !fname || !vars )
-        return -1;
+        return 0;
 
     file = fopen(fname, "r");
 
     if ( !file )
-        return -1;
+        return 0;
 
     fd = fileno(file);
 
     ret = fstat(fd, &stat);
 
     if ( ret < 0 )
+    {
+        ret = 0;
         goto cleanup1;
+    }
 
     if ( stat.st_size > MAX_RESUME_FILE_SIZE )
     {
-        ret = -1;
+        ret = 0;
         goto cleanup1;
     }
 
@@ -175,7 +178,7 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
 
     if ( !mem )
     {
-        ret = -1;
+        ret = 0;
         goto cleanup1;
     }
 
@@ -183,7 +186,7 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
 
     if ( size != stat.st_size )
     {
-        ret = -1;
+        ret = 0;
         goto cleanup2;
     }
 
@@ -771,7 +774,7 @@ int get_response_content(char *response, char *outstr, size_t n)
  */
 static int xapi_vm_get_by_uuid(char *session_id)
 {
-    int status, ret;
+    int status;
     char response[1024] = { 0 };
 
     status = xapi_request(response, 1024,
