@@ -176,7 +176,8 @@ EFI_STATUS unserialize_result(const uint8_t **ptr)
     return status;
 }
 
-void unserialize_variable_list_header(const uint8_t **ptr, struct variable_list_header *hdr)
+void unserialize_variable_list_header(const uint8_t **ptr,
+                                      struct variable_list_header *hdr)
 {
     memcpy(hdr, *ptr, sizeof(*hdr));
     *ptr += sizeof(*hdr);
@@ -184,7 +185,7 @@ void unserialize_variable_list_header(const uint8_t **ptr, struct variable_list_
 
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 {
-    UTF16 name[MAX_VARIABLE_NAME_SIZE] = { 0 };
+    UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
     EFI_GUID guid;
     uint8_t *data;
     uint64_t namesz, datasz;
@@ -198,6 +199,7 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 
     if (namesz == 0 || namesz > MAX_VARIABLE_NAME_SIZE)
         return -1;
+    DEBUG(" ");
 
     memcpy(name, *ptr, namesz);
     *ptr += namesz;
@@ -211,6 +213,7 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 
     if (!data)
         return -1;
+
 
     memcpy(data, *ptr, datasz);
     *ptr += datasz;
@@ -275,13 +278,13 @@ static uint64_t payload_size(const variable_t *var, size_t n)
 static void serialize_variable_list_header(uint8_t **ptr, const variable_t *var,
                                            size_t n)
 {
-    struct variable_list_header hdr = { 0 };
+    struct variable_list_header hdr = {0};
 
     memcpy(&hdr.magic, &VARS, sizeof(hdr.magic));
     hdr.version = 1;
     hdr.variable_count = n;
     hdr.payload_size = payload_size(var, n);
-
+    
     memcpy(*ptr, &hdr, sizeof(hdr));
     *ptr += sizeof(hdr);
 }

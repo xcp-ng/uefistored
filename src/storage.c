@@ -19,8 +19,8 @@ static uint64_t used = 0;
 
 static bool slot_is_empty(variable_t *var)
 {
-    if ( !var || var->datasz == 0 || var->namesz == 0 )
-       return true;
+    if (!var || var->datasz == 0 || var->namesz == 0)
+        return true;
 
     return false;
 }
@@ -32,7 +32,7 @@ void storage_init(void)
 
 size_t storage_count(void)
 {
-	return total;
+    return total;
 }
 
 void storage_deinit(void)
@@ -62,33 +62,28 @@ int storage_exists(const UTF16 *name, const EFI_GUID *guid)
 
     var = find_variable(name, guid, variables, MAX_VAR_COUNT);
 
-    if ( !var )
+    if (!var)
         return VAR_NOT_FOUND;
 
     return 0;
 }
 
-int storage_get(const UTF16 *name,
-                const EFI_GUID *guid,
-                void *dest,
-                size_t n,
-                size_t *len,
-                uint32_t *attrs)
+int storage_get(const UTF16 *name, const EFI_GUID *guid, void *dest, size_t n,
+                size_t *len, uint32_t *attrs)
 {
     variable_t *var = NULL;
 
-    if ( !name || !guid || !len || !attrs )
+    if (!name || !guid || !len || !attrs)
         return -1;
 
     *len = 0;
 
     var = find_variable(name, guid, variables, MAX_VAR_COUNT);
 
-    if ( !var )
+    if (!var)
         return VAR_NOT_FOUND;
 
-    if ( n < var->datasz )
-    {
+    if (n < var->datasz) {
         ERROR("The n (%lu) passed to %s was too small\n", n, __func__);
         return -1;
     }
@@ -105,18 +100,17 @@ int storage_remove(const UTF16 *name)
     size_t namesz;
     variable_t *var;
 
-    if ( !name )
+    if (!name)
         return -1;
 
     namesz = strsize16(name);
 
     for_each_variable(variables, var)
     {
-        if ( var->namesz != namesz )
+        if (var->namesz != namesz)
             continue;
 
-        if ( strcmp16(var->name, name) == 0 )
-        {
+        if (strcmp16(var->name, name) == 0) {
             variable_destroy(var);
             used -= (var->datasz + namesz);
             total--;
@@ -128,50 +122,46 @@ int storage_remove(const UTF16 *name)
     return 0;
 }
 
-int storage_set(const UTF16 *name,
-              const EFI_GUID *guid,
-              const void *data,
-              const size_t datasz,
-              const uint32_t attrs)
+int storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
+                const size_t datasz, const uint32_t attrs)
 {
     int ret;
     size_t namesz;
     variable_t *var;
 
-    if ( !name || !data )
+    if (!name || !data)
         return -1;
 
     namesz = strsize16(name);
 
-    if ( namesz >= MAX_VARIABLE_NAME_SIZE )
+    if (namesz >= MAX_VARIABLE_NAME_SIZE)
         return -ENOMEM;
 
-    if ( datasz >= MAX_VARIABLE_DATA_SIZE )
+    if (datasz >= MAX_VARIABLE_DATA_SIZE)
         return -ENOMEM;
 
-    if ( datasz + namesz + storage_used() > MAX_STORAGE_SIZE )
+    if (datasz + namesz + storage_used() > MAX_STORAGE_SIZE)
         return -ENOMEM;
 
     /* As specified by the UEFI spec */
-    if ( datasz == 0 || attrs == 0 )
+    if (datasz == 0 || attrs == 0)
         return storage_remove(name);
 
     /* If it already exists, replace it */
     for_each_variable(variables, var)
     {
-        if ( var->namesz != namesz )
+        if (var->namesz != namesz)
             continue;
 
-        if ( strcmp16(var->name, name) == 0 )
-        {
+        if (strcmp16(var->name, name) == 0) {
             ret = variable_set_name(var, name);
 
-            if ( ret < 0 )
+            if (ret < 0)
                 return ret;
 
             ret = variable_set_data(var, data, datasz);
 
-            if ( ret < 0 )
+            if (ret < 0)
                 return ret;
 
             memcpy(&var->attrs, &attrs, sizeof(var->attrs));
@@ -182,11 +172,10 @@ int storage_set(const UTF16 *name,
     /* If it is completely new, place it in the first found empty slot */
     for_each_variable(variables, var)
     {
-        if ( var->name == NULL )
-        {
+        if (var->name == NULL) {
             ret = variable_create_noalloc(var, name, data, datasz, guid, attrs);
 
-            if ( ret < 0 )
+            if (ret < 0)
                 return ret;
 
             total++;
@@ -215,29 +204,29 @@ int storage_next(variable_t *next)
 {
     variable_t *var;
 
-    if ( !next )
+    if (!next)
         return -1;
 
-    if ( iter >= MAX_VAR_COUNT || total == 0 )
+    if (iter >= MAX_VAR_COUNT || total == 0)
         goto stop_iterator;
-    
+
     var = &variables[iter];
 
     /* Find next non-empty_variable slot */
-    while ( iter < MAX_VAR_COUNT && slot_is_empty(var) )
-    {
+    while (iter < MAX_VAR_COUNT && slot_is_empty(var)) {
         iter++;
         var = &variables[iter];
     }
 
     /* If none found, stop the iteration */
-    if ( iter >= MAX_VAR_COUNT )
+    if (iter >= MAX_VAR_COUNT)
         goto stop_iterator;
 
     iter++;
 
     /* A variable has been found so return it as next */
-    variable_create_noalloc(next, var->name, var->data, var->datasz, &var->guid, var->attrs);
+    variable_create_noalloc(next, var->name, var->data, var->datasz, &var->guid,
+                            var->attrs);
     return 1;
 
 stop_iterator:

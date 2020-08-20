@@ -27,7 +27,7 @@
 #define XAPI_CONNECT_SLEEP 3
 
 #define MAX_RESPONSE_SIZE 4096
-#define MAX_RESUME_FILE_SIZE (8*PAGE_SIZE)
+#define MAX_RESUME_FILE_SIZE (8 * PAGE_SIZE)
 
 #define VM_UUID_MAX 36
 
@@ -48,7 +48,7 @@ static char *xapi_resume_path;
     "POST / HTTP/1.1\r\n"                                                      \
     "Host: _var_lib_xcp_xapi\r\n"                                              \
     "Accept-Encoding: identity\r\n"                                            \
-    "User-Agent: uefistored/0.1\r\n"                                            \
+    "User-Agent: uefistored/0.1\r\n"                                           \
     "Connection: close\r\n"                                                    \
     "Content-Type: text/xml\r\n"                                               \
     "Content-Length: %lu\r\n"                                                  \
@@ -93,7 +93,6 @@ int xapi_parse_arg(char *arg)
         return 0;
     }
 
-
     return 0;
 }
 
@@ -107,7 +106,8 @@ int xapi_parse_arg(char *arg)
  *
  * @return the number of variables on success, otherwise -1.
  */
-int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz)
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
+                       size_t bytes_sz)
 {
     int ret;
     const uint8_t *ptr = bytes;
@@ -150,42 +150,38 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
     int ret;
     struct stat stat;
 
-    if ( !fname || !vars )
+    if (!fname || !vars)
         return 0;
 
     file = fopen(fname, "r");
 
-    if ( !file )
+    if (!file)
         return 0;
 
     fd = fileno(file);
 
     ret = fstat(fd, &stat);
 
-    if ( ret < 0 )
-    {
+    if (ret < 0) {
         ret = 0;
         goto cleanup1;
     }
 
-    if ( stat.st_size > MAX_RESUME_FILE_SIZE )
-    {
+    if (stat.st_size > MAX_RESUME_FILE_SIZE) {
         ret = 0;
         goto cleanup1;
     }
 
     mem = malloc(stat.st_size);
 
-    if ( !mem )
-    {
+    if (!mem) {
         ret = 0;
         goto cleanup1;
     }
 
     size = fread(mem, 1, stat.st_size, file);
 
-    if ( size != stat.st_size )
-    {
+    if (size != stat.st_size) {
         ret = 0;
         goto cleanup2;
     }
@@ -193,7 +189,7 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
     ret = from_bytes_to_vars(vars, n, mem, size);
 
 #if 1
-    if ( ret >= 0 )
+    if (ret >= 0)
         dprint_variable_list(vars, ret);
 #endif
 
@@ -205,7 +201,6 @@ cleanup1:
 
     return ret;
 }
-
 
 /**
  * Return the HTTP Status from a an HTTP response.
@@ -254,7 +249,7 @@ static char *response_body(char *response)
 }
 
 int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded,
-                   size_t encoded_size)
+                    size_t encoded_size)
 {
     size_t ret;
 
@@ -364,8 +359,7 @@ static int retrieve_nonvolatile_vars(variable_t *vars, size_t n)
         if (ret == 0)
             break;
 
-        if (tmp.attrs & EFI_VARIABLE_NON_VOLATILE)
-        {
+        if (tmp.attrs & EFI_VARIABLE_NON_VOLATILE) {
             variable_copy(&vars[cnt++], &tmp);
             memset(&tmp, 0, sizeof(tmp));
         }
@@ -447,8 +441,7 @@ static uint8_t *variable_list_bytes(size_t *size, bool nonvolatile)
     p = bytes;
     ret = serialize_variable_list(&p, *size, vars, (size_t)ret);
 
-    if ( ret < 0 )
-    {
+    if (ret < 0) {
         free(bytes);
         return NULL;
     }
@@ -462,7 +455,7 @@ static uint8_t *variable_list_bytes(size_t *size, bool nonvolatile)
  */
 static char *variable_list_base64(void)
 {
-    char* base64;
+    char *base64;
     uint8_t *bytes;
     size_t size;
 
@@ -610,7 +603,7 @@ int xapi_set_efi_vars(void)
     "POST / HTTP/1.1\r\n"                                                      \
     "Host: _var_lib_xcp_xapi\r\n"                                              \
     "Accept-Encoding: identity\r\n"                                            \
-    "User-Agent: uefistored/0.1\r\n"                                            \
+    "User-Agent: uefistored/0.1\r\n"                                           \
     "Connection: close\r\n"                                                    \
     "Content-Type: text/xml\r\n"                                               \
     "Content-Length: 307\r\n"                                                  \
@@ -1128,7 +1121,8 @@ int xapi_init(bool resume)
     }
 
     if (resume) {
-        ret = xapi_variables_read_file(variables, MAX_VAR_COUNT, xapi_resume_path);
+        ret = xapi_variables_read_file(variables, MAX_VAR_COUNT,
+                                       xapi_resume_path);
     } else {
         ret = xapi_variables_request(variables, MAX_VAR_COUNT);
     }
@@ -1138,11 +1132,12 @@ int xapi_init(bool resume)
 
     len = ret;
 
-    for (i=0; i<len; i++) {
+    for (i = 0; i < len; i++) {
         var = &variables[i];
-        ret = storage_set(var->name, &var->guid, var->data, var->datasz, var->attrs);
-        
-        if ( ret < 0 )
+        ret = storage_set(var->name, &var->guid, var->data, var->datasz,
+                          var->attrs);
+
+        if (ret < 0)
             ERROR("failed to set variable\n");
     }
 

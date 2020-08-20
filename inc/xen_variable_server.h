@@ -8,14 +8,10 @@
 
 void xen_variable_server_handle_request(void *comm_buff);
 
-EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid,
-                        uint32_t attrs, size_t datasz,
-                        void *data);
+EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs,
+                        size_t datasz, void *data);
 
-EFI_STATUS get_variable(UTF16 *variable,
-                        EFI_GUID *guid,
-                        uint32_t *attrs,
-                        size_t *size,
-                        void *data);
+EFI_STATUS get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs,
+                        size_t *size, void *data);
 
 #endif // __H_XEN_VARIABLE_SERVER_

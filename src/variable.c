@@ -10,7 +10,7 @@
 
 int variable_set_attrs(variable_t *var, const uint32_t attrs)
 {
-    if ( !var )
+    if (!var)
         return -1;
 
     var->attrs = attrs;
@@ -18,23 +18,23 @@ int variable_set_attrs(variable_t *var, const uint32_t attrs)
     return 0;
 }
 
-int variable_set_data(variable_t *var, const uint8_t *data, const uint64_t datasz)
+int variable_set_data(variable_t *var, const uint8_t *data,
+                      const uint64_t datasz)
 {
-    if ( !var || !data || datasz == 0 )
+    if (!var || !data || datasz == 0)
         return -1;
 
-    if ( datasz == 0 )
+    if (datasz == 0)
         return -1;
 
     var->datasz = datasz;
 
-    if ( var->data )
+    if (var->data)
         free(var->data);
 
     var->data = malloc(var->datasz);
 
-    if ( !var->data )
-    {
+    if (!var->data) {
         return -1;
     }
 
@@ -45,7 +45,7 @@ int variable_set_data(variable_t *var, const uint8_t *data, const uint64_t datas
 
 int variable_set_guid(variable_t *var, const EFI_GUID *guid)
 {
-    if ( !var || !guid )
+    if (!var || !guid)
         return -1;
 
     memcpy(&var->guid, guid, sizeof(var->guid));
@@ -57,22 +57,22 @@ int variable_set_name(variable_t *var, const UTF16 *name)
 {
     uint64_t namesz;
 
-    if ( !var || !name )
+    if (!var || !name)
         return -1;
 
     namesz = strsize16(name);
 
-    if ( namesz == 0 )
+    if (namesz == 0)
         return -1;
 
     var->namesz = namesz;
 
-    if ( var->name )
+    if (var->name)
         free(var->name);
 
-    var->name = malloc(namesz + sizeof(UTF16)); 
+    var->name = malloc(namesz + sizeof(UTF16));
 
-    if ( !var->name )
+    if (!var->name)
         return -1;
 
     strncpy16(var->name, name, namesz + sizeof(UTF16));
@@ -87,26 +87,24 @@ variable_t *variable_create(const UTF16 *name, const uint8_t *data,
     int ret;
     variable_t *var;
 
-    if ( !name || !data || !guid || datasz == 0 )
+    if (!name || !data || !guid || datasz == 0)
         return NULL;
 
     var = calloc(1, sizeof(variable_t));
 
-    if ( !var )
+    if (!var)
         return NULL;
 
     ret = variable_set_name(var, name);
-    
-	if ( ret < 0 )
-    {
+
+    if (ret < 0) {
         free(var);
         return NULL;
     }
 
     ret = variable_set_data(var, data, datasz);
 
-    if ( ret < 0 )
-    {
+    if (ret < 0) {
         free(var->name);
         free(var);
         return NULL;
@@ -115,7 +113,7 @@ variable_t *variable_create(const UTF16 *name, const uint8_t *data,
     memcpy(&var->guid, guid, sizeof(var->guid));
     var->attrs = attrs;
 
-	return var;
+    return var;
 }
 
 /**
@@ -127,31 +125,31 @@ variable_t *variable_create(const UTF16 *name, const uint8_t *data,
 variable_t *variable_create_unserialize(const uint8_t **ptr)
 {
     variable_t *var;
-    UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
+    UTF16 name[MAX_VARIABLE_NAME_SIZE] = { 0 };
     EFI_GUID guid;
     uint8_t *data;
     uint64_t namesz, datasz;
     uint32_t attrs;
 
-	if ( !ptr )
-		return NULL;
+    if (!ptr)
+        return NULL;
 
     namesz = unserialize_uint64(ptr);
 
-	if ( namesz == 0 )
+    if (namesz == 0)
         return NULL;
 
-	memcpy(name, *ptr, namesz);
-	*ptr += namesz;
+    memcpy(name, *ptr, namesz);
+    *ptr += namesz;
 
     datasz = unserialize_uint64(ptr);
 
-	if ( datasz == 0 )
-		return NULL;
+    if (datasz == 0)
+        return NULL;
 
-	data = malloc(datasz);
+    data = malloc(datasz);
 
-    if ( !data )
+    if (!data)
         return NULL;
 
     memcpy(data, *ptr, datasz);
@@ -167,24 +165,23 @@ variable_t *variable_create_unserialize(const uint8_t **ptr)
     return var;
 }
 
-
 int variable_create_noalloc(variable_t *var, const UTF16 *name,
                             const uint8_t *data, const uint64_t datasz,
                             const EFI_GUID *guid, const uint32_t attrs)
 {
-    if ( !var || !name || !data || !guid || datasz == 0 )
+    if (!var || !name || !data || !guid || datasz == 0)
         return -1;
 
-    if ( variable_set_name(var, name) < 0 )
+    if (variable_set_name(var, name) < 0)
         return -1;
 
-    if ( variable_set_data(var, data, datasz) < 0 )
+    if (variable_set_data(var, data, datasz) < 0)
         goto cleanup_name;
 
-    if ( variable_set_guid(var, guid) < 0 )
+    if (variable_set_guid(var, guid) < 0)
         goto cleanup_data;
 
-    if ( variable_set_attrs(var, attrs) < 0 )
+    if (variable_set_attrs(var, attrs) < 0)
         goto cleanup_data;
 
     return 0;
@@ -195,22 +192,19 @@ cleanup_data:
 cleanup_name:
     free(var->name);
     return -1;
-
 }
 
 void variable_destroy_noalloc(variable_t *var)
 {
-    if ( !var )
+    if (!var)
         return;
-    
-    if ( var->name )
-    {
+
+    if (var->name) {
         free(var->name);
         var->name = NULL;
     }
 
-    if ( var->data)
-    {
+    if (var->data) {
         free(var->data);
         var->data = NULL;
     }
@@ -218,7 +212,7 @@ void variable_destroy_noalloc(variable_t *var)
 
 void variable_destroy(variable_t *var)
 {
-    if ( !var )
+    if (!var)
         return;
 
     variable_destroy_noalloc(var);
@@ -229,34 +223,30 @@ int variable_copy(variable_t *dst, const variable_t *src)
 {
     int ret;
 
-    if ( !dst || !src )
+    if (!dst || !src)
         return -1;
 
     ret = variable_set_name(dst, src->name);
 
-    if ( ret < 0 )
-    {
+    if (ret < 0) {
         return ret;
     }
 
     ret = variable_set_data(dst, src->data, src->datasz);
 
-    if ( ret < 0 )
-    {
+    if (ret < 0) {
         return ret;
     }
 
     ret = variable_set_guid(dst, &src->guid);
 
-    if ( ret < 0 )
-    {
+    if (ret < 0) {
         return ret;
     }
 
     ret = variable_set_attrs(dst, src->attrs);
 
-    if ( ret < 0 )
-    {
+    if (ret < 0) {
         return ret;
     }
 
@@ -265,19 +255,19 @@ int variable_copy(variable_t *dst, const variable_t *src)
 
 bool variable_eq(const variable_t *a, const variable_t *b)
 {
-    if ( !a || !b )
+    if (!a || !b)
         return false;
 
-    if ( a->namesz != b->namesz )
+    if (a->namesz != b->namesz)
         return false;
 
-    if ( a->datasz != b->datasz )
+    if (a->datasz != b->datasz)
         return false;
 
-    if ( strcmp16(a->name, b->name) != 0 )
+    if (strcmp16(a->name, b->name) != 0)
         return false;
 
-    if ( memcmp(a->data, b->data, a->datasz) != 0 )
+    if (memcmp(a->data, b->data, a->datasz) != 0)
         return false;
 
     /* TODO: compare attrs and guids */
@@ -289,7 +279,7 @@ uint64_t variable_size(const variable_t *var)
 {
     uint64_t sum;
 
-    if ( !var )
+    if (!var)
         return 0;
 
     /* Name Length */
@@ -317,28 +307,28 @@ void variable_printf(const variable_t *var)
 {
     char *data, *name;
 
-    if ( !var )
+    if (!var)
         return;
 
     name = malloc(var->namesz + 2);
 
-    if ( !name )
+    if (!name)
         return;
 
-    memset(name, 0, (var->namesz + 2)/ sizeof(UTF16));
+    memset(name, 0, (var->namesz + 2) / sizeof(UTF16));
     uc2_ascii(var->name, name, var->namesz / sizeof(UTF16));
 
     data = malloc(var->datasz + 2);
 
-    if ( !data )
+    if (!data)
         return;
 
     memset(data, 0, var->datasz + 2);
-    uc2_ascii((UTF16*)var->data, data, var->datasz + 2);
+    uc2_ascii((UTF16 *)var->data, data, var->datasz + 2);
 
     printf("Variable<name=%s", name);
     printf(", data(%lu)=0x%02x%02x%02x%02x", var->datasz, var->data[0],
-                                             var->data[1], var->data[2], var->data[3]);
+           var->data[1], var->data[2], var->data[3]);
     printf(", guid=%x", var->guid.Data1);
     printf(", attrs=%x>\n", var->attrs);
 

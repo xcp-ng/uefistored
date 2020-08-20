@@ -44,16 +44,14 @@ static void handle_get_variable(void *comm_buf)
     inptr = comm_buf;
     version = unserialize_uint32(&inptr);
 
-    if ( version != UEFISTORED_VERSION )
-    {
+    if (version != UEFISTORED_VERSION) {
         ERROR("Unsupported version of XenVariable RPC protocol\n");
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
-    if ( unserialize_uint32(&inptr) != COMMAND_GET_VARIABLE )
-    {
+    if (unserialize_uint32(&inptr) != COMMAND_GET_VARIABLE) {
         ERROR("BUG in uefistored, wrong command\n");
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
@@ -62,8 +60,7 @@ static void handle_get_variable(void *comm_buf)
 
     namesz = unserialize_namesz(&inptr);
 
-    if ( namesz <= 0 )
-    {
+    if (namesz <= 0) {
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
@@ -71,22 +68,21 @@ static void handle_get_variable(void *comm_buf)
 
     name = malloc(namesz + sizeof(UTF16));
 
-    if ( !name )
-    {
+    if (!name) {
         ptr = comm_buf;
         buffer_too_small(comm_buf, MAX_VARIABLE_NAME_SIZE);
         return;
     }
 
-    if ( namesz > MAX_VARIABLE_NAME_SIZE )
-    {
+    if (namesz > MAX_VARIABLE_NAME_SIZE) {
         free(name);
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
-    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, ptr), name, namesz + sizeof(UTF16));
+    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, ptr), name,
+                     namesz + sizeof(UTF16));
     unserialize_guid(&inptr, &guid);
 
     buflen = unserialize_uint64(&inptr);
@@ -96,20 +92,16 @@ static void handle_get_variable(void *comm_buf)
 
     status = get_variable(name, &guid, &attrs, &buflen, data);
 
-    if ( status == EFI_BUFFER_TOO_SMALL )
-    {
+    if (status == EFI_BUFFER_TOO_SMALL) {
         free(name);
         buffer_too_small(comm_buf, buflen);
         return;
-    }
-    else if ( status )
-    {
+    } else if (status) {
         free(name);
         ptr = comm_buf;
         serialize_result(&ptr, status);
         return;
     }
-
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
@@ -132,8 +124,7 @@ static void handle_query_variable_info(void *comm_buf)
     ptr = comm_buf;
     version = unserialize_uint32(&inptr);
 
-    if ( version != UEFISTORED_VERSION )
-    {
+    if (version != UEFISTORED_VERSION) {
         ERROR("Bad uefistored version: %u\n", version);
         status = EFI_UNSUPPORTED;
         ptr = comm_buf;
@@ -143,8 +134,7 @@ static void handle_query_variable_info(void *comm_buf)
 
     command = unserialize_uint32(&inptr);
 
-    if ( command != COMMAND_QUERY_VARIABLE_INFO )
-    {
+    if (command != COMMAND_QUERY_VARIABLE_INFO) {
         ERROR("Bad command: %u\n", command);
         status = EFI_DEVICE_ERROR;
         ptr = comm_buf;
@@ -154,16 +144,18 @@ static void handle_query_variable_info(void *comm_buf)
 
     attrs = unserialize_uint32(&inptr);
 
-    status = query_variable_info(attrs, &max_variable_storage, &remaining_variable_storage, &max_variable_size);;
+    status = query_variable_info(attrs, &max_variable_storage,
+                                 &remaining_variable_storage,
+                                 &max_variable_size);
+    ;
 
-    if ( status != EFI_SUCCESS )
-    {
+    if (status != EFI_SUCCESS) {
         ptr = comm_buf;
         serialize_result(&ptr, status);
         return;
     }
 
-   ptr = comm_buf;
+    ptr = comm_buf;
     serialize_result(&ptr, status);
     serialize_value(&ptr, max_variable_storage);
     serialize_value(&ptr, remaining_variable_storage);
@@ -186,8 +178,7 @@ static void handle_set_variable(void *comm_buf)
     ptr = comm_buf;
     version = unserialize_uint32(&inptr);
 
-    if ( version != UEFISTORED_VERSION )
-    {
+    if (version != UEFISTORED_VERSION) {
         ERROR("Invalid XenVariable OVMF module version number: %d, only supports version 1\n",
               version);
         ptr = comm_buf;
@@ -196,10 +187,10 @@ static void handle_set_variable(void *comm_buf)
     }
 
     command = unserialize_uint32(&inptr);
-    if ( command != COMMAND_SET_VARIABLE )
-    {
+    if (command != COMMAND_SET_VARIABLE) {
         ERROR("BUG: uefistored accidentally passed a non SET_VARIABLE buffer to the"
-              "%s function!, returning EFI_DEVICE_ERROR\n", __func__);
+              "%s function!, returning EFI_DEVICE_ERROR\n",
+              __func__);
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
@@ -207,29 +198,26 @@ static void handle_set_variable(void *comm_buf)
 
     namesz = unserialize_namesz(&inptr);
 
-    if ( namesz <= 0 )
-    {
+    if (namesz <= 0) {
         ptr = comm_buf;
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
-    if ( namesz > MAX_VARIABLE_NAME_SIZE )
-    {
-
-        buffer_too_small(comm_buf,
-                min(MAX_STORAGE_SIZE - storage_used(), MAX_VARIABLE_NAME_SIZE));
+    if (namesz > MAX_VARIABLE_NAME_SIZE) {
+        buffer_too_small(comm_buf, min(MAX_STORAGE_SIZE - storage_used(),
+                                       MAX_VARIABLE_NAME_SIZE));
         return;
     }
 
     name = malloc(namesz + sizeof(UTF16));
-    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), name, namesz + sizeof(UTF16));
+    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), name,
+                     namesz + sizeof(UTF16));
     unserialize_guid(&inptr, &guid);
 
     datasz = unserialize_data(&inptr, dp, MAX_VARIABLE_DATA_SIZE);
 
-    if ( datasz < 0 )
-    {
+    if (datasz < 0) {
         ptr = comm_buf;
         serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
         return;
@@ -248,8 +236,7 @@ static void handle_set_variable(void *comm_buf)
 }
 
 static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
-                                                uint64_t *namesz,
-                                                UTF16 **name,
+                                                uint64_t *namesz, UTF16 **name,
                                                 uint64_t *guest_bufsz,
                                                 EFI_GUID *guid)
 {
@@ -257,12 +244,12 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
     const uint8_t *inptr = comm_buf;
     uint32_t version;
 
-    if ( !comm_buf || !namesz || !name || !guid )
+    if (!comm_buf || !namesz || !name || !guid)
         return EFI_DEVICE_ERROR;
 
     version = unserialize_uint32(&inptr);
 
-    if ( version != UEFISTORED_VERSION )
+    if (version != UEFISTORED_VERSION)
         WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
 
     command = unserialize_uint32(&inptr);
@@ -272,15 +259,16 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
     *guest_bufsz = unserialize_uintn(&inptr);
     *namesz = unserialize_namesz(&inptr);
 
-    if ( *namesz > MAX_VARIABLE_NAME_SIZE )
+    if (*namesz > MAX_VARIABLE_NAME_SIZE)
         return EFI_DEVICE_ERROR;
 
     *name = malloc(*namesz + sizeof(UTF16));
 
-    if ( !*name )
+    if (!*name)
         return EFI_DEVICE_ERROR;
 
-    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), *name, *namesz + sizeof(UTF16));
+    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), *name,
+                     *namesz + sizeof(UTF16));
     unserialize_guid(&inptr, guid);
 
     /* Let XenVariable inform us if OVMF has exited Boot Services */
@@ -311,30 +299,25 @@ static void handle_get_next_variable(void *comm_buf)
 
     memset(&next, 0, sizeof(next));
 
-    status = unserialize_get_next_variable(inptr, &namesz, &name, &guest_bufsz, &guid);
+    status = unserialize_get_next_variable(inptr, &namesz, &name, &guest_bufsz,
+                                           &guid);
 
-    if ( status )
-    {
+    if (status) {
         serialize_result(&ptr, status);
         return;
     }
 
     ret = storage_next(&next);
 
-    if ( ret == 0 )
-    {
+    if (ret == 0) {
         status = EFI_NOT_FOUND;
         serialize_result(&ptr, status);
         goto cleanup1;
-    }
-    else if ( ret < 0 )
-    {
+    } else if (ret < 0) {
         status = EFI_DEVICE_ERROR;
         serialize_result(&ptr, status);
         goto cleanup2;
-    }
-    else if ( next.namesz > guest_bufsz )
-    {
+    } else if (next.namesz > guest_bufsz) {
         buffer_too_small(comm_buf, strsize16(next.name));
         goto cleanup2;
     }
@@ -350,14 +333,12 @@ cleanup1:
     free(name);
 }
 
-
 void xen_variable_server_handle_request(void *comm_buf)
 {
     const uint8_t *inptr = comm_buf;
     uint32_t command;
 
-    if ( !comm_buf )
-    {
+    if (!comm_buf) {
         ERROR("comm buffer is null!\n");
         return;
     }
@@ -366,24 +347,23 @@ void xen_variable_server_handle_request(void *comm_buf)
 
     command = unserialize_uint32(&inptr);
 
-    switch ( command )
-    {
-        case COMMAND_GET_VARIABLE:
-            handle_get_variable(comm_buf);
-            break;
-        case COMMAND_SET_VARIABLE:
-            handle_set_variable(comm_buf);
-            break;
-        case COMMAND_GET_NEXT_VARIABLE:
-            handle_get_next_variable(comm_buf);
-            break;
-        case COMMAND_QUERY_VARIABLE_INFO:
-            handle_query_variable_info(comm_buf);
-            break;
-        case COMMAND_NOTIFY_SB_FAILURE:
-            /* fall through */
-        default:
-            ERROR("cmd: unknown\n");
-            break;
+    switch (command) {
+    case COMMAND_GET_VARIABLE:
+        handle_get_variable(comm_buf);
+        break;
+    case COMMAND_SET_VARIABLE:
+        handle_set_variable(comm_buf);
+        break;
+    case COMMAND_GET_NEXT_VARIABLE:
+        handle_get_next_variable(comm_buf);
+        break;
+    case COMMAND_QUERY_VARIABLE_INFO:
+        handle_query_variable_info(comm_buf);
+        break;
+    case COMMAND_NOTIFY_SB_FAILURE:
+        /* fall through */
+    default:
+        ERROR("cmd: unknown\n");
+        break;
     }
 }

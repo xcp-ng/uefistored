@@ -22,8 +22,7 @@ int open_logfile(void)
 }
 
 int main(void)
-{ 
-
+{
     log_init(LOGFILE);
     test_xen_variable_server();
     test_xapi();

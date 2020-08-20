@@ -16,19 +16,18 @@ uint64_t strlen16(const UTF16 *str)
     uint64_t len = 0;
     const UTF16 *p1;
 
-    if ( !str )
+    if (!str)
         return 0;
 
     p1 = str;
 
-    while ( true )
-    {
+    while (true) {
         /* Somthing is wrong if either pointers are null */
-        if ( !p1 )
+        if (!p1)
             break;
 
         /* zero pointers means we have reached the null-terminator */
-        if ( *p1 == 0 )
+        if (*p1 == 0)
             break;
 
         /*
@@ -52,7 +51,7 @@ uint64_t strlen16(const UTF16 *str)
  */
 uint64_t strsize16(const UTF16 *str)
 {
-    if ( !str )
+    if (!str)
         return 0;
 
     return strlen16(str) * sizeof(UTF16);
@@ -62,10 +61,10 @@ void uc2_ascii_safe(const UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)
 {
     int i;
 
-    if ( !uc2 || !ascii )
+    if (!uc2 || !ascii)
         return;
 
-    for (i=0; i<uc2_len && i<len && uc2[i]; i++)
+    for (i = 0; i < uc2_len && i < len && uc2[i]; i++)
         ascii[i] = (char)uc2[i];
 
     ascii[i++] = '\0';
@@ -73,8 +72,7 @@ void uc2_ascii_safe(const UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)
 
 void uc2_ascii(const UTF16 *uc2, char *ascii, size_t len)
 {
-
-    if ( !uc2 || !ascii )
+    if (!uc2 || !ascii)
         return;
 
     uc2_ascii_safe(uc2, strsize16(uc2), ascii, len);
@@ -82,9 +80,9 @@ void uc2_ascii(const UTF16 *uc2, char *ascii, size_t len)
 
 void dprint_name(const UTF16 *name, size_t namesz)
 {
-    char buf[MAX_VARIABLE_NAME_SIZE] = {0};
+    char buf[MAX_VARIABLE_NAME_SIZE] = { 0 };
 
-    if ( !name )
+    if (!name)
         return;
 
     uc2_ascii_safe(name, namesz, buf, MAX_VARIABLE_NAME_SIZE);
@@ -95,11 +93,10 @@ void dprint_variable_list(const variable_t *vars, size_t n)
 {
     size_t i;
 
-    for (i=0; i<n; i++) { 
+    for (i = 0; i < n; i++) {
         dprint_variable(&vars[i]);
     }
 }
-
 
 /**
  * dprint_variable -  Debug print a variable
@@ -123,9 +120,9 @@ void dprint_variable(const variable_t *var)
 
 void print_variable(variable_t *var)
 {
-    char buf[MAX_VARIABLE_NAME_SIZE] = {0};
+    char buf[MAX_VARIABLE_NAME_SIZE] = { 0 };
 
-    if ( !var )
+    if (!var)
         return;
 
     uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARIABLE_NAME_SIZE);
@@ -139,14 +136,13 @@ int strcmp16(const UTF16 *a, const UTF16 *b)
 {
     size_t a_sz, b_sz;
 
-    if ( !a || !b )
+    if (!a || !b)
         return -1;
 
     a_sz = strsize16(a);
     b_sz = strsize16(b);
 
-    if ( a_sz != b_sz )
-    {
+    if (a_sz != b_sz) {
         return -1;
     }
 
@@ -163,12 +159,12 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
     UTF16 *p;
     size_t b_sz;
 
-    if ( !a || !b )
+    if (!a || !b)
         return -1;
 
     b_sz = strsize16(b);
-    
-    if ( b_sz + sizeof(UTF16) > n )
+
+    if (b_sz + sizeof(UTF16) > n)
         return -1;
 
     memcpy(a, b, b_sz);
@@ -184,12 +180,11 @@ void dprint_data(const void *data, size_t datasz)
     const uint8_t *p = data;
     size_t i;
 
-    if ( !data )
+    if (!data)
         return;
 
     DPRINTF("DATA: ");
-    for (i=0; i<8 &&i<datasz; i++)
-    {
+    for (i = 0; i < 8 && i < datasz; i++) {
         if (i % 8 == 0)
             DPRINTF("\n%02lx: 0x", i);
         DPRINTF("%02x", p[i]);
@@ -197,20 +192,20 @@ void dprint_data(const void *data, size_t datasz)
     DPRINTF("\n");
 }
 
-variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid, variable_t variables[MAX_VAR_COUNT], size_t n)
+variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
+                          variable_t variables[MAX_VAR_COUNT], size_t n)
 {
     variable_t *var;
     size_t i;
 
-    if ( !name || !variables )
+    if (!name || !variables)
         return NULL;
 
-    for ( i=0; i<n; i++ )
-    {
+    for (i = 0; i < n; i++) {
         var = &variables[i];
 
-        if ( strcmp16((UTF16*)var->name, name) == 0 &&
-             memcmp(guid, &var->guid, sizeof(*guid)) == 0 )
+        if (strcmp16((UTF16 *)var->name, name) == 0 &&
+            memcmp(guid, &var->guid, sizeof(*guid)) == 0)
             return var;
     }
 
@@ -227,19 +222,18 @@ char *strstrip(char *s)
 
     size = strlen(s);
 
-    if ( !size )
+    if (!size)
         return s;
 
     end = s + size - 1;
 
-    while ( end >= s && isspace(*end) )
+    while (end >= s && isspace(*end))
         end--;
 
     *(end + 1) = '\0';
 
-    while ( *s && isspace(*s) )
+    while (*s && isspace(*s))
         s++;
 
     return s;
 }
-

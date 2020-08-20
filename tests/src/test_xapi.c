@@ -20,8 +20,8 @@
 
 #define TEST_PT_SIZE 512
 
-static char *BIG_BASE64 =  BIG_BASE64_STR;
-static char *BIG_BASE64_XML =  BIG_BASE64_XML_STR;
+static char *BIG_BASE64 = BIG_BASE64_STR;
+static char *BIG_BASE64_XML = BIG_BASE64_XML_STR;
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;
@@ -59,7 +59,7 @@ static void post_test(void)
 
 void test_xapi_set_efi_vars(void)
 {
-    char readbuf[4096] = {0};
+    char readbuf[4096] = { 0 };
     int fd;
     variable_t *var;
     EFI_GUID guid;
@@ -67,34 +67,37 @@ void test_xapi_set_efi_vars(void)
 
     var = &vars[0];
     mock_xen_variable_server_set_buffer(comm_buf);
-    XenSetVariable(var->name, &guid, attr, var->datasz, (void*)var->data);
+    XenSetVariable(var->name, &guid, attr, var->datasz, (void *)var->data);
     xen_variable_server_handle_request(comm_buf);
 
     var = &vars[1];
     mock_xen_variable_server_set_buffer(comm_buf);
-    XenSetVariable(var->name, &guid, attr, var->datasz, (void*)var->data);
+    XenSetVariable(var->name, &guid, attr, var->datasz, (void *)var->data);
     xen_variable_server_handle_request(comm_buf);
 
     xapi_set_efi_vars();
 
     fd = open("./mock_socket", O_RDWR | O_EXCL, S_IRWXU);
-    
+
     test(fd > 0);
     test(read(fd, readbuf, 4096) >= 0);
-    test(strstr(readbuf, "BAAAAAAAAABCAEMABgAAAAAAAABXT1JMRCEEAAAAAAAAAFkAWgADAAAAAAAAAGJh") != NULL);
+    test(strstr(readbuf,
+                "BAAAAAAAAABCAEMABgAAAAAAAABXT1JMRCEEAAAAAAAAAFkAWgADAAAAAAAAAGJh") !=
+         NULL);
 
     remove("./mock_socket");
 }
 
 static void test_bytes(void)
 {
-    uint8_t bytes[4096] = {0};
-    uint8_t *p = (uint8_t*)bytes;
-    variable_t orig = {0};
-    variable_t var = {0};
+    uint8_t bytes[4096] = { 0 };
+    uint8_t *p = (uint8_t *)bytes;
+    variable_t orig = { 0 };
+    variable_t var = { 0 };
 
     /* Setup */
-    variable_create_noalloc(&orig, FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTR);
+    variable_create_noalloc(&orig, FOO, (uint8_t *)BAR, strsize16(BAR),
+                            &DEFAULT_GUID, DEFAULT_ATTR);
 
     serialize_variable_list(&p, TEST_PT_SIZE, &orig, 1);
     from_bytes_to_vars(&var, 1, bytes, TEST_PT_SIZE);
@@ -106,15 +109,15 @@ static void test_bytes(void)
 
 static void test_var_copy(void)
 {
-    uint8_t buf[4096] = {0};
+    uint8_t buf[4096] = { 0 };
     uint8_t *p;
     const uint8_t *unserial_ptr;
-    variable_t orig = {0};
+    variable_t orig = { 0 };
     variable_t *var;
 
     /* Setup */
-    variable_create_noalloc(&orig, FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTR);
-
+    variable_create_noalloc(&orig, FOO, (uint8_t *)BAR, strsize16(BAR),
+                            &DEFAULT_GUID, DEFAULT_ATTR);
 
     /* Do the work */
     p = buf;
@@ -128,15 +131,16 @@ static void test_var_copy(void)
     /* Do the test */
     test(variable_eq(var, &orig));
 
-	variable_destroy(var);
+    variable_destroy(var);
     variable_destroy_noalloc(&orig);
 }
 
-#define EXPECTED_B64_ENC "VkFSUwEAAAABAAAAAAAAAGAAAAAAAAAABgAAAAAAA"     \
-                         "ABGAE8ATwAGAAAAAAAAAAAAAAAAAN3Mu6"            \
-                         "oAAAAAAAAAAAAAAADz8gAAAAAAAAAAAAA"            \
-                         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"             \
-                         "AAAAAAAAAAAAAAAAAAAAA"
+#define EXPECTED_B64_ENC                                                       \
+    "VkFSUwEAAAABAAAAAAAAAGAAAAAAAAAABgAAAAAAA"                                \
+    "ABGAE8ATwAGAAAAAAAAAAAAAAAAAN3Mu6"                                        \
+    "oAAAAAAAAAAAAAAADz8gAAAAAAAAAAAAA"                                        \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"                                         \
+    "AAAAAAAAAAAAAAAAAAAAA"
 
 /**
  * Passes if a variable list of size 1 serializes and encodes into
@@ -145,9 +149,9 @@ static void test_var_copy(void)
 void test_base64_encode(void)
 {
     char *base64;
-    uint8_t buf[4096] = {0};
-    uint8_t *p = (uint8_t*)buf;
-    variable_t orig = {0};
+    uint8_t buf[4096] = { 0 };
+    uint8_t *p = (uint8_t *)buf;
+    variable_t orig = { 0 };
     const char *expected = EXPECTED_B64_ENC;
 
     /* Setup */
@@ -157,7 +161,7 @@ void test_base64_encode(void)
 
     orig.datasz = strsize16(BAR);
     orig.data = calloc(1, orig.datasz);
-    strncpy16((UTF16*)orig.data, BAR, orig.datasz);
+    strncpy16((UTF16 *)orig.data, BAR, orig.datasz);
 
     orig.guid.Data1 = 0xaabbccdd;
     orig.attrs = 0xf2f3;
@@ -181,22 +185,23 @@ void test_base64(void)
 {
     int sz;
     char *base64;
-    uint8_t buf[4096] = {0};
-    uint8_t *p = (uint8_t*)buf;
-    uint8_t bytes[4096] = {0};
+    uint8_t buf[4096] = { 0 };
+    uint8_t *p = (uint8_t *)buf;
+    uint8_t bytes[4096] = { 0 };
     variable_t *orig;
-    variable_t var = {0};
+    variable_t var = { 0 };
 
     /* Setup */
-    orig = variable_create(FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTRS);
+    orig = variable_create(FOO, (uint8_t *)BAR, strsize16(BAR), &DEFAULT_GUID,
+                           DEFAULT_ATTRS);
 
     /* Convert variable into bytes, and then bytes into base64 */
     serialize_variable_list(&p, 4096, orig, 1);
     base64 = bytes_to_base64(buf, list_size(orig, 1));
 
     /* Convert base64 to bytes, then bytes back to variable */
-    sz = base64_to_bytes(bytes, 4096, base64, strlen(base64)); 
-    from_bytes_to_vars(&var, 1, bytes, sz); 
+    sz = base64_to_bytes(bytes, 4096, base64, strlen(base64));
+    from_bytes_to_vars(&var, 1, bytes, sz);
 
     /* Assert the original variable and the decoded variable are equal */
     test(variable_eq(&var, orig));
@@ -208,42 +213,44 @@ void test_base64(void)
 }
 
 #define VARCNT 2
-#define BUFSZ (4096*2)
-#define EXPECTED_BASE64_MULT "VkFSUwEAAAACAAAA"\
-                             "AAAAAMYAAAAAAAAA"\
-                             "BgAAAAAAAABGAE8A"\
-                             "TwAGAAAAAAAAAEIA"\
-                             "QQBSAO3+3sAAAAAA"\
-                             "AAAAAAAAAADvvq3e"\
-                             "AAAAAAAAAAAAAAAA"\
-                             "AAAAAAAAAAAAAAAA"\
-                             "AAAAAAAAAAAAAAAA"\
-                             "AAAAAAAAAAAAAAAA"\
-                             "CgAAAAAAAABDAEgA"\
-                             "RQBFAFIACAAAAAAA"\
-                             "AABBAEIAQwBEAO3+"\
-                             "3sAAAAAAAAAAAAAA"\
-                             "AADvvq3eAAAAAAAA"\
-                             "AAAAAAAAAAAAAAAA"\
-                             "AAAAAAAAAAAAAAAA"\
-                             "AAAAAAAAAAAAAAAA"\
-                             "AAAAAAAA"
-
+#define BUFSZ (4096 * 2)
+#define EXPECTED_BASE64_MULT                                                   \
+    "VkFSUwEAAAACAAAA"                                                         \
+    "AAAAAMYAAAAAAAAA"                                                         \
+    "BgAAAAAAAABGAE8A"                                                         \
+    "TwAGAAAAAAAAAEIA"                                                         \
+    "QQBSAO3+3sAAAAAA"                                                         \
+    "AAAAAAAAAADvvq3e"                                                         \
+    "AAAAAAAAAAAAAAAA"                                                         \
+    "AAAAAAAAAAAAAAAA"                                                         \
+    "AAAAAAAAAAAAAAAA"                                                         \
+    "AAAAAAAAAAAAAAAA"                                                         \
+    "CgAAAAAAAABDAEgA"                                                         \
+    "RQBFAFIACAAAAAAA"                                                         \
+    "AABBAEIAQwBEAO3+"                                                         \
+    "3sAAAAAAAAAAAAAA"                                                         \
+    "AADvvq3eAAAAAAAA"                                                         \
+    "AAAAAAAAAAAAAAAA"                                                         \
+    "AAAAAAAAAAAAAAAA"                                                         \
+    "AAAAAAAAAAAAAAAA"                                                         \
+    "AAAAAAAA"
 
 void test_base64_multiple(void)
 {
     int ret;
     char *base64;
     const char *expected = EXPECTED_BASE64_MULT;
-    uint8_t buf[BUFSZ] = {0};
-    uint8_t *p = (uint8_t*)buf;
-    uint8_t bytes[BUFSZ] = {0};
-    variable_t orig[VARCNT] = {{0}};
-    variable_t var[VARCNT] = {{0}};
+    uint8_t buf[BUFSZ] = { 0 };
+    uint8_t *p = (uint8_t *)buf;
+    uint8_t bytes[BUFSZ] = { 0 };
+    variable_t orig[VARCNT] = { { 0 } };
+    variable_t var[VARCNT] = { { 0 } };
 
     /* Setup */
-    variable_create_noalloc(&orig[0], FOO, (uint8_t*)BAR, strsize16(BAR), &DEFAULT_GUID, DEFAULT_ATTRS);
-    variable_create_noalloc(&orig[1], CHEER, (uint8_t*)ABCD, strsize16(ABCD), &DEFAULT_GUID, DEFAULT_ATTRS);
+    variable_create_noalloc(&orig[0], FOO, (uint8_t *)BAR, strsize16(BAR),
+                            &DEFAULT_GUID, DEFAULT_ATTRS);
+    variable_create_noalloc(&orig[1], CHEER, (uint8_t *)ABCD, strsize16(ABCD),
+                            &DEFAULT_GUID, DEFAULT_ATTRS);
 
     /* Do the work */
     serialize_variable_list(&p, BUFSZ, orig, sizeof(orig) / sizeof(orig[0]));
@@ -251,8 +258,8 @@ void test_base64_multiple(void)
 
     /* Test the base64 encoding */
     test(strcmp(base64, expected) == 0);
-    ret = base64_to_bytes(bytes, BUFSZ, base64, strlen(base64)); 
-    from_bytes_to_vars(var, VARCNT, bytes, ret); 
+    ret = base64_to_bytes(bytes, BUFSZ, base64, strlen(base64));
+    from_bytes_to_vars(var, VARCNT, bytes, ret);
 
     /* Do the test */
     test(variable_eq(&var[0], &orig[0]));
@@ -271,23 +278,22 @@ void test_base64_big(void)
     bool has_bootorder = false, has_conout = false;
     int ret;
     int i;
-    uint8_t pt[4096*4];
-    variable_t vars[256] = {{0}};
+    uint8_t pt[4096 * 4];
+    variable_t vars[256] = { { 0 } };
 
-    ret = base64_to_bytes(pt, 4096*4, BIG_BASE64, strlen(BIG_BASE64));
+    ret = base64_to_bytes(pt, 4096 * 4, BIG_BASE64, strlen(BIG_BASE64));
     test(ret > 0);
 
-    ret = from_bytes_to_vars(vars, 256, pt, ret); 
+    ret = from_bytes_to_vars(vars, 256, pt, ret);
 
-    for ( i=0; i<ret; i++ )
-    {
+    for (i = 0; i < ret; i++) {
         char ascii[512];
 
         uc2_ascii(vars[i].name, ascii, 512);
 
-        if ( strcmp(ascii, "BootOrder") == 0 )
+        if (strcmp(ascii, "BootOrder") == 0)
             has_bootorder = true;
-        else if ( strcmp(ascii, "ConOut") == 0 )
+        else if (strcmp(ascii, "ConOut") == 0)
             has_conout = true;
 
         variable_destroy_noalloc(&vars[i]);
@@ -302,26 +308,25 @@ void test_base64_big_xml(void)
     bool has_bootorder = false, has_conout = false;
     int ret;
     int i;
-    char base64[4096*4];
-    uint8_t pt[4096*4];
-    variable_t vars[256] = {{0}};
+    char base64[4096 * 4];
+    uint8_t pt[4096 * 4];
+    variable_t vars[256] = { { 0 } };
 
-    ret = base64_from_response_body(base64, 4096*4, BIG_BASE64_XML);
-    test( ret == 0 );
+    ret = base64_from_response_body(base64, 4096 * 4, BIG_BASE64_XML);
+    test(ret == 0);
 
-    ret = base64_to_bytes(pt, 4096*4, base64, strlen(base64));
+    ret = base64_to_bytes(pt, 4096 * 4, base64, strlen(base64));
     test(ret > 0);
 
-    ret = from_bytes_to_vars(vars, 256, pt, ret); 
+    ret = from_bytes_to_vars(vars, 256, pt, ret);
 
-    for ( i=0; i<ret; i++ )
-    {
+    for (i = 0; i < ret; i++) {
         char ascii[512];
         uc2_ascii(vars[i].name, ascii, 512);
 
-        if ( strcmp(ascii, "BootOrder") == 0 )
+        if (strcmp(ascii, "BootOrder") == 0)
             has_bootorder = true;
-        else if ( strcmp(ascii, "ConOut") == 0 )
+        else if (strcmp(ascii, "ConOut") == 0)
             has_conout = true;
 
         variable_destroy_noalloc(&vars[i]);
@@ -333,103 +338,94 @@ void test_base64_big_xml(void)
 
 static void test_big_request(void)
 {
-    char buffer[4096*8];
+    char buffer[4096 * 8];
     char *big_request = BIG_REQUEST;
 
-    base64_from_response(buffer, 4096*8, big_request);
+    base64_from_response(buffer, 4096 * 8, big_request);
 }
 
-
-
-static const char *expected_vars[] = {
-    "Boot0002",
-    "Boot0003",
-    "Boot0004",
-    "BootCurrent",
-    "BootOptionSupport",
-    "BootOrder",
-    "ConIn",
-    "ConInDev",
-    "ConOut",
-    "ConOutDev",
-    "ErrOut",
-    "ErrOutDev",
-    "Key0000",
-    "Lang",
-    "LangCodes",
-    "MTC",
-    "MemoryTypeInformation",
-    "OsIndicationsSupported",
-    "PlatformLang",
-    "PlatformLangCodes",
-    "PlatformRecovery0000",
-    "SecureBoot",
-    "SetupMode",
-    "Timeout"
-};
+static const char *expected_vars[] = { "Boot0002",
+                                       "Boot0003",
+                                       "Boot0004",
+                                       "BootCurrent",
+                                       "BootOptionSupport",
+                                       "BootOrder",
+                                       "ConIn",
+                                       "ConInDev",
+                                       "ConOut",
+                                       "ConOutDev",
+                                       "ErrOut",
+                                       "ErrOutDev",
+                                       "Key0000",
+                                       "Lang",
+                                       "LangCodes",
+                                       "MTC",
+                                       "MemoryTypeInformation",
+                                       "OsIndicationsSupported",
+                                       "PlatformLang",
+                                       "PlatformLangCodes",
+                                       "PlatformRecovery0000",
+                                       "SecureBoot",
+                                       "SetupMode",
+                                       "Timeout" };
 
 static void test_big_request2(void)
 {
-    variable_t vars[32] = {{0}};
-    char buffer[4096*8];
+    variable_t vars[32] = { { 0 } };
+    char buffer[4096 * 8];
     char *big_request = BIG_REQUEST2;
-	uint8_t plaintext[BIG_MESSAGE_SIZE];
-    char ascii[128] = {'\0'};
+    uint8_t plaintext[BIG_MESSAGE_SIZE];
+    char ascii[128] = { '\0' };
     const char *name;
     int ret;
     bool found;
 
-    ret = base64_from_response(buffer, 4096*8, big_request);
+    ret = base64_from_response(buffer, 4096 * 8, big_request);
     printf("base64_from_response return: %d\n", ret);
-	ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, buffer, strlen(buffer));
+    ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, buffer, strlen(buffer));
 
     printf("bytes size: %d\n", ret);
-	from_bytes_to_vars(vars, 32, plaintext, (size_t)ret);
+    from_bytes_to_vars(vars, 32, plaintext, (size_t)ret);
 
-    int i,j;
+    int i, j;
 
-    for ( i=0; i<sizeof(expected_vars)/sizeof(expected_vars[0]); i++ )
-    {
+    for (i = 0; i < sizeof(expected_vars) / sizeof(expected_vars[0]); i++) {
         name = expected_vars[i];
         found = false;
 
-        for ( j=0; j<32; j++ )
-        {
+        for (j = 0; j < 32; j++) {
             uc2_ascii(vars[j].name, ascii, 128);
 
-            if ( strcmp(ascii, name) == 0 )
-            {
+            if (strcmp(ascii, name) == 0) {
                 found = true;
                 break;
-            } 
+            }
         }
 
         test(found == true);
     }
-        
 
-    for ( i=0; i<32; i++ )
-    {
+    for (i = 0; i < 32; i++) {
         variable_destroy_noalloc(&vars[i]);
     }
 }
 
 void test_xapi(void)
 {
-    v1_len = strsize16((char16_t*)v1) + sizeof(UTF16);
+    v1_len = strsize16((char16_t *)v1) + sizeof(UTF16);
     d1_len = strlen(D1);
-    v2_len = strsize16((char16_t*)v2) + sizeof(UTF16); 
+    v2_len = strsize16((char16_t *)v2) + sizeof(UTF16);
     d2_len = strlen(D2);
 
-    blocksz = v1_len + sizeof(v1_len) +
-              d1_len + sizeof(d1_len) +
-              v2_len + sizeof(v2_len) +
-              d2_len + sizeof(d2_len);
+    blocksz = v1_len + sizeof(v1_len) + d1_len + sizeof(d1_len) + v2_len +
+              sizeof(v2_len) + d2_len + sizeof(d2_len);
 
     memset(vars, 0, sizeof(vars));
 
-    variable_create_noalloc(&vars[0], v1, (uint8_t*)D1, d1_len, &DEFAULT_GUID, DEFAULT_ATTRS);
-    variable_create_noalloc(&vars[1], v2, (uint8_t*)D2, d2_len, &DEFAULT_GUID, DEFAULT_ATTRS);
+    variable_create_noalloc(&vars[0], v1, (uint8_t *)D1, d1_len, &DEFAULT_GUID,
+                            DEFAULT_ATTRS);
+    variable_create_noalloc(&vars[1], v2, (uint8_t *)D2, d2_len, &DEFAULT_GUID,
+                            DEFAULT_ATTRS);
 
     //DO_TEST(test_xapi_set_efi_vars);
     DO_TEST(test_var_copy);

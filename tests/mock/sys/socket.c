@@ -14,7 +14,7 @@ int socket(int type, int socktype, int protocol)
 {
     sockfd = open("./mock_socket", O_RDWR | O_CREAT | O_EXCL, S_IRWXU);
 
-    if ( sockfd == -1 )
+    if (sockfd == -1)
         return sockfd;
 
     return sockfd;

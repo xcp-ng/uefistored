@@ -13,7 +13,7 @@
 
 struct sockaddr {
     uint64_t sun_family;
-    char sun_path[108]; 
+    char sun_path[108];
 };
 
 int socket(int type, int socktype, int protocol);
