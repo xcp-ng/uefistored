@@ -54,7 +54,7 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size,
     uint32_t tmpattrs;
     int ret;
 
-    if (!variable)
+    if (!variable || !guid || !attrs || !size || !data)
         return EFI_INVALID_PARAMETER;
 
     ret = storage_get(variable, guid, tmp, MAX_VARIABLE_DATA_SIZE, &tmpsz,
