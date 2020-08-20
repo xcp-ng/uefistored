@@ -54,9 +54,6 @@ static xenevtchn_handle *xce;
 static xc_interface *xc_handle;
 struct xs_handle *xsh;
 
-void handle_bufioreq(buf_ioreq_t *buf_ioreq);
-int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, size_t vcpu);
-
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = {0};
 char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = {0};
 
@@ -267,7 +264,6 @@ int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
         return -1;
     }
 
-
     ioreq->state = STATE_IOREQ_INPROCESS;
     handle_ioreq(ioreq);
     ioreq->state = STATE_IORESP_READY;
@@ -329,78 +325,15 @@ bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path, int dom
     return strncmp(data, "true", len) == 0;
 }
 
-void handler_loop(xenevtchn_handle *xce,
-        buffered_iopage_t *buffered_iopage,
-        evtchn_port_t bufioreq_local_port,
-        evtchn_port_t *remote_vcpu_ports,
-        int vcpu_count,
-        shared_iopage_t *shared_iopage)
+static void debug_bufioreq(buf_ioreq_t *buf_ioreq)
 {
-    size_t i;
-    int ret;
-    struct pollfd pollfd;
-    evtchn_port_t port;
+    if ( !buf_ioreq )
+        return;
 
-    pollfd.fd = xenevtchn_fd(xce);
-    pollfd.events = POLLIN | POLLERR | POLLHUP;
-
-    while ( true )
-    {
-        DEBUG("poll()\n");
-
-        ret = poll(&pollfd, 1, -1);
-        if ( ret < 0 )
-        {
-            ERROR("poll error on fd %d: %d, %s\n", pollfd.fd, errno, strerror(errno));
-            usleep(100000);
-            continue;
-        }
-        DEBUG("poll(), ret=%d\n", ret);
-
-        port = xenevtchn_pending(xce);
-        if ( port < 0 )
-        {
-            ERROR("xenevtchn_pending() error: %d, %s\n", errno, strerror(errno));
-            continue;
-        }
-        DEBUG("xenevtchn_pending(), port=%u\n", (uint32_t)port);
-
-        ret = xenevtchn_unmask(xce, port);
-        if ( ret < 0 )
-        {
-            ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
-            continue;
-        }
-
-        if ( port == bufioreq_local_port )
-        {
-            DEBUG("bufioreq_local_port");
-
-            int i;
-            buf_ioreq_t *p;
-
-            for ( i=0; i<IOREQ_BUFFER_SLOT_NUM; i++ ) 
-            {
-                p = &buffered_iopage->buf_ioreq[i];
-                handle_bufioreq(p);
-            }
-        }
-        else
-        {
-            DEBUG("port = %u\n", port);
-            for ( i=0; i<vcpu_count; i++ )
-            {
-                evtchn_port_t remote_port = remote_vcpu_ports[i];
-                if ( remote_port == port )
-                {
-                    ret = handle_shared_iopage(xce, shared_iopage, port, i);
-                    if ( ret < 0 )
-                        continue;
-                }
-            }
-        }
-
-    }
+    DEBUG("BufferedIOReq<type=0x%02x, dir=%d, size=%u, addr=0x%02x, data=0x%02x>\n",
+            buf_ioreq->type, buf_ioreq->dir,
+            buf_ioreq->size, buf_ioreq->addr,
+            buf_ioreq->data);
 }
 
 void handle_bufioreq(buf_ioreq_t *buf_ioreq)
@@ -417,14 +350,13 @@ void handle_bufioreq(buf_ioreq_t *buf_ioreq)
         return;
     }
 
-    DEBUG("buf_ioreq is valid\n");
+    debug_bufioreq(buf_ioreq);
 }
 
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage, evtchn_port_t port, 
         size_t vcpu)
 {
     struct ioreq *p;
-
 
     if ( !shared_iopage )
     {
@@ -563,6 +495,73 @@ static void printargs(int argc, char **argv)
         DPRINTF("%s ", argv[i]);
     }
     DPRINTF("\n");
+}
+
+void handler_loop(xenevtchn_handle *xce,
+        buffered_iopage_t *buffered_iopage,
+        evtchn_port_t bufioreq_local_port,
+        evtchn_port_t *remote_vcpu_ports,
+        int vcpu_count,
+        shared_iopage_t *shared_iopage)
+{
+    size_t i;
+    int ret;
+    struct pollfd pollfd;
+    evtchn_port_t port;
+
+    pollfd.fd = xenevtchn_fd(xce);
+    pollfd.events = POLLIN | POLLERR | POLLHUP;
+
+    while ( true )
+    {
+        ret = poll(&pollfd, 1, -1);
+        if ( ret < 0 )
+        {
+            ERROR("poll error on fd %d: %d, %s\n", pollfd.fd, errno, strerror(errno));
+            usleep(100000);
+            continue;
+        }
+
+        port = xenevtchn_pending(xce);
+        if ( port < 0 )
+        {
+            ERROR("xenevtchn_pending() error: %d, %s\n", errno, strerror(errno));
+            continue;
+        }
+
+        ret = xenevtchn_unmask(xce, port);
+        if ( ret < 0 )
+        {
+            ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
+            continue;
+        }
+
+        if ( port == bufioreq_local_port )
+        {
+            int i;
+            buf_ioreq_t *p;
+
+            for ( i=0; i<IOREQ_BUFFER_SLOT_NUM; i++ )
+            {
+                p = &buffered_iopage->buf_ioreq[i];
+                handle_bufioreq(p);
+            }
+        }
+        else
+        {
+            for ( i=0; i<vcpu_count; i++ )
+            {
+                evtchn_port_t remote_port = remote_vcpu_ports[i];
+                if ( remote_port == port )
+                {
+                    ret = handle_shared_iopage(xce, shared_iopage, port, i);
+                    if ( ret < 0 )
+                        continue;
+                }
+            }
+        }
+
+    }
 }
 
 int main(int argc, char **argv)
@@ -837,8 +836,6 @@ int main(int argc, char **argv)
 
     bufioreq_local_port = ret;
 
-    DEBUG("bufioreq_local_port=%u\n", bufioreq_local_port);
-
     ret = setup_portio(dmod, fmem, domid, ioservid);
     if ( ret < 0 )
     {
@@ -886,8 +883,6 @@ int main(int argc, char **argv)
     storage_init();
 
     ret = xapi_init(resume);
-
-    DEBUG("xapi_init(), ret=%d\n", ret);
 
     if ( ret < 0 )
         goto err;
