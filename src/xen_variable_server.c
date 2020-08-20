@@ -62,7 +62,7 @@ static void handle_get_variable(void *comm_buf)
 
     if (namesz <= 0) {
         ptr = comm_buf;
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
 
@@ -70,7 +70,7 @@ static void handle_get_variable(void *comm_buf)
 
     if (!name) {
         ptr = comm_buf;
-        buffer_too_small(comm_buf, MAX_VARIABLE_NAME_SIZE);
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
@@ -260,7 +260,7 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
     *namesz = unserialize_namesz(&inptr);
 
     if (*namesz > MAX_VARIABLE_NAME_SIZE)
-        return EFI_DEVICE_ERROR;
+        return EFI_INVALID_PARAMETER;
 
     *name = malloc(*namesz + sizeof(UTF16));
 
@@ -289,9 +289,9 @@ static void handle_get_next_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
     const uint8_t *inptr = comm_buf;
-    uint64_t guest_bufsz;
+    uint64_t guest_bufsz = 0;
+    uint64_t namesz = 0;
     UTF16 *name;
-    uint64_t namesz;
     variable_t next;
     int ret;
     EFI_GUID guid;
@@ -303,6 +303,7 @@ static void handle_get_next_variable(void *comm_buf)
                                            &guid);
 
     if (status) {
+        ptr = comm_buf;
         serialize_result(&ptr, status);
         return;
     }
