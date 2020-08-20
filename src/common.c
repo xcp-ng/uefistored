@@ -54,7 +54,7 @@ uint64_t strsize16(const UTF16 *str)
     if (!str)
         return 0;
 
-    return strlen16(str) * sizeof(UTF16);
+    return (strlen16(str) + 1) * sizeof(UTF16);
 }
 
 void uc2_ascii_safe(const UTF16 *uc2, size_t uc2_len, char *ascii, size_t len)
