@@ -9,7 +9,7 @@ extern char strbuf[512];
 /**
  * This function initializes the logging framework.
  */
-void log_init(const char *filename);
+void log_init(unsigned int domid);
 
 /**
  * This function deinitializes the logging framework.
