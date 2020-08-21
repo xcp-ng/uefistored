@@ -617,11 +617,11 @@ int main(int argc, char **argv)
             break;
 
         case 'c':
-            root_path = optarg;
+            root_path = strdup(optarg);
             break;
 
         case 'i':
-            pidfile = optarg;
+            pidfile = strdup(optarg);
             break;
 
         case 'b':

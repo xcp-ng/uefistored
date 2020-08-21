@@ -72,23 +72,23 @@ int xapi_parse_arg(char *arg)
     /* TODO: no longer use strncpy, just point a pointer */
     if ((p = strstr(optarg, "socket:")) != NULL) {
         p += sizeof("socket:") - 1;
-        socket_path = p;
+        socket_path = strdup(p);
 
         return 0;
 
     } else if ((p = strstr(optarg, "uuid:")) != NULL) {
         p += sizeof("uuid:") - 1;
-        vm_uuid = strstrip(p);
+        vm_uuid = strstrip(strdup(p));
 
         return 0;
     } else if ((p = strstr(optarg, "save:")) != NULL) {
         p += sizeof("save:") - 1;
-        xapi_save_path = p;
+        xapi_save_path = strdup(p);
 
         return 0;
     } else if ((p = strstr(optarg, "resume:")) != NULL) {
         p += sizeof("resume:") - 1;
-        xapi_resume_path = p;
+        xapi_resume_path = strdup(p);
 
         return 0;
     }
