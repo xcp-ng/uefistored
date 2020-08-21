@@ -566,10 +566,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    log_init(NULL);
-
-    printargs(argc, argv);
-
     install_sighandlers();
 
     while (1) {
@@ -641,6 +637,9 @@ int main(int argc, char **argv)
             exit(1);
         }
     }
+
+    log_init(domid);
+    printargs(argc, argv);
 
     if (!root_path)
         snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
