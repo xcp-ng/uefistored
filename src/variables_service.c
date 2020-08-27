@@ -99,11 +99,19 @@ EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
     if (!name || !guid || !data)
         return -1;
 
+    if (name[0] == 0 ||
+            ((attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
+             !(attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS)))
+        return EFI_INVALID_PARAMETER;
+
     if (is_ro(name))
         return EFI_WRITE_PROTECTED;
 
     if (!valid_attrs(attrs))
         return EFI_UNSUPPORTED;
+
+    if (datasz == 0 || attrs == 0)
+         return storage_remove(name, guid);
 
     ret = storage_set(name, guid, data, datasz, attrs);
 
