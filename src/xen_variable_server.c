@@ -198,9 +198,9 @@ static void handle_set_variable(void *comm_buf)
 
     namesz = unserialize_namesz(&inptr);
 
-    if (namesz <= 0) {
+    if (namesz == 0) {
         ptr = comm_buf;
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
 
