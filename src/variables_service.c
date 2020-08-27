@@ -122,8 +122,11 @@ EFI_STATUS query_variable_info(uint32_t attrs, uint64_t *max_variable_storage,
                                uint64_t *remaining_variable_storage,
                                uint64_t *max_variable_size)
 {
-    if (!valid_attrs(attrs))
-        return EFI_UNSUPPORTED;
+    if (attrs == 0 ||
+            ((attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
+             !(attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS)))
+        return EFI_INVALID_PARAMETER;
+
 
     *max_variable_storage = MAX_STORAGE_SIZE;
     *max_variable_size = MAX_VARIABLE_SIZE;
