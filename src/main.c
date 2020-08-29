@@ -14,7 +14,6 @@
 #include <fcntl.h>
 #include <uchar.h>
 #include <wchar.h>
-
 #include <xenctrl.h>
 #include <xenstore.h>
 #include <xentoolcore.h>
@@ -39,7 +38,6 @@
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
 static bool resume;
-static bool cleanup_called;
 
 extern char *xapi_resume_path;
 
@@ -57,7 +55,7 @@ struct xs_handle *xsh;
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = { 0 };
 char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = { 0 };
 
-static char *root_path;
+static char *root_path = NULL;
 
 #define UNUSED(var) ((void)var);
 
@@ -196,8 +194,12 @@ void handle_ioreq(struct ioreq *ioreq)
      */
     uint64_t gfn = ioreq->data;
 
-    /* This is just the size of the port write.  We only use it to require XenVariable to use 32bit port IO writes. */
+    /*
+     * This is just the size of the port write.  We only use it to require
+     * XenVariable to use 32bit port IO writes.
+     */
     uint32_t size = ioreq->size;
+
 
     if (!io_port_enabled) {
         ERROR("ioport not yet enabled!\n");
@@ -215,6 +217,8 @@ void handle_ioreq(struct ioreq *ioreq)
         ERROR("Expected size 4, got %u\n", size);
         return;
     }
+
+    DEBUG("Mapping guest memory...\n");
 
     p = map_guest_memory(gfn);
     if (p) {
@@ -351,12 +355,9 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage,
     return handle_pio(xce, port, p);
 }
 
-static void cleanup(void)
+static void signal_handler(int sig)
 {
-    if (cleanup_called)
-        return;
-
-    cleanup_called = true;
+    DEBUG("uefistored received signal: %s\n", strsignal(sig));
 
     if (xapi_write_save_file() < 0)
         ERROR("Writing save file failed\n");
@@ -388,15 +389,18 @@ static void cleanup(void)
     if (xc_handle)
         xc_interface_close(xc_handle);
 
-    log_deinit();
-}
+    if (root_path)
+        free(root_path);
 
-static void signal_handler(int sig)
-{
-    INFO("uefistored signal: %s\n", strsignal(sig));
-    cleanup();
+    if (pidfile)
+        free(pidfile);
+
+    xapi_cleanup();
+    log_deinit();
+
     signal(sig, SIG_DFL);
     raise(sig);
+    exit(0);
 }
 
 struct sigaction old_sighup;
@@ -408,7 +412,7 @@ static struct sigaction *get_old(int sig)
 {
     switch (sig) {
     case SIGHUP:
-        return &old_sigterm;
+        return &old_sighup;
     case SIGINT:
         return &old_sigint;
     case SIGABRT:
@@ -642,7 +646,7 @@ int main(int argc, char **argv)
     printargs(argc, argv);
 
     if (!root_path)
-        snprintf(root_path, PATH_MAX, "/var/run/varstored-root-%d", getpid());
+        ERROR("No root path\n");
 
     /* Gain access to the hypervisor */
     xc_handle = xc_interface_open(0, 0, 0);
@@ -817,11 +821,13 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    ret = chroot(root_path);
+    if (root_path) {
+        ret = chroot(root_path);
 
-    if (ret < 0) {
-        ERROR("chroot to dir %s failed!\n", root_path);
-        goto err;
+        if (ret < 0) {
+            ERROR("chroot to dir %s failed!\n", root_path);
+            goto err;
+        }
     }
 
     ret = xapi_connect();
@@ -865,6 +871,7 @@ int main(int argc, char **argv)
                  vcpu_count, shared_iopage);
 
 err:
-    cleanup();
+    ERROR("Did not enter loop! dying...\n");
+    kill(getpid(), SIGTERM);
     return -1;
 }

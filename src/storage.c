@@ -12,18 +12,11 @@
 #include "uefi/types.h"
 #include "log.h"
 
+extern bool efi_at_runtime;
+
 static variable_t variables[MAX_VAR_COUNT];
-static size_t iter = 0;
 static size_t total = 0;
 static uint64_t used = 0;
-
-static bool slot_is_empty(variable_t *var)
-{
-    if (!var || var->datasz == 0 || var->namesz == 0)
-        return true;
-
-    return false;
-}
 
 void storage_init(void)
 {
@@ -46,7 +39,6 @@ void storage_destroy(void)
 
     total = 0;
     used = 0;
-    iter = 0;
 
     for_each_variable(variables, var)
     {
@@ -68,40 +60,116 @@ int storage_exists(const UTF16 *name, const EFI_GUID *guid)
     return 0;
 }
 
-int storage_get(const UTF16 *name, const EFI_GUID *guid, void *dest, size_t n,
-                size_t *len, uint32_t *attrs)
+EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
+                       void *data, size_t *data_size)
 {
-    variable_t *var = NULL;
+    variable_t *var;
 
-    if (!name || !guid || !len || !attrs)
-        return -1;
-
-    *len = 0;
+    if (!name || !guid || !data_size || !attrs) {
+        return EFI_DEVICE_ERROR;
+    }
 
     var = find_variable(name, guid, variables, MAX_VAR_COUNT);
 
-    if (!var)
-        return VAR_NOT_FOUND;
-
-    if (n < var->datasz) {
-        ERROR("The n (%lu) passed to %s was too small\n", n, __func__);
-        return -1;
+    if (!var) {
+        DEBUG("find_variable() == NULL\n");
+        return EFI_NOT_FOUND;
     }
 
-    memcpy(dest, var->data, var->datasz);
-    *len = var->datasz;
+    if (*data_size < var->datasz) {
+        *data_size = var->datasz;
+        return EFI_BUFFER_TOO_SMALL;
+    }
+
+    if (*data_size > MAX_SHARED_OVMF_MEM) {
+        return EFI_DEVICE_ERROR;
+    }
+
+    if (efi_at_runtime && !(var->attrs & EFI_VARIABLE_RUNTIME_ACCESS)) {
+        DEBUG("Found, but inaccessible at runtime\n");
+        return EFI_NOT_FOUND;
+    }
+
+    memcpy(data, var->data, var->datasz);
+    *data_size = var->datasz;
     *attrs = var->attrs;
 
-    return 0;
+    return EFI_SUCCESS;
 }
 
-int storage_remove(const UTF16 *name)
+int storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid)
+{
+    int ret;
+    uint8_t *data;
+
+    if (!var || !name || !guid)
+        return -1;
+
+    ret = variable_set_name(var, name);
+
+    if (ret < 0)
+        return ret;
+
+    if (variable_set_guid(var, guid) < 0)
+        return -1;
+
+    data = malloc(MAX_VARIABLE_DATA_SIZE);
+
+    if (!data)
+        return -1;
+
+    ret = variable_set_data(var, data, MAX_VARIABLE_DATA_SIZE);
+
+    if (ret < 0)
+        return ret;
+
+    return storage_get(var->name, &var->guid, &var->attrs, var->data, &var->datasz);
+} 
+
+EFI_STATUS storage_iter(variable_t *var)
+{
+    variable_t *p;
+    static size_t i = 0;
+
+    for (; i<MAX_VAR_COUNT; i++) {
+        p = &variables[i];
+
+        if (!p)
+            goto err;
+
+        if (!variable_is_valid(p))
+            continue;
+
+        if (variable_copy(var, p) < 0 )
+            goto err;
+
+        break;
+    }
+
+    /* Reached all variables */
+    if (i == MAX_VAR_COUNT)
+    {
+        if (i > MAX_VAR_COUNT)
+            WARNING("i > MAX_VAR_COUNT, returning EFI_NOT_FOUND\n");
+
+        i = 0;
+        return EFI_NOT_FOUND;
+    }
+
+    return EFI_SUCCESS;
+
+err:
+    i = 0;
+    return EFI_DEVICE_ERROR;
+}
+
+EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid)
 {
     size_t namesz;
     variable_t *var;
 
-    if (!name)
-        return -1;
+    if (!name || !guid)
+        return EFI_DEVICE_ERROR;
 
     namesz = strsize16(name);
 
@@ -110,42 +178,39 @@ int storage_remove(const UTF16 *name)
         if (var->namesz != namesz)
             continue;
 
-        if (strcmp16(var->name, name) == 0) {
-            variable_destroy(var);
+        if (strcmp16(var->name, name) == 0 &&
+                memcmp(&var->guid, guid, sizeof(var->guid)) == 0) {
+            variable_destroy_noalloc(var);
             used -= (var->datasz + namesz);
             total--;
-            return 0;
+            return EFI_SUCCESS;
         }
     }
 
     /* Not found */
-    return 0;
+    return EFI_NOT_FOUND;
 }
 
-int storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
+EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
                 const size_t datasz, const uint32_t attrs)
 {
     int ret;
     size_t namesz;
     variable_t *var;
 
-    if (!name || !data)
-        return -1;
+    if (!name || !data || !guid)
+        return EFI_DEVICE_ERROR;
 
     namesz = strsize16(name);
 
-    if (namesz >= MAX_VARIABLE_NAME_SIZE)
-        return -ENOMEM;
-
-    if (datasz >= MAX_VARIABLE_DATA_SIZE)
-        return -ENOMEM;
-
-    if (datasz + namesz + storage_used() > MAX_STORAGE_SIZE)
-        return -ENOMEM;
+    if (namesz > MAX_VARIABLE_NAME_SIZE ||
+        datasz > MAX_VARIABLE_DATA_SIZE ||
+        datasz + namesz + storage_used() > MAX_STORAGE_SIZE)
+        return EFI_OUT_OF_RESOURCES;
 
     /* As specified by the UEFI spec */
     if (datasz == 0 || attrs == 0)
-        return storage_remove(name);
+        return storage_remove(name, guid);
 
     /* If it already exists, replace it */
     for_each_variable(variables, var)
@@ -153,19 +218,23 @@ int storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
         if (var->namesz != namesz)
             continue;
 
-        if (strcmp16(var->name, name) == 0) {
+        if (strcmp16(var->name, name) == 0 && memcmp(&var->guid, guid, sizeof(EFI_GUID)) == 0) {
             ret = variable_set_name(var, name);
 
-            if (ret < 0)
-                return ret;
+            if (ret == -2)
+                return EFI_OUT_OF_RESOURCES;
+            else if (ret < 0)
+                return EFI_DEVICE_ERROR;
 
             ret = variable_set_data(var, data, datasz);
 
-            if (ret < 0)
-                return ret;
+            if (ret == -2)
+                return EFI_OUT_OF_RESOURCES;
+            else if (ret < 0)
+                return EFI_DEVICE_ERROR;
 
             memcpy(&var->attrs, &attrs, sizeof(var->attrs));
-            return 0;
+            return EFI_SUCCESS;
         }
     }
 
@@ -176,15 +245,15 @@ int storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
             ret = variable_create_noalloc(var, name, data, datasz, guid, attrs);
 
             if (ret < 0)
-                return ret;
+                return EFI_DEVICE_ERROR;
 
             total++;
             used += datasz + namesz;
-            return 0;
+            return EFI_SUCCESS;
         }
     }
 
-    return -2;
+    return EFI_DEVICE_ERROR;
 }
 
 uint64_t storage_used(void)
@@ -195,41 +264,86 @@ uint64_t storage_used(void)
 /**
  * Get the next variable in the DB
  *
- * @current: the current variable (provided by the caller)
- * @next: the next variable (loaded by this function)
+ * @parm namesz On input, the previous variable name size.  On output, the next
+ * variable name size.
+ * @parm name On input, the previous variable name. On output, the next
+ * variable name.
+ * @parm guid On input, the previous variable guid.  On output, the next
+ * variable guid.
  *
- * Returns -1 on error, 0 on end of list, 1 on success
+ * @return EFI_SUCCESS when the next variable has been found
+ * @return EFI_DEVICE_ERROR on uefistored bug
+ * @return EFI_NOT_FOUND when end of variable array is reached
+ * @return EFI_BUFFER_TOO_SMALL if the name buffer is too
+ * small for the next variable name.
  */
-int storage_next(variable_t *next)
+EFI_STATUS storage_next(size_t *namesz, UTF16 *name, EFI_GUID *guid)
 {
+    size_t i;
+    size_t prev_sz;
     variable_t *var;
 
-    if (!next)
-        return -1;
+    if (!namesz || !name || !guid)
+        return EFI_DEVICE_ERROR;
 
-    if (iter >= MAX_VAR_COUNT || total == 0)
-        goto stop_iterator;
+    if (total == 0)
+        return EFI_NOT_FOUND;
 
-    var = &variables[iter];
-
-    /* Find next non-empty_variable slot */
-    while (iter < MAX_VAR_COUNT && slot_is_empty(var)) {
-        iter++;
-        var = &variables[iter];
+    if (name[0] == 0 && total > 0) {
+        var = &variables[0];
+        goto found;
     }
 
-    /* If none found, stop the iteration */
-    if (iter >= MAX_VAR_COUNT)
-        goto stop_iterator;
+    prev_sz = strsize16(name);
 
-    iter++;
+    /* Find the previous variable (passed in from caller) */
+    for (i=0; i<MAX_VAR_COUNT; i++) {
+        var = &variables[i];
 
-    /* A variable has been found so return it as next */
-    variable_create_noalloc(next, var->name, var->data, var->datasz, &var->guid,
-                            var->attrs);
-    return 1;
+        if (var->namesz != prev_sz)
+            continue;
 
-stop_iterator:
-    iter = 0;
-    return 0;
+        if (strcmp16(var->name, name) == 0 &&
+                memcmp(guid, &var->guid, sizeof(EFI_GUID)) == 0) {
+            break;
+        }
+    }
+
+    /* Go to the next variable, the one we want to return! */
+    i++;
+
+    /* Find the next variable */
+    for (; i<MAX_VAR_COUNT; i++) {
+        if (variable_is_valid(&variables[i]))
+            break;
+    }
+
+    /* If we are at the end of the array, return EFI_NOT_FOUND */
+    if (i >= MAX_VAR_COUNT)
+        return EFI_NOT_FOUND;
+
+    var = &variables[i];
+
+found:
+    /* Should never happen! */
+    if (!var) {
+        ERROR("storage_next variable is null, EFI_DEVICE_ERROR\n");
+        return EFI_DEVICE_ERROR;
+    }
+
+    /*
+     * If the caller didn't provide a large enough buffer, return
+     * EFI_BUFFER_TOO_SMALL
+     */
+    if (var->namesz > *namesz)
+    {
+        *namesz = var->namesz;
+        return EFI_BUFFER_TOO_SMALL;
+    }
+
+    *namesz = var->namesz;
+    memcpy(name, var->name, var->namesz);
+    memcpy(guid, &var->guid, sizeof(*guid));
+
+    return EFI_SUCCESS;
 }

@@ -20,6 +20,8 @@
 
 #define TEST_PT_SIZE 512
 
+EFI_GUID default_guid = DEFAULT_GUID;
+
 static char *BIG_BASE64 = BIG_BASE64_STR;
 static char *BIG_BASE64_XML = BIG_BASE64_XML_STR;
 
@@ -63,7 +65,7 @@ void test_xapi_set_efi_vars(void)
     int fd;
     variable_t *var;
     EFI_GUID guid;
-    uint32_t attr = DEFAULT_ATTRS;
+    uint32_t attr = DEFAULT_ATTR;
 
     var = &vars[0];
     mock_xen_variable_server_set_buffer(comm_buf);
@@ -97,7 +99,7 @@ static void test_bytes(void)
 
     /* Setup */
     variable_create_noalloc(&orig, FOO, (uint8_t *)BAR, strsize16(BAR),
-                            &DEFAULT_GUID, DEFAULT_ATTR);
+                            &default_guid, DEFAULT_ATTR);
 
     serialize_variable_list(&p, TEST_PT_SIZE, &orig, 1);
     from_bytes_to_vars(&var, 1, bytes, TEST_PT_SIZE);
@@ -117,16 +119,13 @@ static void test_var_copy(void)
 
     /* Setup */
     variable_create_noalloc(&orig, FOO, (uint8_t *)BAR, strsize16(BAR),
-                            &DEFAULT_GUID, DEFAULT_ATTR);
+                            &default_guid, DEFAULT_ATTR);
 
     /* Do the work */
     p = buf;
     serialize_var(&p, &orig);
     unserial_ptr = buf;
     var = variable_create_unserialize(&unserial_ptr);
-
-    variable_printf(var);
-    variable_printf(&orig);
 
     /* Do the test */
     test(variable_eq(var, &orig));
@@ -136,11 +135,25 @@ static void test_var_copy(void)
 }
 
 #define EXPECTED_B64_ENC                                                       \
-    "VkFSUwEAAAABAAAAAAAAAGAAAAAAAAAABgAAAAAAA"                                \
-    "ABGAE8ATwAGAAAAAAAAAAAAAAAAAN3Mu6"                                        \
-    "oAAAAAAAAAAAAAAADz8gAAAAAAAAAAAAA"                                        \
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"                                         \
-    "AAAAAAAAAAAAAAAAAAAAA"
+    "VkFSUwEAA" \
+    "AABAAAAAA" \
+    "AAAGQAAAA" \
+    "AAAAACAAA" \
+    "AAAAAABGA" \
+    "E8ATwAAAA" \
+    "gAAAAAAAA" \
+    "AQgBBAFIA" \
+    "AADdzLuqA" \
+    "AAAAAAAAA" \
+    "AAAAAA8/I" \
+    "AAAAAAAAA" \
+    "AAAAAAAAA" \
+    "AAAAAAAAA" \
+    "AAAAAAAAA" \
+    "AAAAAAAAA" \
+    "AAAAAAAAA" \
+    "AAAAAAAAA" \
+    "AAAA=="
 
 /**
  * Passes if a variable list of size 1 serializes and encodes into
@@ -192,8 +205,8 @@ void test_base64(void)
     variable_t var = { 0 };
 
     /* Setup */
-    orig = variable_create(FOO, (uint8_t *)BAR, strsize16(BAR), &DEFAULT_GUID,
-                           DEFAULT_ATTRS);
+    orig = variable_create(FOO, (uint8_t *)BAR, strsize16(BAR), &default_guid,
+                           DEFAULT_ATTR);
 
     /* Convert variable into bytes, and then bytes into base64 */
     serialize_variable_list(&p, 4096, orig, 1);
@@ -214,26 +227,13 @@ void test_base64(void)
 
 #define VARCNT 2
 #define BUFSZ (4096 * 2)
-#define EXPECTED_BASE64_MULT                                                   \
-    "VkFSUwEAAAACAAAA"                                                         \
-    "AAAAAMYAAAAAAAAA"                                                         \
-    "BgAAAAAAAABGAE8A"                                                         \
-    "TwAGAAAAAAAAAEIA"                                                         \
-    "QQBSAO3+3sAAAAAA"                                                         \
-    "AAAAAAAAAADvvq3e"                                                         \
-    "AAAAAAAAAAAAAAAA"                                                         \
-    "AAAAAAAAAAAAAAAA"                                                         \
-    "AAAAAAAAAAAAAAAA"                                                         \
-    "AAAAAAAAAAAAAAAA"                                                         \
-    "CgAAAAAAAABDAEgA"                                                         \
-    "RQBFAFIACAAAAAAA"                                                         \
-    "AABBAEIAQwBEAO3+"                                                         \
-    "3sAAAAAAAAAAAAAA"                                                         \
-    "AADvvq3eAAAAAAAA"                                                         \
-    "AAAAAAAAAAAAAAAA"                                                         \
-    "AAAAAAAAAAAAAAAA"                                                         \
-    "AAAAAAAAAAAAAAAA"                                                         \
-    "AAAAAAAA"
+#define EXPECTED_BASE64_MULT \
+    "VkFSUwEAAAACAAAAAAAAAM4AAAAAAAAACAAAAAAAAABGAE8ATwAAAAgAAAAAAAAA"  \
+    "QgBBAFIAAADt/t7AAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"  \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAQwBIAEUARQBSAAAA"  \
+    "CgAAAAAAAABBAEIAQwBEAAAA7f7ewAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAA"  \
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
 
 void test_base64_multiple(void)
 {
@@ -248,9 +248,9 @@ void test_base64_multiple(void)
 
     /* Setup */
     variable_create_noalloc(&orig[0], FOO, (uint8_t *)BAR, strsize16(BAR),
-                            &DEFAULT_GUID, DEFAULT_ATTRS);
+                            &default_guid, DEFAULT_ATTR);
     variable_create_noalloc(&orig[1], CHEER, (uint8_t *)ABCD, strsize16(ABCD),
-                            &DEFAULT_GUID, DEFAULT_ATTRS);
+                            &default_guid, DEFAULT_ATTR);
 
     /* Do the work */
     serialize_variable_list(&p, BUFSZ, orig, sizeof(orig) / sizeof(orig[0]));
@@ -381,10 +381,8 @@ static void test_big_request2(void)
     bool found;
 
     ret = base64_from_response(buffer, 4096 * 8, big_request);
-    printf("base64_from_response return: %d\n", ret);
     ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, buffer, strlen(buffer));
 
-    printf("bytes size: %d\n", ret);
     from_bytes_to_vars(vars, 32, plaintext, (size_t)ret);
 
     int i, j;
@@ -422,10 +420,10 @@ void test_xapi(void)
 
     memset(vars, 0, sizeof(vars));
 
-    variable_create_noalloc(&vars[0], v1, (uint8_t *)D1, d1_len, &DEFAULT_GUID,
-                            DEFAULT_ATTRS);
-    variable_create_noalloc(&vars[1], v2, (uint8_t *)D2, d2_len, &DEFAULT_GUID,
-                            DEFAULT_ATTRS);
+    variable_create_noalloc(&vars[0], v1, (uint8_t *)D1, d1_len, &default_guid,
+                            DEFAULT_ATTR);
+    variable_create_noalloc(&vars[1], v2, (uint8_t *)D2, d2_len, &default_guid,
+                            DEFAULT_ATTR);
 
     //DO_TEST(test_xapi_set_efi_vars);
     DO_TEST(test_var_copy);

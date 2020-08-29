@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <limits.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -342,22 +343,24 @@ size_t list_size(variable_t *variables, size_t n)
  */
 static int retrieve_nonvolatile_vars(variable_t *vars, size_t n)
 {
-    int ret;
+    EFI_STATUS status;
     size_t cnt = 0;
     variable_t tmp;
 
     memset(vars, 0, sizeof(*vars) * n);
 
     while (cnt < n) {
-        ret = storage_next(&tmp);
+        status = storage_iter(&tmp);
 
         /* Error */
-        if (ret < 0)
-            return ret;
+        if (status == EFI_DEVICE_ERROR)
+            return cnt;
 
         /* Last variable */
-        if (ret == 0)
+        if (status == EFI_NOT_FOUND)
             break;
+
+        assert(status == EFI_SUCCESS);
 
         if (tmp.attrs & EFI_VARIABLE_NON_VOLATILE) {
             variable_copy(&vars[cnt++], &tmp);
@@ -379,7 +382,7 @@ static int retrieve_nonvolatile_vars(variable_t *vars, size_t n)
  */
 static int retrieve_vars(variable_t *vars, size_t n)
 {
-    int ret;
+    EFI_STATUS status;
     size_t cnt = 0;
     variable_t *next;
 
@@ -388,15 +391,17 @@ static int retrieve_vars(variable_t *vars, size_t n)
     next = &vars[0];
 
     while (cnt < n) {
-        ret = storage_next(next);
+        status = storage_iter(next);
 
         /* Error */
-        if (ret < 0)
-            return ret;
+        if (status == EFI_DEVICE_ERROR)
+            return status;
 
         /* Last variable */
-        if (ret == 0)
+        if (status == EFI_NOT_FOUND)
             break;
+
+        assert(status == EFI_SUCCESS);
 
         next++;
         cnt++;
@@ -475,12 +480,14 @@ static int create_header(size_t body_len, char *message, size_t message_size)
 {
     int ret;
 
+    DEBUG("trace\n");
     ret = snprintf(message, message_size, HTTP_HEADER, body_len);
 
     if (ret < 0) {
         return ret;
     }
 
+    DEBUG("trace\n");
     return ret;
 }
 
@@ -491,6 +498,7 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     char *body;
     size_t base64_size, body_len, hdr_len;
 
+    DEBUG("trace\n");
     base64 = variable_list_base64();
     if (!base64)
         return -1;
@@ -499,12 +507,14 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) + base64_size - 1;
 
     body = malloc(body_len);
+    DEBUG("trace\n");
 
     if (!body) {
         free(base64);
         return -1;
     }
 
+    DEBUG("trace\n");
     ret = snprintf(body, body_len, HTTP_BODY_SET_NVRAM_VARS, base64);
 
     if (ret < 0) {
@@ -514,17 +524,21 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
 
     body_len = strlen(body);
 
+    DEBUG("trace\n");
     hdr_len = create_header(body_len, buffer, n);
+    DEBUG("trace\n");
     if (hdr_len < 0) {
         ret = -1;
         goto end;
     }
 
-    strncpy(buffer + hdr_len, body, body_len);
+    DEBUG("hdr_len = %lu, body_len=%lu, n=%lu\n", hdr_len, body_len, n);
+    strncpy(buffer + hdr_len, body, n - hdr_len);
     buffer[body_len + hdr_len] = '\0';
 
     ret = 0;
 end:
+    DEBUG("trace\n");
     free(body);
     free(base64);
 
@@ -589,12 +603,18 @@ int xapi_set_efi_vars(void)
     char buffer[BIG_MESSAGE_SIZE];
     int ret;
 
-    ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
+    DEBUG("setting NVRAM\n");
 
-    if (ret < 0)
+    ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
+    DEBUG("build_set_efi_vars_message: ret=%d\nmessage:\n%s\n", ret, buffer);
+
+    if (ret < 0) {
+        ERROR("Failed to build VM.set_NVRAM_EFI_variables message\n");
         return ret;
+    }
 
     ret = send_request(buffer, buffer, BIG_MESSAGE_SIZE);
+    DEBUG("send_request:ret=%d\n", ret);
 
     return ret == 200 ? 0 : -1;
 }
@@ -1017,8 +1037,10 @@ int base64_from_response(char *buffer, size_t n, char *response)
 
     body = response_body(response);
 
-    if (!body)
+    if (!body) {
+        ERROR("No body in response:\n%s\n", response);
         return -1;
+    }
 
     return base64_from_response_body(buffer, n, body);
 }
@@ -1039,8 +1061,10 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
                           "</methodCall>",
                           session_id, vm_uuid);
 
-    if (status != 200)
+    if (status != 200) {
+        ERROR("VM.get_NVRAM failed: status=%d\n", status);
         return -1;
+    }
 
     return base64_from_response(buffer, n, response);
 }
@@ -1166,11 +1190,27 @@ int xapi_write_save_file(void)
     bytes = variable_list_bytes(&size, false);
 
     if (!bytes)
+    {
+        fclose(file);
         return -1;
+    }
 
     ret = fwrite(bytes, 1, size, file);
 
     fclose(file);
+    free(bytes);
 
     return ret == size ? 0 : -1;
+}
+
+void xapi_cleanup(void)
+{
+    if (socket_path)
+        free(socket_path);
+    if (xapi_save_path)
+        free(xapi_save_path);
+    if (xapi_resume_path)
+        free(xapi_save_path);
+    if (vm_uuid)
+        free(vm_uuid);
 }

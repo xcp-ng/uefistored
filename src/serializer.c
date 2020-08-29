@@ -88,8 +88,10 @@ int unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
     memcpy(&ret, *ptr, sizeof(ret));
     *ptr += sizeof(ret);
 
-    if (ret > buflen || ret > INT_MAX)
+    if (ret > buflen || ret > INT_MAX) {
+        DEBUG("ret=%lu\n", ret);
         return -1;
+    }
 
     memcpy(buf, *ptr, ret);
     *ptr += ret;
@@ -199,7 +201,6 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 
     if (namesz == 0 || namesz > MAX_VARIABLE_NAME_SIZE)
         return -1;
-    DEBUG(" ");
 
     memcpy(name, *ptr, namesz);
     *ptr += namesz;

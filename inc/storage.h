@@ -4,10 +4,12 @@
 #include <stdint.h>
 
 #include "common.h"
+#include "uefi/types.h"
 
-#define MAX_STORAGE_SIZE MB(256)
-#define MAX_VARIABLE_SIZE KB(4)
-#define MAX_VARIABLE_NAME_SIZE 512
+#define MAX_STORAGE_SIZE MB(8)
+#define MAX_VARIABLE_SIZE (MAX_STORAGE_SIZE / MAX_VAR_COUNT)
+
+#define MAX_VARIABLE_NAME_SIZE KB(1)
 #define MAX_VARIABLE_DATA_SIZE (MAX_VARIABLE_SIZE - MAX_VARIABLE_NAME_SIZE)
 
 #if (MAX_VARIABLE_NAME_SIZE + MAX_VARIABLE_DATA_SIZE) != MAX_VARIABLE_SIZE
@@ -17,14 +19,13 @@
 void storage_init(void);
 size_t storage_count(void);
 void storage_deinit(void);
-int storage_get(const UTF16 *name, const EFI_GUID *guid, void *dest, size_t n,
-                size_t *len, uint32_t *attrs);
-int storage_set(const UTF16 *name, const EFI_GUID *guid, const void *val,
+EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs, void *data, size_t *data_size);
+EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *val,
                 const size_t len, const uint32_t attrs);
 void storage_destroy(void);
-int storage_next(variable_t *next);
-int storage_remove(const UTF16 *name);
+EFI_STATUS storage_next(size_t *namesz, UTF16 *name, EFI_GUID *guid);
 int storage_exists(const UTF16 *name, const EFI_GUID *guid);
 uint64_t storage_used(void);
+EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid);
 
 #endif

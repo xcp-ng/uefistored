@@ -7,8 +7,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-static const EFI_GUID DEFAULT_GUID = { .Data1 = 0xc0defeed };
-static const uint32_t DEFAULT_ATTRS = 0xdeadbeef;
+#define _DEFAULT_ATTRS                                               \
+    (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |   \
+     EFI_VARIABLE_RUNTIME_ACCESS)
+
+#define DEFAULT_GUID { .Data1 = 0xc0defeed }
+#define DEFAULT_ATTR                                                 \
+    (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |   \
+     EFI_VARIABLE_RUNTIME_ACCESS)
 
 extern int passcount;
 extern int failcount;
@@ -57,9 +63,5 @@ static inline void _test_eq_int64(const char *file_name, const char *test_name,
 
 #define test_eq_int64(val1, val2)                                              \
     _test_eq_int64(__FILE__, __func__, __LINE__, #val1, #val2, val1, val2)
-
-#define DEFAULT_ATTR                                                           \
-    (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |             \
-     EFI_VARIABLE_RUNTIME_ACCESS)
 
 #endif //  __H_COMMON_

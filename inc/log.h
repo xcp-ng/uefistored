@@ -54,7 +54,6 @@ void log_deinit(void);
         uefistored_fprintf(stdout, "DEBUG:");                                  \
         uefistored_fprintf(stdout, "%s:%d: ", __func__, __LINE__);             \
         uefistored_fprintf(stdout, __VA_ARGS__);                               \
-        }                                                                      \
     } while (0)
 
 #define DPRINTF(...)                                                           \

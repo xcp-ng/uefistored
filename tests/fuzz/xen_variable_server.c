@@ -41,7 +41,7 @@ static void fuzz_xen_variable_server(const uint8_t *data, size_t blocksz)
     command[0] = command[0] % 2;
     command[1] = command[1] % 6;
 
-    for (i = 0; i < MAX_VAR_COUNT + 2; i++) {
+    for (i = 0; i < MAX_VARIABLE_COUNT + 2; i++) {
         xen_variable_server_handle_request(mem);
     }
 

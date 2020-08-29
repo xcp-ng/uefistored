@@ -27,18 +27,20 @@ int variable_set_data(variable_t *var, const uint8_t *data,
     if (datasz == 0)
         return -1;
 
+    if (datasz > MAX_VARIABLE_DATA_SIZE)
+        return -2;
+
     var->datasz = datasz;
+    var->data = realloc(var->data, var->datasz);
 
-    if (var->data)
-        free(var->data);
-
-    var->data = malloc(var->datasz);
+    // TODO: return EFI_OUT_OF_RESOURCES if datasz > MAX_VARIABLE_DATA_SIZE
 
     if (!var->data) {
         return -1;
     }
 
-    memcpy(var->data, data, datasz);
+    memset(var->data, 0, var->datasz);
+    memcpy(var->data, data, var->datasz);
 
     return 0;
 }
@@ -65,17 +67,17 @@ int variable_set_name(variable_t *var, const UTF16 *name)
     if (namesz == 0)
         return -1;
 
+    if (namesz > MAX_VARIABLE_NAME_SIZE)
+        return -2;
+
     var->namesz = namesz;
-
-    if (var->name)
-        free(var->name);
-
-    var->name = malloc(namesz + sizeof(UTF16));
+    var->name = realloc(var->name, var->namesz);
 
     if (!var->name)
         return -1;
 
-    strncpy16(var->name, name, namesz + sizeof(UTF16));
+    memset(var->name, 0, var->namesz);
+    strncpy16(var->name, name, var->namesz);
 
     return 0;
 }
@@ -202,12 +204,16 @@ void variable_destroy_noalloc(variable_t *var)
     if (var->name) {
         free(var->name);
         var->name = NULL;
+        var->namesz = 0;
     }
 
     if (var->data) {
         free(var->data);
         var->data = NULL;
+        var->datasz = 0;
     }
+
+    memset(var, 0, sizeof(*var));
 }
 
 void variable_destroy(variable_t *var)

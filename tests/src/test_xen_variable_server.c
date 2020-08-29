@@ -10,7 +10,6 @@
 #include "serializer.h"
 #include "test_common.h"
 #include "uefi/types.h"
-#include "uefi/types.h"
 #include "xen_variable_server.h"
 #include "variables_service.h"
 
@@ -57,7 +56,7 @@ static inline uint64_t getstatus(void *p)
 static void test_nonexistent_variable_returns_not_found(void)
 {
     char16_t *rtcname = (char16_t *)rtcnamebytes;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     uint32_t attr;
     uint64_t data;
     uint64_t datasize = sizeof(data);
@@ -109,7 +108,7 @@ static EFI_STATUS deserialize_xen_get_var_response(void *buf,
 static void set_rtc_variable(void *buf)
 {
     char16_t *rtcname = (char16_t *)rtcnamebytes;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     uint32_t indata = 0xdeadbeef;
 
     mock_xen_variable_server_set_buffer(buf);
@@ -122,7 +121,7 @@ static void set_rtc_variable(void *buf)
 static void set_mtc_variable(void *buf)
 {
     char16_t *mtcname = (char16_t *)mtcnamebytes;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     uint32_t indata = 0xdeadbeef;
 
     mock_xen_variable_server_set_buffer(buf);
@@ -142,7 +141,7 @@ static void test_set_and_get(void)
 {
     uint64_t status;
     char16_t *rtcname = (char16_t *)rtcnamebytes;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     uint32_t attr = DEFAULT_ATTR;
     uint32_t indata = 0xdeadbeef;
     uint32_t outdata;
@@ -175,7 +174,7 @@ static void test_set_and_get(void)
 static void test_big_set(void)
 {
     char16_t *rtcname = (char16_t *)rtcnamebytes;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     void *indata;
     void *tempbuf;
 
@@ -209,12 +208,13 @@ static void test_big_set(void)
 static void test_zero_set(void)
 {
     char16_t *rtcname = (char16_t *)rtcnamebytes;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     uint32_t attr = DEFAULT_ATTR;
     size_t insz = 0;
     uint8_t indata;
 
     mock_xen_variable_server_set_buffer(comm_buf);
+    set_rtc_variable(comm_buf);
 
     XenSetVariable(rtcname, &guid, attr, insz, &indata);
     xen_variable_server_handle_request(comm_buf);
@@ -230,7 +230,7 @@ static void test_empty_get_next_var(void)
 {
     size_t varname_sz;
     char16_t *varname;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
 
     /* Setup */
     mock_xen_variable_server_set_buffer(comm_buf);
@@ -256,7 +256,7 @@ static void test_success_get_next_var_one(void)
     size_t varname_sz = TEST_VARNAME_BUF_SZ;
     char16_t varname[TEST_VARNAME_BUF_SZ] = { 0 };
     char16_t buf[TEST_VARNAME_BUF_SZ] = { 0 };
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     const uint8_t *ptr;
 
     /* Setup */
@@ -277,6 +277,7 @@ static void test_success_get_next_var_one(void)
     test(status == EFI_SUCCESS);
     test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 
+    /* Do second call */
     XenGetNextVariableName(&varname_sz, buf, &guid);
     xen_variable_server_handle_request(comm_buf);
 
@@ -312,7 +313,7 @@ static void test_success_get_next_var_two(void)
     size_t varname_sz = TEST_VARNAME_BUF_SZ;
     char16_t buf[TEST_VARNAME_BUF_SZ] = { 0 };
     char16_t copies[2][TEST_VARNAME_BUF_SZ] = { { 0 } };
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     const uint8_t *ptr;
 
     /* Setup */
@@ -357,7 +358,7 @@ static void test_get_next_var_buf_too_small(void)
     EFI_STATUS status;
     size_t varname_sz = 2;
     char16_t varname[2] = { 0 };
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     const uint8_t *ptr;
     size_t newsz;
 
@@ -377,14 +378,14 @@ static void test_get_next_var_buf_too_small(void)
 
     /* Assertions */
     test(status == EFI_BUFFER_TOO_SMALL);
-    test(newsz == 6);
+    test(newsz == strsize16(rtcnamebytes));
 }
 
 static void test_runtime_access_attr(void)
 {
     uint64_t status;
     char16_t *rtcname = (char16_t *)rtcnamebytes;
-    EFI_GUID guid;
+    EFI_GUID guid = DEFAULT_GUID;
     uint32_t attr = EFI_VARIABLE_NON_VOLATILE;
     uint32_t indata = 0xdeadbeef;
     uint32_t outdata;
@@ -425,8 +426,9 @@ static void test_query_variable_info_bad_attrs(void)
             &max_storage_size, &remaining_storage_size, &max_variable_size);
     xen_variable_server_handle_request(comm_buf);
 
+
     ptr = comm_buf;
-    test(unserialize_result(&ptr) == EFI_UNSUPPORTED);
+    test(unserialize_result(&ptr) == EFI_SUCCESS);
 
     XenQueryVariableInfo(
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
@@ -441,7 +443,7 @@ static void test_query_variable_info_bad_attrs(void)
                          &max_variable_size);
     xen_variable_server_handle_request(comm_buf);
     ptr = comm_buf;
-    test(unserialize_result(&ptr) == EFI_UNSUPPORTED);
+    test(unserialize_result(&ptr) == EFI_INVALID_PARAMETER);
 }
 
 /**

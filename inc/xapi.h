@@ -4,7 +4,7 @@
 #include "common.h"
 #include <stdint.h>
 
-#define BIG_MESSAGE_SIZE (8 * PAGE_SIZE)
+#define BIG_MESSAGE_SIZE (64 * PAGE_SIZE)
 
 int xapi_init(bool);
 int xapi_set_efi_vars(void);
@@ -16,6 +16,7 @@ int xapi_variables_request(variable_t *variables, size_t n);
 int xapi_variables_read_file(variable_t *vars, size_t n, char *fname);
 
 int xapi_write_save_file(void);
+void xapi_cleanup(void);
 
 /* Helpers */
 int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,

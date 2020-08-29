@@ -1,5 +1,5 @@
-#include <stdint.h>
 #include <ctype.h>
+#include <stdint.h>
 
 #include "common.h"
 #include "storage.h"
@@ -43,11 +43,6 @@ uint64_t strlen16(const UTF16 *str)
 
 /**
  * Returns the size of the string in total bytes.
- *
- * Because this is measuring UTF16 strings, the size will always be
- * double the length.
- *
- * Does NOT include null-terminator.
  */
 uint64_t strsize16(const UTF16 *str)
 {
@@ -86,7 +81,7 @@ void dprint_name(const UTF16 *name, size_t namesz)
         return;
 
     uc2_ascii_safe(name, namesz, buf, MAX_VARIABLE_NAME_SIZE);
-    DPRINTF("Variable(%s)\n", buf);
+    DPRINTF("Variable(%s)", buf);
 }
 
 void dprint_variable_list(const variable_t *vars, size_t n)
@@ -151,12 +146,9 @@ int strcmp16(const UTF16 *a, const UTF16 *b)
 
 /**
  * Copies string `b` to string `a`.
- *
- * Adds null-terminator to `a`.  Won't exceed `n`. 
  */
 int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
 {
-    UTF16 *p;
     size_t b_sz;
 
     if (!a || !b)
@@ -164,13 +156,10 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
 
     b_sz = strsize16(b);
 
-    if (b_sz + sizeof(UTF16) > n)
+    if (b_sz > n)
         return -1;
 
     memcpy(a, b, b_sz);
-
-    p = a;
-    p[b_sz / sizeof(UTF16)] = 0;
 
     return 0;
 }
@@ -193,19 +182,19 @@ void dprint_data(const void *data, size_t datasz)
 }
 
 variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
-                          variable_t variables[MAX_VAR_COUNT], size_t n)
+                          variable_t *variables, size_t n)
 {
     variable_t *var;
     size_t i;
 
-    if (!name || !variables)
+    if (!name || !variables || !guid)
         return NULL;
 
     for (i = 0; i < n; i++) {
         var = &variables[i];
 
         if (strcmp16((UTF16 *)var->name, name) == 0 &&
-            memcmp(guid, &var->guid, sizeof(*guid)) == 0)
+            memcmp(guid, &var->guid, sizeof(EFI_GUID)) == 0)
             return var;
     }
 
@@ -236,4 +225,28 @@ char *strstrip(char *s)
         s++;
 
     return s;
+}
+
+const char *efi_status_str(EFI_STATUS status)
+{
+    switch (status) {
+    case EFI_SUCCESS:
+        return "EFI_SUCCESS";
+    case EFI_INVALID_PARAMETER:
+        return "EFI_INVALID_PARAMETER";
+    case EFI_UNSUPPORTED:
+        return "EFI_UNSUPPORTED";
+    case EFI_DEVICE_ERROR:
+        return "EFI_DEVICE_ERROR";
+    case EFI_NOT_FOUND:
+        return "EFI_NOT_FOUND";
+    case EFI_BUFFER_TOO_SMALL:
+        return "EFI_BUFFER_TOO_SMALL";
+    case EFI_OUT_OF_RESOURCES:
+        return "EFI_OUT_OF_RESOURCES";
+    default:
+        return "UNKNOWN";
+    }
+
+    return "UNKNOWN";
 }

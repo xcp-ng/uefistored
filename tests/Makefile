@@ -6,7 +6,7 @@ SRCS := $(patsubst %,../%,$(SRCS))
 HDRS := $(shell find . -type f -name '*.h')
 
 LIBS := -lssl -lcrypto -lxml2
-CFLAGS := -g -Wall -Werror
+CFLAGS := -g -Wall -Werror -fshort-wchar
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxml2 
 
 # Add mocks
@@ -37,8 +37,16 @@ all: test-nosan test
 test: src/main.c $(OBJS) $(TEST_OBJS) keys/.done $(HDRS)
 	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) $(TEST_OBJS) $(CFLAGS) -fsanitize=address -fsanitize=undefined -fsanitize=leak
 
+
+run-test: test
+    $<
+
 test-nosan: src/main.c $(TEST_OBJS) $(OBJS) keys $(HDRS)
 	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS)
+
+run-test-nosan: test-nosan
+    $<
+
 
 .PHONY: valgrind
 valgrind: test-nosan

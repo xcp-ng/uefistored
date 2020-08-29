@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -x
+set -e
 
 FUZZ_BIN=$1
 shift

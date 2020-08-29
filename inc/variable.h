@@ -51,5 +51,9 @@ int variable_set_name(variable_t *var, const UTF16 *name);
 void variable_printf(const variable_t *var);
 uint64_t variable_size(const variable_t *var);
 variable_t *variable_create_unserialize(const uint8_t **ptr);
+EFI_STATUS storage_iter(variable_t *var);
+
+#define variable_is_valid(var) \
+    ((var)->name && (var)->name[0] && (var)->namesz != 0)
 
 #endif // __H_VARIABLE_
