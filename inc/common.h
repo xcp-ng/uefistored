@@ -60,4 +60,6 @@ char *strstrip(char *s);
 
 void dprint_data(const void *data, size_t datasz);
 
+const char *efi_status_str(EFI_STATUS status);
+
 #endif
