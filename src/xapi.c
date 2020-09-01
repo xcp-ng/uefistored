@@ -542,6 +542,7 @@ end:
 static int send_request(char *message, char *buf, size_t bufsz)
 {
     int ret, fd;
+    int pos;
     struct sockaddr_un saddr;
 
     if (!socket_path)
@@ -573,16 +574,31 @@ static int send_request(char *message, char *buf, size_t bufsz)
         return ret;
     }
 
-    ret = read(fd, buf, bufsz);
+    pos = 0;
 
-    if (ret < 0) {
-        close(fd);
-        ERROR("read() failed: %d\n", ret);
+    while (pos < bufsz) {
+        ret = read(fd, buf + pos, bufsz - pos);
+
+        if (ret <= 0)
+            break;
+
+        pos += ret;
+    }
+
+    if (ret > 0)
+        pos += ret;
+
+    close(fd);
+
+    if (ret != -1 && ret < 0) {
+        ERROR("read() err: %d\n", ret);
         return ret;
     }
 
-    close(fd);
-    buf[ret] = '\0';
+    if (pos > bufsz)
+        return -1;
+
+    buf[pos] = '\0';
 
     return http_status(buf);
 }
@@ -659,13 +675,13 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
 {
     va_list ap;
     char message[BIG_MESSAGE_SIZE];
-    char body[3 * 1024];
+    char body[BIG_MESSAGE_SIZE];
     int hdr_len;
     size_t body_len;
     int ret;
 
     va_start(ap, format);
-    ret = vsnprintf(body, 3 * 1024, format, ap);
+    ret = vsnprintf(body, BIG_MESSAGE_SIZE, format, ap);
     va_end(ap);
 
     if (ret < 0)
@@ -681,7 +697,7 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
 
     strncat(message, body, BIG_MESSAGE_SIZE);
 
-    if (strlen(message) == (BIG_MESSAGE_SIZE - 1)) {
+    if (strlen(message) >= BIG_MESSAGE_SIZE) {
         WARNING("message length is exactly, equal to buffer length.  May have lost bytes!\n");
     }
 
