@@ -498,7 +498,6 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     char *body;
     size_t base64_size, body_len, hdr_len;
 
-    DEBUG("trace\n");
     base64 = variable_list_base64();
     if (!base64)
         return -1;
@@ -507,14 +506,12 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     body_len = sizeof(HTTP_BODY_SET_NVRAM_VARS) + base64_size - 1;
 
     body = malloc(body_len);
-    DEBUG("trace\n");
 
     if (!body) {
         free(base64);
         return -1;
     }
 
-    DEBUG("trace\n");
     ret = snprintf(body, body_len, HTTP_BODY_SET_NVRAM_VARS, base64);
 
     if (ret < 0) {
@@ -524,21 +521,18 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
 
     body_len = strlen(body);
 
-    DEBUG("trace\n");
     hdr_len = create_header(body_len, buffer, n);
-    DEBUG("trace\n");
+
     if (hdr_len < 0) {
         ret = -1;
         goto end;
     }
 
-    DEBUG("hdr_len = %lu, body_len=%lu, n=%lu\n", hdr_len, body_len, n);
     strncpy(buffer + hdr_len, body, n - hdr_len);
     buffer[body_len + hdr_len] = '\0';
 
     ret = 0;
 end:
-    DEBUG("trace\n");
     free(body);
     free(base64);
 
