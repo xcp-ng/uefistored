@@ -189,7 +189,7 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
 
     ret = from_bytes_to_vars(vars, n, mem, size);
 
-#if 1
+#if 0
     if (ret >= 0)
         dprint_variable_list(vars, ret);
 #endif
@@ -436,6 +436,15 @@ static uint8_t *variable_list_bytes(size_t *size, bool nonvolatile)
 
     if (ret <= 0)
         return NULL;
+
+#if 0
+    int i;
+
+    for (i=0; i<MAX_VAR_COUNT; i++) {
+        DPRINTF("%s:%d: ", __func__, __LINE__);
+        dprint_variable(&vars[i]);
+    }
+#endif
 
     *size = list_size(vars, ret);
     bytes = malloc(*size);
