@@ -126,16 +126,19 @@ int storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid)
     return storage_get(var->name, &var->guid, &var->attrs, var->data, &var->datasz);
 } 
 
+static size_t storage_iter_index = 0;
+
 EFI_STATUS storage_iter(variable_t *var)
 {
     variable_t *p;
-    static size_t i = 0;
 
-    for (; i<MAX_VAR_COUNT; i++) {
-        p = &variables[i];
+    while (storage_iter_index < MAX_VAR_COUNT) {
+        p = &variables[storage_iter_index];
 
         if (!p)
             goto err;
+
+        storage_iter_index++;
 
         if (!variable_is_valid(p))
             continue;
@@ -147,19 +150,16 @@ EFI_STATUS storage_iter(variable_t *var)
     }
 
     /* Reached all variables */
-    if (i == MAX_VAR_COUNT)
+    if (storage_iter_index >= MAX_VAR_COUNT)
     {
-        if (i > MAX_VAR_COUNT)
-            WARNING("i > MAX_VAR_COUNT, returning EFI_NOT_FOUND\n");
-
-        i = 0;
+        storage_iter_index = 0;
         return EFI_NOT_FOUND;
     }
 
     return EFI_SUCCESS;
 
 err:
-    i = 0;
+    storage_iter_index = 0;
     return EFI_DEVICE_ERROR;
 }
 
