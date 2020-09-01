@@ -16,7 +16,6 @@ bool efi_at_runtime = false;
 
 void set_efi_runtime(bool runtime)
 {
-    DEBUG("efi_at_runtime: %s\n", runtime ? "true" : "false");
     efi_at_runtime = runtime;
 }
 
