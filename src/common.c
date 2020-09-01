@@ -84,15 +84,6 @@ void dprint_name(const UTF16 *name, size_t namesz)
     DPRINTF("Variable(%s)", buf);
 }
 
-void dprint_variable_list(const variable_t *vars, size_t n)
-{
-    size_t i;
-
-    for (i = 0; i < n; i++) {
-        dprint_variable(&vars[i]);
-    }
-}
-
 /**
  * dprint_variable -  Debug print a variable
  *
@@ -102,26 +93,26 @@ void dprint_variable_list(const variable_t *vars, size_t n)
 
 void dprint_variable(const variable_t *var)
 {
-    dprint_name(var->name, var->namesz);
-    dprint_data(var->data, var->datasz);
-}
-
-/**
- * print_variable -  print a variable
- *
- * WARNING: this only prints ASCII characters correctly.
- * Any char code above 255 will be displayed incorrectly.
- */
-
-void print_variable(variable_t *var)
-{
-    char buf[MAX_VARIABLE_NAME_SIZE] = { 0 };
-
     if (!var)
         return;
 
-    uc2_ascii_safe(var->name, var->namesz, buf, MAX_VARIABLE_NAME_SIZE);
-    printf("Variable(%s)\n", buf);
+    dprint_name(var->name, var->namesz);
+    DPRINTF(", guid=0x%02x",var->guid.Data1);
+    DPRINTF(", attrs=0x%02x, ", var->attrs);
+    dprint_data(var->data, var->datasz);
+    DPRINTF("\n");
+}
+
+void dprint_variable_list(const variable_t *vars, size_t n)
+{
+    size_t i;
+
+    if (!vars)
+        return;
+
+    for (i = 0; i < n; i++) {
+        dprint_variable(&vars[i]);
+    }
 }
 
 /**
@@ -172,13 +163,10 @@ void dprint_data(const void *data, size_t datasz)
     if (!data)
         return;
 
-    DPRINTF("DATA: ");
+    DPRINTF("data=");
     for (i = 0; i < 8 && i < datasz; i++) {
-        if (i % 8 == 0)
-            DPRINTF("\n%02lx: 0x", i);
-        DPRINTF("%02x", p[i]);
+        DPRINTF("0x%02x ", p[i]);
     }
-    DPRINTF("\n");
 }
 
 variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
