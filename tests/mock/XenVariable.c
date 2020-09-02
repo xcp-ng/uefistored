@@ -75,7 +75,7 @@ XenNotifySecureBootFailure (
 
 static inline int EfiAtRuntime(void)
 {
-    return 1;
+    return 0;
 }
 
 EFI_STATUS

@@ -64,4 +64,12 @@ static inline void _test_eq_int64(const char *file_name, const char *test_name,
 #define test_eq_int64(val1, val2)                                              \
     _test_eq_int64(__FILE__, __func__, __LINE__, #val1, #val2, val1, val2)
 
+EFI_STATUS testutil_query_variable_info(uint32_t Attributes,
+                                   uint64_t *MaximumVariableStorageSize,
+                                   uint64_t *RemainingVariableStorageSize,
+                                   uint64_t *MaximumVariableSize);
+
+EFI_STATUS testutil_set_variable(wchar_t *name, EFI_GUID *guid,
+                                 uint32_t attr, size_t datasize, void *data);
+
 #endif //  __H_COMMON_
