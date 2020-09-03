@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 
+#include "uefi/authlib.h"
 #include "uefi/types.h"
 #include "test_common.h"
 
@@ -234,5 +235,6 @@ static void test_auth_variable_DER_conf(void)
 
 void test_auth(void)
 {
+    AuthVariableLibInitialize();
     test_auth_variable_DER_conf();
 }
