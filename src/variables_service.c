@@ -1,7 +1,7 @@
-#include "auth.h"
 #include "common.h"
 #include "log.h"
 #include "storage.h"
+#include "uefi/authlib.h"
 #include "uefi/types.h"
 #include "uefi/guids.h"
 #include "varnames.h"
@@ -131,7 +131,7 @@ EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
         return EFI_UNSUPPORTED;
 
     if (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
-        return process_variable(name, guid, data, datasz, attrs);
+        return AuthVariableLibProcessVariable(name, guid, data, datasz, attrs);
     }
 
     status = storage_set(name, guid, data, datasz, attrs);

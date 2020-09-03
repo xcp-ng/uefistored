@@ -104,7 +104,7 @@ EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *g
     uint8_t *data;
 
     if (!var || !name || !guid)
-        return -1;
+        return EFI_INVALID_PARAMETER;
 
     ret = variable_set_name(var, name);
 

@@ -22,11 +22,11 @@
 
 extern bool efi_at_runtime;
 
-static SHA256_CTX *mHashCtx;
-static uint8_t *mCertDbStore;
-static uint8_t mVendorKeyState;
-static uint32_t mMaxCertDbSize;
-static uint8_t mPlatformMode;
+extern SHA256_CTX *mHashCtx;
+extern uint8_t *mCertDbStore;
+extern uint8_t mVendorKeyState;
+extern uint32_t mMaxCertDbSize;
+extern uint8_t mPlatformMode;
 
 //
 // Public Exponent of RSA Key.
@@ -1604,6 +1604,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     variable_t var;
 
     memset(&org_variable_info, 0, sizeof(org_variable_info));
+    memset(&var, 0, sizeof(var));
 
     FindStatus = storage_get_var(&var, name, guid);
 
@@ -1904,15 +1905,10 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data, uint64_t da
 
     /* Find the variable in our db */
     status = storage_get_var(&var, name, guid);
-
-    if (status != EFI_SUCCESS) {
-        return status;
-    }
-
     variable_destroy_noalloc(&var);
 
     /* If it was found and the caller is request its deletion, then delete it */
-    if (is_delete_auth_variable(org_variable_info.Attributes, data, data_size, attrs)) {
+    if (status == EFI_SUCCESS && is_delete_auth_variable(org_variable_info.Attributes, data, data_size, attrs)) {
         /*
          * Allow the delete operation of common authenticated variable(AT or AW)
          * at user physical presence.
