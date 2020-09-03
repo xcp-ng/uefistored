@@ -1,9 +1,12 @@
-SRCS := src/storage.c                                           \
+SRCS := src/auth.c                                              \
         src/common.c                                            \
         src/log.c                                               \
         src/serializer.c                                        \
-        src/uefi/types.c                                         \
+        src/storage.c                                           \
+        src/uefi/types.c                                        \
         src/uefi/guids.c                                        \
+        src/uefi/x509.c                                         \
+        src/uefi/pkcs7_verify.c                                 \
         src/varnames.c                                          \
         src/variables_service.c                                 \
         src/variable.c                                          \

@@ -97,8 +97,9 @@ EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
     return EFI_SUCCESS;
 }
 
-int storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid)
+EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid)
 {
+    EFI_STATUS status = EFI_SUCCESS;
     int ret;
     uint8_t *data;
 
@@ -107,23 +108,42 @@ int storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid)
 
     ret = variable_set_name(var, name);
 
-    if (ret < 0)
-        return ret;
+    if (ret < 0) {
+        status = EFI_DEVICE_ERROR;
+        goto err;
+    }
 
-    if (variable_set_guid(var, guid) < 0)
-        return -1;
+    if (variable_set_guid(var, guid) < 0) {
+        status = EFI_DEVICE_ERROR;
+        goto err;
+    }
 
     data = malloc(MAX_VARIABLE_DATA_SIZE);
 
-    if (!data)
-        return -1;
+    if (!data) {
+        status = EFI_DEVICE_ERROR;
+        goto err;
+    }
 
     ret = variable_set_data(var, data, MAX_VARIABLE_DATA_SIZE);
 
     if (ret < 0)
-        return ret;
+    {
+        status = EFI_DEVICE_ERROR;
+        goto err;
+    }
 
-    return storage_get(var->name, &var->guid, &var->attrs, var->data, &var->datasz);
+    status = storage_get(var->name, &var->guid, &var->attrs, var->data, &var->datasz);
+
+    if (status != EFI_SUCCESS)
+        goto err;
+
+    return status;
+
+err:
+    variable_destroy_noalloc(var);
+    return status;
+
 } 
 
 static size_t storage_iter_index = 0;

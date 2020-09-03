@@ -11,11 +11,12 @@
 #include "log.h"
 #include "storage.h"
 #include "uefi/auth_var_format.h"
-#include "uefi/image_authentication.h"
-#include "uefi/types.h"
 #include "uefi/guids.h"
 #include "uefi/global_variable.h"
+#include "uefi/image_authentication.h"
 #include "uefi/pkcs7_verify.h"
+#include "uefi/types.h"
+#include "uefi/utils.h"
 #include "uefi/x509.h"
 #include "variable.h"
 
@@ -1692,7 +1693,7 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
     // Init state of Del. State may change due to secure check
     //
     Del = false;
-    if ((InCustomMode() && UserPhysicalPresent()) ||
+    if (InCustomMode() ||
         (mPlatformMode == SETUP_MODE && !IsPk)) {
         Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         PayloadSize = data_size - AUTHINFO2_SIZE(data);

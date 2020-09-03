@@ -24,6 +24,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *val,
                 const size_t len, const uint32_t attrs);
 void storage_destroy(void);
 EFI_STATUS storage_next(size_t *namesz, UTF16 *name, EFI_GUID *guid);
+EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid);
 int storage_exists(const UTF16 *name, const EFI_GUID *guid);
 uint64_t storage_used(void);
 EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid);
