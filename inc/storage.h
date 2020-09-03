@@ -28,5 +28,6 @@ EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *g
 int storage_exists(const UTF16 *name, const EFI_GUID *guid);
 uint64_t storage_used(void);
 EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid);
+EFI_STATUS storage_get_var_ptr(variable_t **var, const UTF16 *name, const EFI_GUID *guid);
 
 #endif

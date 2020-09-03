@@ -130,7 +130,7 @@ FilterSignatureList(void *data, uint64_t data_size, void *Newdata,
             CertList = (EFI_SIGNATURE_LIST *)data;
             while ((Size > 0) && (Size >= CertList->SignatureListSize)) {
                 if (compare_guid(&CertList->SignatureType,
-                                &NewCertList->SignatureType) &&
+                                 &NewCertList->SignatureType) &&
                     (CertList->SignatureSize == NewCertList->SignatureSize)) {
                     Cert = (EFI_SIGNATURE_DATA *)((uint8_t *)CertList +
                                                   sizeof(EFI_SIGNATURE_LIST) +
@@ -143,8 +143,8 @@ FilterSignatureList(void *data, uint64_t data_size, void *Newdata,
                         //
                         // Iterate each Signature data in this Signature List.
                         //
-                        if (memcmp(NewCert, Cert,
-                                       CertList->SignatureSize) == 0) {
+                        if (memcmp(NewCert, Cert, CertList->SignatureSize) ==
+                            0) {
                             IsNewCert = false;
                             break;
                         }
@@ -170,8 +170,8 @@ FilterSignatureList(void *data, uint64_t data_size, void *Newdata,
                     // Copy EFI_SIGNATURE_LIST header for only once.
                     //
                     memcpy(Tail, NewCertList,
-                            sizeof(EFI_SIGNATURE_LIST) +
-                                    NewCertList->SignatureHeaderSize);
+                           sizeof(EFI_SIGNATURE_LIST) +
+                                   NewCertList->SignatureHeaderSize);
                     Tail = Tail + sizeof(EFI_SIGNATURE_LIST) +
                            NewCertList->SignatureHeaderSize;
                 }
@@ -229,8 +229,8 @@ FilterSignatureList(void *data, uint64_t data_size, void *Newdata,
   @retval EFI_NOT_FOUND             Variable not found
 
 **/
-EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid,
-                                           void **data, uint64_t *data_size)
+EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
+                                       uint64_t *data_size)
 {
     variable_t var;
     EFI_STATUS status;
@@ -240,8 +240,9 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid,
     status = storage_get_var(&var, name, guid);
 
     if (status == EFI_SUCCESS) {
-        *data = var.data;
         *data_size = var.datasz;
+        *data = malloc(*data_size);
+        memcpy(*data, var.data, *data_size);
     }
 
     variable_destroy_noalloc(&var);
@@ -273,8 +274,8 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
     void *Orgdata;
     uint64_t Orgdata_size;
 
-    FindStatus = auth_internal_find_variable(name, guid, &Orgdata,
-                                                 &Orgdata_size);
+    FindStatus =
+            auth_internal_find_variable(name, guid, &Orgdata, &Orgdata_size);
 
     //
     // EFI_VARIABLE_APPEND_WRITE attribute only effects for existing variable
@@ -387,8 +388,8 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
     // then set "SecureBoot" to 0.
     //
     status = auth_internal_find_variable(EFI_SECURE_BOOT_MODE_NAME,
-                                             &gEfiGlobalVariableGuid, &data,
-                                             &data_size);
+                                         &gEfiGlobalVariableGuid, &data,
+                                         &data_size);
     //
     // If "SecureBoot" variable exists, then check "SetupMode" variable update.
     // If "SetupMode" variable is USER_MODE, "SecureBoot" variable is set to 1.
@@ -406,10 +407,10 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
         }
     }
 
-    status = storage_set(
-            EFI_SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid, &SecureBootMode,
-            sizeof(uint8_t),
-            EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    status = storage_set(EFI_SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid,
+                         &SecureBootMode, sizeof(uint8_t),
+                         EFI_VARIABLE_RUNTIME_ACCESS |
+                                 EFI_VARIABLE_BOOTSERVICE_ACCESS);
     if (EFI_ERROR(status)) {
         return status;
     }
@@ -418,8 +419,8 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
     // Check "SecureBootEnable" variable's existence. It can enable/disable secure boot feature.
     //
     status = auth_internal_find_variable(EFI_SECURE_BOOT_ENABLE_NAME,
-                                             &gEfiSecureBootEnableDisableGuid,
-                                             &data, &data_size);
+                                         &gEfiSecureBootEnableDisableGuid,
+                                         &data, &data_size);
 
     if (SecureBootMode == SECURE_BOOT_MODE_ENABLE) {
         //
@@ -504,7 +505,7 @@ EFI_STATUS CheckSignatureListFormat(UTF16 *name, EFI_GUID *guid, void *data,
              Index < (sizeof(mSupportSigItem) / sizeof(EFI_SIGNATURE_ITEM));
              Index++) {
             if (compare_guid(&SigList->SignatureType,
-                            &mSupportSigItem[Index].SigType)) {
+                             &mSupportSigItem[Index].SigType)) {
                 //
                 // The value of SignatureSize should always be 16 (size of SignatureOwner
                 // component) add the data length according to signature type.
@@ -540,7 +541,7 @@ EFI_STATUS CheckSignatureListFormat(UTF16 *name, EFI_GUID *guid, void *data,
                                               SigList->SignatureHeaderSize);
             CertLen = SigList->SignatureSize - sizeof(EFI_GUID);
             if (!RsaGetPublicKeyFromX509(CertData->SignatureData, CertLen,
-                                         (void*)&RsaContext)) {
+                                         (void *)&RsaContext)) {
                 return EFI_INVALID_PARAMETER;
             }
         }
@@ -597,12 +598,10 @@ EFI_STATUS VendorKeyIsModified(void)
         return status;
     }
 
-    return storage_set(
-            EFI_VENDOR_KEYS_VARIABLE_NAME,
-            &gEfiGlobalVariableGuid,
-            &mVendorKeyState,
-            sizeof(uint8_t),
-            EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+    return storage_set(EFI_VENDOR_KEYS_VARIABLE_NAME, &gEfiGlobalVariableGuid,
+                       &mVendorKeyState, sizeof(uint8_t),
+                       EFI_VARIABLE_RUNTIME_ACCESS |
+                               EFI_VARIABLE_BOOTSERVICE_ACCESS);
 }
 
 /**
@@ -616,8 +615,7 @@ EFI_STATUS VendorKeyIsModified(void)
   @retval  false             The FirstTime is later than the SecondTime.
 
 **/
-bool auth_internal_compare_timestamp(EFI_TIME *FirstTime,
-                                         EFI_TIME *SecondTime)
+bool auth_internal_compare_timestamp(EFI_TIME *FirstTime, EFI_TIME *SecondTime)
 {
     if (FirstTime->Year != SecondTime->Year) {
         return (bool)(FirstTime->Year < SecondTime->Year);
@@ -716,8 +714,7 @@ EFI_STATUS FindCertsFromDb(UTF16 *name, EFI_GUID *guid, uint8_t *data,
             // Check whether name matches.
             //
             if ((NameSize == strlen16(name)) &&
-                (memcmp(data + Offset, name, NameSize * sizeof(UTF16)) ==
-                 0)) {
+                (memcmp(data + Offset, name, NameSize * sizeof(UTF16)) == 0)) {
                 Offset = Offset + NameSize * sizeof(UTF16);
 
                 if (CertOffset != NULL) {
@@ -796,7 +793,7 @@ GetCertsFromDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs, uint8_t **CertData,
     // Get variable "certdb" or "certdbv".
     //
     status = auth_internal_find_variable(DbName, &gEfiCertDbGuid,
-                                             (void **)&data, &data_size);
+                                         (void **)&data, &data_size);
     if (EFI_ERROR(status)) {
         return status;
     }
@@ -860,7 +857,8 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     //
     // Get TopLevelCert tbsCertificate
     //
-    if (!X509GetTBSCert(TopLevelCert, TopLevelCertSize, &TbsCert, &TbsCertSize)) {
+    if (!X509GetTBSCert(TopLevelCert, TopLevelCertSize, &TbsCert,
+                        &TbsCertSize)) {
         DEBUG("Get Top-level Cert tbsCertificate failed!\n");
         return EFI_ABORTED;
     }
@@ -895,7 +893,6 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
 
     return EFI_SUCCESS;
 }
-
 
 /**
   Insert signer's certificates for common authenticated variable with name
@@ -963,7 +960,7 @@ InsertCertsToDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
     // Get variable "certdb" or "certdbv".
     //
     status = auth_internal_find_variable(DbName, &gEfiCertDbGuid,
-                                             (void **)&data, &data_size);
+                                         (void **)&data, &data_size);
     if (EFI_ERROR(status)) {
         return status;
     }
@@ -1024,17 +1021,17 @@ InsertCertsToDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
     memcpy(&Ptr->CertDataSize, &CertDataSize, sizeof(uint32_t));
 
     memcpy((uint8_t *)Ptr + sizeof(AUTH_CERT_DB_DATA), name,
-            NameSize * sizeof(UTF16));
+           NameSize * sizeof(UTF16));
 
     memcpy((uint8_t *)Ptr + sizeof(AUTH_CERT_DB_DATA) +
-                    NameSize * sizeof(UTF16),
-            Sha256Digest, CertDataSize);
+                   NameSize * sizeof(UTF16),
+           Sha256Digest, CertDataSize);
 
     //
     // Set "certdb" or "certdbv".
     //
-    status = storage_set(
-            DbName, &gEfiCertDbGuid, NewCertDb, NewCertDbSize, VarAttr);
+    status = storage_set(DbName, &gEfiCertDbGuid, NewCertDb, NewCertDbSize,
+                         VarAttr);
 
     return status;
 }
@@ -1140,7 +1137,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
 
     if ((OrgTimeStamp != NULL) && ((attrs & EFI_VARIABLE_APPEND_WRITE) == 0)) {
         if (auth_internal_compare_timestamp(&CertData->TimeStamp,
-                                                OrgTimeStamp)) {
+                                            OrgTimeStamp)) {
             //
             // TimeStamp check fail, suspicious replay attack, return EFI_SECURITY_VIOLATION.
             //
@@ -1166,7 +1163,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     //
     Sigdata = CertData->AuthInfo.CertData;
     SigDataSize = CertData->AuthInfo.Hdr.dwLength -
-                   (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
+                  (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
 
     //
     // Signeddata.digestAlgorithms shall contain the digest algorithm used when preparing the
@@ -1186,7 +1183,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         if (SigDataSize >= (13 + sizeof(mSha256OidValue))) {
             if (((*(Sigdata + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
                 (memcmp(Sigdata + 13, &mSha256OidValue,
-                            sizeof(mSha256OidValue)) != 0)) {
+                        sizeof(mSha256OidValue)) != 0)) {
                 return EFI_SECURITY_VIOLATION;
             }
         }
@@ -1257,8 +1254,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         // in Signeddata. If not, return error immediately.
         //
         status = auth_internal_find_variable(EFI_PLATFORM_KEY_NAME,
-                                                 &gEfiGlobalVariableGuid, &data,
-                                                 &data_size);
+                                             &gEfiGlobalVariableGuid, &data,
+                                             &data_size);
         if (EFI_ERROR(status)) {
             Verifystatus = false;
             goto Exit;
@@ -1286,8 +1283,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         // Get KEK database from variable.
         //
         status = auth_internal_find_variable(EFI_KEY_EXCHANGE_KEY_NAME,
-                                                 &gEfiGlobalVariableGuid, &data,
-                                                 &data_size);
+                                             &gEfiGlobalVariableGuid, &data,
+                                             &data_size);
         if (EFI_ERROR(status)) {
             free(Newdata);
             return status;
@@ -1369,8 +1366,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                         ReadUnaligned32(
                                 (uint32_t *)&(CertDataPtr->CertDataLength)),
                         TopLevelCert, TopLevelCertSize, Sha256Digest);
-                if (EFI_ERROR(status) || memcmp(Sha256Digest, CertsInCertDb,
-                                                    CertsSizeinDb) != 0) {
+                if (EFI_ERROR(status) ||
+                    memcmp(Sha256Digest, CertsInCertDb, CertsSizeinDb) != 0) {
                     goto Exit;
                 }
             } else {
@@ -1378,8 +1375,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                 // Keep backward compatible with previous solution which saves whole signer certs stack in CertDb
                 //
                 if ((CertStackSize != CertsSizeinDb) ||
-                    (memcmp(SignerCerts, CertsInCertDb, CertsSizeinDb) !=
-                     0)) {
+                    (memcmp(SignerCerts, CertsInCertDb, CertsSizeinDb) != 0)) {
                     goto Exit;
                 }
             }
@@ -1498,7 +1494,7 @@ delete_certs_from_db(UTF16 *name, EFI_GUID *guid, uint32_t attrs)
     }
 
     status = auth_internal_find_variable(DbName, &gEfiCertDbGuid,
-                                             (void **)&data, &data_size);
+                                         (void **)&data, &data_size);
 
     if (EFI_ERROR(status)) {
         return status;
@@ -1548,20 +1544,18 @@ delete_certs_from_db(UTF16 *name, EFI_GUID *guid, uint32_t attrs)
     // Copy the DB entries after deleting node.
     //
     if (data_size > (CertNodeOffset + CertNodeSize)) {
-        memcpy(NewCertDb + CertNodeOffset,
-                data + CertNodeOffset + CertNodeSize,
-                data_size - CertNodeOffset - CertNodeSize);
+        memcpy(NewCertDb + CertNodeOffset, data + CertNodeOffset + CertNodeSize,
+               data_size - CertNodeOffset - CertNodeSize);
     }
 
     //
     // Set "certdb" or "certdbv".
     //
-    status = storage_set(
-            DbName, &gEfiCertDbGuid, NewCertDb, NewCertDbSize, VarAttr);
+    status = storage_set(DbName, &gEfiCertDbGuid, NewCertDb, NewCertDbSize,
+                         VarAttr);
 
     return status;
 }
-
 
 /**
   Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
@@ -1694,8 +1688,7 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
     // Init state of Del. State may change due to secure check
     //
     Del = false;
-    if (InCustomMode() ||
-        (mPlatformMode == SETUP_MODE && !IsPk)) {
+    if (InCustomMode() || (mPlatformMode == SETUP_MODE && !IsPk)) {
         Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         PayloadSize = data_size - AUTHINFO2_SIZE(data);
         if (PayloadSize == 0) {
@@ -1891,24 +1884,24 @@ bool is_delete_auth_variable(uint32_t Orgattrs, void *data, uint64_t data_size,
   @return EFI_SUCCESS Variable is not write-protected or pass validation successfully.
 
 **/
-EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data, uint64_t data_size,
-                 uint32_t attrs)
+EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
+                            uint64_t data_size, uint32_t attrs)
 {
-    variable_t var;
+    variable_t *var;
     EFI_STATUS status;
     AUTH_VARIABLE_INFO org_variable_info;
 
     status = EFI_SUCCESS;
 
     memset(&org_variable_info, 0, sizeof(org_variable_info));
-    memset(&var, 0, sizeof(var));
 
     /* Find the variable in our db */
-    status = storage_get_var(&var, name, guid);
-    variable_destroy_noalloc(&var);
+    status = storage_get_var_ptr(&var, name, guid);
 
     /* If it was found and the caller is request its deletion, then delete it */
-    if (status == EFI_SUCCESS && is_delete_auth_variable(org_variable_info.Attributes, data, data_size, attrs)) {
+    if (status == EFI_SUCCESS &&
+        is_delete_auth_variable(org_variable_info.Attributes, data, data_size,
+                                attrs)) {
         /*
          * Allow the delete operation of common authenticated variable(AT or AW)
          * at user physical presence.
@@ -1918,8 +1911,9 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data, uint64_t da
         if (status != EFI_SUCCESS) {
             return status;
         }
-    
-        if (((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) != 0)) {
+
+        if (((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) !=
+             0)) {
             status = delete_certs_from_db(name, guid, attrs);
         }
 
@@ -1953,11 +1947,9 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data, uint64_t da
     //
     // Not authenticated variable, just update variable as usual.
     //
-    status = storage_set(name, guid, data, data_size,
-                                               attrs);
+    status = storage_set(name, guid, data, data_size, attrs);
     return status;
 }
-
 
 /**
   Clean up signer's certificates for common authenticated variable
@@ -1997,8 +1989,8 @@ CleanCertsFromDb(void)
         //
         // Get latest variable "certdb"
         //
-        status = auth_internal_find_variable(
-                EFI_CERT_DB_NAME, &gEfiCertDbGuid, (void **)&data, &data_size);
+        status = auth_internal_find_variable(EFI_CERT_DB_NAME, &gEfiCertDbGuid,
+                                             (void **)&data, &data_size);
         if (EFI_ERROR(status)) {
             return status;
         }
@@ -2023,7 +2015,7 @@ CleanCertsFromDb(void)
                 return EFI_OUT_OF_RESOURCES;
             }
             memcpy(name, (uint8_t *)Ptr + sizeof(AUTH_CERT_DB_DATA),
-                    NameSize * sizeof(UTF16));
+                   NameSize * sizeof(UTF16));
             //
             // Keep VarGuid  aligned
             //
@@ -2043,7 +2035,7 @@ CleanCertsFromDb(void)
                  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
                 status = delete_certs_from_db(name, &AuthVarGuid, var.attrs);
                 CertCleaned = true;
-                
+
                 DEBUG("Recovery!! Cert for Auth Variable is removed for consistency\n");
                 free(name);
                 variable_destroy_noalloc(&var);
@@ -2058,4 +2050,3 @@ CleanCertsFromDb(void)
 
     return status;
 }
-

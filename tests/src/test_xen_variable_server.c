@@ -405,6 +405,7 @@ static void test_runtime_access_attr(void)
      */
     status =
             deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
+
     test(status == EFI_NOT_FOUND);
 }
 
@@ -452,16 +453,16 @@ static void test_query_variable_info_bad_attrs(void)
 static void test_valid_attrs(void)
 {
     /* We don't support authenticated writes yet */
-    test(valid_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
-                     EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS) == false);
+    test(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
+                     EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS) != EFI_SUCCESS);
 
     /* We don't support hardware error record yet  */
-    test(valid_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
-                     EFI_VARIABLE_HARDWARE_ERROR_RECORD) == false);
+    test(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
+                     EFI_VARIABLE_HARDWARE_ERROR_RECORD) != EFI_SUCCESS);
 
     /* Runetime accesss requires boot access */
-    test(valid_attrs(EFI_VARIABLE_RUNTIME_ACCESS &
-                     ~EFI_VARIABLE_BOOTSERVICE_ACCESS) == false);
+    test(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS &
+                     ~EFI_VARIABLE_BOOTSERVICE_ACCESS) != EFI_SUCCESS);
 }
 
 /**
@@ -480,7 +481,7 @@ static void test_query_variable_info(void)
     attrs = 1 << 31;
 
     while (attrs) {
-        if (!valid_attrs(attrs)) {
+        if (evaluate_attrs(attrs) != EFI_SUCCESS) {
             attrs >>= 1;
             continue;
         }

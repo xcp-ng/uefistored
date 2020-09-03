@@ -97,6 +97,21 @@ EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
     return EFI_SUCCESS;
 }
 
+EFI_STATUS storage_get_var_ptr(variable_t **var, const UTF16 *name, const EFI_GUID *guid)
+{
+    if (!var || !name || !guid) {
+        return EFI_DEVICE_ERROR;
+    }
+
+    *var = find_variable(name, guid, variables, MAX_VAR_COUNT);
+
+    if (!*var) {
+        return EFI_NOT_FOUND;
+    }
+
+    return EFI_SUCCESS;
+}
+
 EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid)
 {
     EFI_STATUS status = EFI_SUCCESS;
@@ -130,15 +145,18 @@ EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *g
     if (ret < 0)
     {
         status = EFI_DEVICE_ERROR;
-        goto err;
+        goto err2;
     }
 
     status = storage_get(var->name, &var->guid, &var->attrs, var->data, &var->datasz);
 
     if (status != EFI_SUCCESS)
-        goto err;
+        goto err2;
 
     return status;
+
+err2:
+    free(data);
 
 err:
     variable_destroy_noalloc(var);
@@ -239,6 +257,11 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
             continue;
 
         if (strcmp16(var->name, name) == 0 && memcmp(&var->guid, guid, sizeof(EFI_GUID)) == 0) {
+
+            /* If the attrs are different, then return EFI_UNSUPPORTED */
+            if (var->attrs != attrs)
+                return EFI_INVALID_PARAMETER;
+
             ret = variable_set_name(var, name);
 
             if (ret == -2)

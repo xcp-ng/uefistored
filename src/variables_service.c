@@ -16,14 +16,23 @@ void set_efi_runtime(bool runtime)
     efi_at_runtime = runtime;
 }
 
-bool valid_attrs(uint32_t attrs)
+EFI_STATUS evaluate_attrs(uint32_t attrs)
 {
+    /* No support for hardware error record */
     if (attrs & EFI_VARIABLE_HARDWARE_ERROR_RECORD)
-        return false;
+        return EFI_UNSUPPORTED;
+    /* If RT is set, BS must also be set */
     else if ((attrs & RT_BS_ATTRS) == EFI_VARIABLE_RUNTIME_ACCESS)
-        return false;
+        return EFI_INVALID_PARAMETER;
+    /* Not both authentication bits may be set */
+    else if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) && \
+             (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS))
+        return EFI_UNSUPPORTED;
+    /* We do not support EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS */
+    else if (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS)
+        return EFI_UNSUPPORTED;
 
-    return true;
+    return EFI_SUCCESS;
 }
 
 /**
@@ -127,7 +136,9 @@ EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
     if (is_ro(name))
         return EFI_WRITE_PROTECTED;
 
-    if (!valid_attrs(attrs))
+    status = evaluate_attrs(attrs);
+
+    if (status != EFI_SUCCESS)
         return EFI_UNSUPPORTED;
 
     if (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {

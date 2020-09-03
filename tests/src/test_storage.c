@@ -227,7 +227,12 @@ static void test_set_different_attrs(void)
 
     for (i=0; i<sizeof(attrs)/sizeof(attrs[0]); i++) {
         status = storage_set(var->name, &var->guid, var->data, var->datasz, attrs[i]);
-        test(status == EFI_SUCCESS);
+
+        if (i == 0)
+            test(status == EFI_SUCCESS);
+        else
+            test(status == EFI_INVALID_PARAMETER);
+
         status = storage_get(name, &guid, &attr, data, &datasz);
         test(status == EFI_SUCCESS);
     }
