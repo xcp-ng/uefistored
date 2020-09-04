@@ -243,9 +243,9 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
         *data_size = var.datasz;
         *data = malloc(*data_size);
         memcpy(*data, var.data, *data_size);
+        variable_destroy_noalloc(&var);
     }
 
-    variable_destroy_noalloc(&var);
 
     return status;
 }
