@@ -72,7 +72,6 @@ EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
     var = find_variable(name, guid, variables, MAX_VAR_COUNT);
 
     if (!var) {
-        DEBUG("find_variable() == NULL\n");
         return EFI_NOT_FOUND;
     }
 
