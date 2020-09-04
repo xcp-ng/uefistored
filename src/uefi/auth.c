@@ -799,7 +799,6 @@ GetCertsFromDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs, uint8_t **CertData,
     }
 
     if ((data_size == 0) || (data == NULL)) {
-        assert(false);
         return EFI_NOT_FOUND;
     }
 
@@ -966,7 +965,6 @@ InsertCertsToDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
     }
 
     if ((data_size == 0) || (data == NULL)) {
-        assert(false);
         return EFI_NOT_FOUND;
     }
 
@@ -978,7 +976,6 @@ InsertCertsToDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
                              NULL);
 
     if (!EFI_ERROR(status)) {
-        assert(false);
         return EFI_ACCESS_DENIED;
     }
 
@@ -1501,7 +1498,6 @@ delete_certs_from_db(UTF16 *name, EFI_GUID *guid, uint32_t attrs)
     }
 
     if ((data_size == 0) || (data == NULL)) {
-        assert(false);
         return EFI_NOT_FOUND;
     }
 
@@ -1996,7 +1992,6 @@ CleanCertsFromDb(void)
         }
 
         if ((data_size == 0) || (data == NULL)) {
-            assert(false);
             return EFI_NOT_FOUND;
         }
 
