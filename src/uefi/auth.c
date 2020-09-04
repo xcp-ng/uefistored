@@ -1589,19 +1589,23 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     uint8_t *PayloadPtr;
     uint64_t PayloadSize;
     EFI_VARIABLE_AUTHENTICATION_2 *CertData;
-    AUTH_VARIABLE_INFO org_variable_info;
     bool IsDel;
-    variable_t var;
+    EFI_TIME *TimeStamp = NULL;
+    variable_t *var = NULL;
 
-    memset(&org_variable_info, 0, sizeof(org_variable_info));
     memset(&var, 0, sizeof(var));
 
-    FindStatus = storage_get_var(&var, name, guid);
+    FindStatus = storage_get_var_ptr(&var, name, guid);
+
+    if (FindStatus == EFI_SUCCESS) {
+        TimeStamp = &((EFI_VARIABLE_AUTHENTICATION_2 *)var->data)->TimeStamp;
+    }
 
     status = VerifyTimeBasedPayload(
             name, guid, data, data_size, attrs, AuthVarType,
-            (!EFI_ERROR(FindStatus)) ? org_variable_info.TimeStamp : NULL,
+            TimeStamp,
             &PayloadPtr, &PayloadSize);
+
     if (EFI_ERROR(status)) {
         return status;
     }
@@ -1619,7 +1623,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     // Final step: Update/Append Variable if it pass Pkcs7Verify
     //
     status = auth_internal_update_variable_with_timestamp(
-            name, guid, PayloadPtr, PayloadSize, attrs, &CertData->TimeStamp);
+            name, guid, data, data_size, attrs, &CertData->TimeStamp);
 
     //
     // Delete signer's certificates when delete the common authenticated variable.
