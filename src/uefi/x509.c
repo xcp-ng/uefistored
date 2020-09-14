@@ -432,9 +432,12 @@ bool RsaGetPublicKeyFromX509(const uint8_t *Cert, uint64_t CertSize,
     //
     // Duplicate RSA Context from the retrieved EVP_PKEY.
     //
-    if ((*RsaContext = RSAPublicKey_dup(EVP_PKEY_get0_RSA(Pkey))) != NULL) {
+    //
+    RSA *rsa = EVP_PKEY_get1_RSA(Pkey);
+    if (((*RsaContext = RSAPublicKey_dup(rsa)) != NULL)) {
         Status = true;
     }
+    RSA_free(rsa);
 
 _Exit:
     //
