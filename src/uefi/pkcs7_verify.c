@@ -538,7 +538,7 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
     // Initialize Chained & Untrusted stack
     //
     CtxChain = X509_STORE_CTX_get0_chain(CertCtx);
-    CtxCert = X509_STORE_CTX_get0_cert(CertCtx);
+    CtxCert = X509_STORE_CTX_get_current_cert(CertCtx);
     if (CtxChain == NULL) {
         if (((CtxChain = sk_X509_new_null()) == NULL) ||
             (!sk_X509_push(CtxChain, CtxCert))) {
@@ -689,6 +689,10 @@ bool Pkcs7GetCertificatesList(const uint8_t *P7Data, uint64_t P7Length,
     Status = true;
 
 _Error:
+    if (CtxCert) {
+        sk_X509_pop_free(CtxChain, X509_free);
+    }
+
     //
     // Release Resources.
     //
