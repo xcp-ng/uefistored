@@ -232,20 +232,15 @@ FilterSignatureList(void *data, uint64_t data_size, void *Newdata,
 EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
                                        uint64_t *data_size)
 {
-    variable_t var;
+    variable_t *var;
     EFI_STATUS status;
 
-    memset(&var, 0, sizeof(var));
-
-    status = storage_get_var(&var, name, guid);
+    status = storage_get_var_ptr(&var, name, guid);
 
     if (status == EFI_SUCCESS) {
-        *data_size = var.datasz;
-        *data = malloc(*data_size);
-        memcpy(*data, var.data, *data_size);
-        variable_destroy_noalloc(&var);
+        *data_size = var->datasz;
+        *data = var->data;
     }
-
 
     return status;
 }
@@ -295,7 +290,7 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
         }
     }
 
-    return storage_set(name, guid, data, data_size, attrs);
+    return storage_set_with_timestamp(name, guid, data, data_size, attrs, TimeStamp);
 }
 
 /**
@@ -582,17 +577,20 @@ EFI_STATUS CheckSignatureListFormat(UTF16 *name, EFI_GUID *guid, void *data,
 EFI_STATUS VendorKeyIsModified(void)
 {
     EFI_STATUS status;
+    EFI_TIME DummyTimeStamp;
+
+    memset(&DummyTimeStamp, 0, sizeof(DummyTimeStamp));
 
     if (mVendorKeyState == VENDOR_KEYS_MODIFIED) {
         return EFI_SUCCESS;
     }
     mVendorKeyState = VENDOR_KEYS_MODIFIED;
 
-    status = storage_set(
+    status = storage_set_with_timestamp(
             EFI_VENDOR_KEYS_NV_VARIABLE_NAME, &gEfiVendorKeysNvGuid,
             &mVendorKeyState, sizeof(uint8_t),
             EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS);
+                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS, &DummyTimeStamp);
 
     if (EFI_ERROR(status)) {
         return status;
@@ -795,10 +793,12 @@ GetCertsFromDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs, uint8_t **CertData,
     status = auth_internal_find_variable(DbName, &gEfiCertDbGuid,
                                          (void **)&data, &data_size);
     if (EFI_ERROR(status)) {
+        free(data);
         return status;
     }
 
     if ((data_size == 0) || (data == NULL)) {
+        free(data);
         return EFI_NOT_FOUND;
     }
 
@@ -806,6 +806,7 @@ GetCertsFromDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs, uint8_t **CertData,
                              CertDataSize, NULL, NULL);
 
     if (EFI_ERROR(status)) {
+        free(data);
         return status;
     }
 
@@ -1417,7 +1418,6 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
 Exit:
-
     free(Newdata);
 
     if (AuthVarType == AuthVarTypePk || AuthVarType == AuthVarTypePriv) {
@@ -1532,6 +1532,7 @@ delete_certs_from_db(UTF16 *name, EFI_GUID *guid, uint32_t attrs)
     // Copy the DB entries before deleting node.
     //
     memcpy(NewCertDb, data, CertNodeOffset);
+
     //
     // Update CertDbListSize.
     //
@@ -1598,7 +1599,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     FindStatus = storage_get_var_ptr(&var, name, guid);
 
     if (FindStatus == EFI_SUCCESS) {
-        TimeStamp = &((EFI_VARIABLE_AUTHENTICATION_2 *)var->data)->TimeStamp;
+        TimeStamp = &var->timestamp;
     }
 
     status = VerifyTimeBasedPayload(
@@ -1623,7 +1624,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     // Final step: Update/Append Variable if it pass Pkcs7Verify
     //
     status = auth_internal_update_variable_with_timestamp(
-            name, guid, data, data_size, attrs, &CertData->TimeStamp);
+            name, guid, PayloadPtr, PayloadSize, attrs, &CertData->TimeStamp);
 
     //
     // Delete signer's certificates when delete the common authenticated variable.
@@ -1900,7 +1901,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
 
     /* If it was found and the caller is request its deletion, then delete it */
     if (status == EFI_SUCCESS &&
-        is_delete_auth_variable(org_variable_info.Attributes, data, data_size,
+        is_delete_auth_variable(var->attrs, data, data_size,
                                 attrs)) {
         /*
          * Allow the delete operation of common authenticated variable(AT or AW)

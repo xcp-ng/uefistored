@@ -76,3 +76,47 @@ EFI_STATUS testutil_query_variable_info(uint32_t attr,
 
     return status;
 }
+
+EFI_STATUS testutil_get_variable(UTF16 *variable, EFI_GUID *guid,
+                                 uint32_t *attrs, size_t *size,
+                                 void *data)
+{
+    EFI_STATUS status;
+    uint32_t attr;
+    const uint8_t *outptr;
+    uint8_t *ptr;
+
+    if (!variable || !guid || !attrs || !size || !data)
+        return EFI_INVALID_PARAMETER;
+
+    ptr = comm_buf;
+    serialize_uint32(&ptr, 1); /* version */
+    serialize_command(&ptr, COMMAND_GET_VARIABLE);
+    serialize_name(&ptr, variable);
+    serialize_guid(&ptr, guid);
+    serialize_uintn(&ptr, *size);
+    serialize_boolean(&ptr, EFI_AT_RUNTIME);
+
+    exec_command(comm_buf);
+
+    outptr = comm_buf;
+    status = unserialize_result(&outptr);
+
+    switch (status) {
+    case EFI_SUCCESS:
+        if (!data)
+            return EFI_INVALID_PARAMETER;
+        attr = unserialize_uint32(&outptr);
+        if (attrs)
+            *attrs = attr;
+        *size = unserialize_data(&outptr, data, *size);
+        break;
+    case EFI_BUFFER_TOO_SMALL:
+        *size = unserialize_uintn(&outptr);
+        break;
+    default:
+        break;
+    }
+
+    return status;
+}

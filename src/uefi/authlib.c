@@ -118,7 +118,7 @@ AuthVariableLibInitialize(void)
 {
     EFI_STATUS Status;
     uint32_t VarAttr;
-    uint8_t *Data;
+    uint8_t *Data = NULL;
     uint64_t DataSize;
     uint8_t SecureBootMode;
     uint8_t SecureBootEnable;
@@ -146,7 +146,8 @@ AuthVariableLibInitialize(void)
         DEBUG("Variable 'PK'  exists\n");
     }
 
-    free(Data);
+    if (Data)
+        free(Data);
 
     //
     // Create "SetupMode" variable with BS+RT attribute set.
@@ -252,9 +253,12 @@ AuthVariableLibInitialize(void)
         VarAttr = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS |
                   EFI_VARIABLE_BOOTSERVICE_ACCESS |
                   EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
+
         ListSize = sizeof(uint32_t);
+
         Status = storage_set(EFI_CERT_DB_NAME, &gEfiCertDbGuid, &ListSize,
-                             sizeof(uint32_t), VarAttr);
+                             sizeof(ListSize), VarAttr);
+
         if (EFI_ERROR(Status)) {
             return Status;
         }
@@ -274,9 +278,12 @@ AuthVariableLibInitialize(void)
     //
     VarAttr = EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS |
               EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
+
     ListSize = sizeof(uint32_t);
+
     Status = storage_set(EFI_CERT_DB_VOLATILE_NAME, &gEfiCertDbGuid, &ListSize,
                          sizeof(uint32_t), VarAttr);
+
     if (EFI_ERROR(Status)) {
         return Status;
     }
@@ -294,11 +301,14 @@ AuthVariableLibInitialize(void)
         // "VendorKeysNv" not exist, initialize it in VENDOR_KEYS_VALID state.
         //
         mVendorKeyState = VENDOR_KEYS_VALID;
+
+
         Status = storage_set(
                 EFI_VENDOR_KEYS_NV_VARIABLE_NAME, &gEfiVendorKeysNvGuid,
                 &mVendorKeyState, sizeof(uint8_t),
                 EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
                         EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS);
+
         if (EFI_ERROR(Status)) {
             free(Data);
             return Status;
@@ -340,6 +350,8 @@ AuthVariableLibInitialize(void)
   AuthVarLibContextOut->AddressPointer = mAuthVarAddressPointer;
   AuthVarLibContextOut->AddressPointerCount = ARRAY_SIZE (mAuthVarAddressPointer);
 #endif
+
+    mHashCtx = malloc(sizeof(SHA256_CTX));
 
     return Status;
 }

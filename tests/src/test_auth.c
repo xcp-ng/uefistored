@@ -8,6 +8,7 @@
 
 #include "uefi/authlib.h"
 #include "uefi/types.h"
+#include "storage.h"
 #include "test_common.h"
 
 static uint8_t invalid_der[] = {
@@ -234,8 +235,17 @@ static void test_auth_variable_DER_conf(void)
     }
 }
 
+static void pre_test(void)
+{
+}
+
+static void post_test(void)
+{
+}
+
 void test_auth(void)
 {
     AuthVariableLibInitialize();
-    test_auth_variable_DER_conf();
+    DO_TEST(test_auth_variable_DER_conf);
+    storage_deinit();
 }

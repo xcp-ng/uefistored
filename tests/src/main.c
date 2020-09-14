@@ -7,6 +7,7 @@
 #include "log.h"
 
 #include "test_auth.h"
+#include "test_auth_func.h"
 #include "test_common.h"
 #include "test_deserialization.h"
 #include "test_storage.h"
@@ -25,11 +26,14 @@ int open_logfile(void)
 
 int main(void)
 {
+#if 0
     test_xen_variable_server();
     test_xapi();
     test_storage();
     test_deserialization();
     test_auth();
+#endif
+    test_auth_func();
 
     printf("\nPASSED (%d), FAILED (%d)\n", passcount, failcount);
     return failcount == 0 ? 0 : -1;

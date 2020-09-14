@@ -42,8 +42,12 @@ static inline void _test(const char *file_name, const char *test_name,
     }
 }
 
-#define test(assertion)                                                        \
-    _test(__FILE__, __func__, __LINE__, #assertion, assertion)
+#define test(assertion)                                                         \
+        do {                                                                    \
+            _test(__FILE__, __func__, __LINE__, #assertion, assertion);         \
+            if (!(assertion))                                                   \
+                return;                                                         \
+        } while( 0 )
 
 static inline void _test_eq_int64(const char *file_name, const char *test_name,
                                   int lineno, const char *val1_str,
@@ -71,5 +75,9 @@ EFI_STATUS testutil_query_variable_info(uint32_t Attributes,
 
 EFI_STATUS testutil_set_variable(wchar_t *name, EFI_GUID *guid,
                                  uint32_t attr, size_t datasize, void *data);
+
+EFI_STATUS testutil_get_variable(UTF16 *variable, EFI_GUID *guid,
+                                 uint32_t *attrs, size_t *size,
+                                 void *data);
 
 #endif //  __H_COMMON_

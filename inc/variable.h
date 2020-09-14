@@ -23,6 +23,9 @@ typedef struct {
 
     /* The variable attributes */
     uint32_t attrs;
+
+    /* EFI timestamp for time based auth */
+    EFI_TIME timestamp;
 } variable_t;
 
 #define for_each_variable(vars, var)                                           \

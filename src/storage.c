@@ -302,6 +302,30 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
     return EFI_DEVICE_ERROR;
 }
 
+EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid, const void *data,
+                const size_t datasz, const uint32_t attrs, EFI_TIME *timestamp)
+{
+    EFI_STATUS status;
+    variable_t *var;
+
+    if (!name || !data || !guid || !timestamp)
+        return EFI_DEVICE_ERROR;
+
+    status = storage_set(name, guid, data, datasz, attrs);
+
+    if (status != EFI_SUCCESS)
+        return status;
+
+    status = storage_get_var_ptr(&var, name, guid);
+
+    if (status != EFI_SUCCESS)
+        return status;
+
+    memcpy(&var->timestamp, timestamp, sizeof(var->timestamp));
+
+    return EFI_SUCCESS;
+}
+
 uint64_t storage_used(void)
 {
     return used;
