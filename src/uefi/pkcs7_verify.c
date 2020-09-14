@@ -870,7 +870,7 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     // still trusted intermediate certificate. Also disable time checks.
     //
     X509_STORE_set_flags(CertStore,
-                         X509_V_FLAG_PARTIAL_CHAIN | X509_V_FLAG_NO_CHECK_TIME);
+                         X509_V_FLAG_PARTIAL_CHAIN);
 
     //
     // OpenSSL PKCS7 Verification by default checks for SMIME (email signing) and
