@@ -235,7 +235,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
     size_t namesz;
     variable_t *var;
 
-    if (!name || !data || !guid)
+    if (!name || !guid)
         return EFI_DEVICE_ERROR;
 
     namesz = strsize16(name);
@@ -248,6 +248,10 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
     /* As specified by the UEFI spec */
     if (datasz == 0 || attrs == 0)
         return storage_remove(name, guid);
+
+    /* Caller passed in a null pointer as data */
+    if (!data)
+        return EFI_DEVICE_ERROR;
 
     /* If it already exists, replace it */
     for_each_variable(variables, var)
