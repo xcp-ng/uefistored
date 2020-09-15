@@ -1136,6 +1136,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
     ret = from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
 
 #if 0
+    DEBUG("Variables(%d) from XAPI DB\n============================\n", ret);
     if ( ret >= 0 )
         dprint_variable_list(vars, ret);
 #endif
