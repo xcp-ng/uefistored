@@ -142,10 +142,10 @@ EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
         return EFI_UNSUPPORTED;
 
     if (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
-        return AuthVariableLibProcessVariable(name, guid, data, datasz, attrs);
+        status = AuthVariableLibProcessVariable(name, guid, data, datasz, attrs);
+    } else {
+        status = storage_set(name, guid, data, datasz, attrs);
     }
-
-    status = storage_set(name, guid, data, datasz, attrs);
 
 #if DEBUG_VARIABLES_SERVICE
     DPRINTF("%s:%d: ", __func__, __LINE__);
