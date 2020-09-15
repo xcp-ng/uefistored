@@ -25,8 +25,10 @@
 #include <xen/hvm/params.h>
 #include <xen/memory.h>
 
-#include "storage.h"
 #include "common.h"
+#include "storage.h"
+#include "uefi/authlib.h"
+#include "uefi/types.h"
 #include "log.h"
 #include "xapi.h"
 #include "xen_variable_server.h"
@@ -546,6 +548,7 @@ int main(int argc, char **argv)
     char pidstr[21];
     char pidalive[0x80];
     char c;
+    EFI_STATUS status;
 
     const struct option options[] = {
         { "domain", required_argument, 0, 'd' },
@@ -843,6 +846,10 @@ int main(int argc, char **argv)
 
     if (ret < 0)
         goto err;
+
+    if ((status = AuthVariableLibInitialize()) != EFI_SUCCESS)
+        DEBUG("AuthVariableLibInitialize() failed, status=%s (0x%lx)",
+                efi_status_str(status), status);
 
     /*
      * Store the uefistored pid in XenStore to signal to XAPI that uefistored is alive
