@@ -1948,8 +1948,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
     //
     // Not authenticated variable, just update variable as usual.
     //
-    status = storage_set(name, guid, data, data_size, attrs);
-    return status;
+    return storage_set(name, guid, data, data_size, attrs);
 }
 
 /**
