@@ -232,6 +232,8 @@ const char *efi_status_str(EFI_STATUS status)
         return "EFI_BUFFER_TOO_SMALL";
     case EFI_OUT_OF_RESOURCES:
         return "EFI_OUT_OF_RESOURCES";
+    case EFI_SECURITY_VIOLATION:
+        return "EFI_SECURITY_VIOLATION";
     default:
         return "UNKNOWN";
     }
