@@ -27,10 +27,10 @@ EFI_STATUS evaluate_attrs(uint32_t attrs)
     /* Not both authentication bits may be set */
     else if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) && \
              (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS))
-        return EFI_UNSUPPORTED;
+        return EFI_SECURITY_VIOLATION;
     /* We do not support EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS */
     else if (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS)
-        return EFI_UNSUPPORTED;
+        return EFI_SECURITY_VIOLATION;
 
     return EFI_SUCCESS;
 }
@@ -139,7 +139,7 @@ EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
     status = evaluate_attrs(attrs);
 
     if (status != EFI_SUCCESS)
-        return EFI_UNSUPPORTED;
+        return status;
 
     if (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
         status = AuthVariableLibProcessVariable(name, guid, data, datasz, attrs);
