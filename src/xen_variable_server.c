@@ -95,8 +95,6 @@ static void handle_get_variable(void *comm_buf)
 
     buflen = unserialize_uint64(&inptr);
 
-    DDEBUG("buflen=%lu\n", buflen);
-
     /* Let XenVariable inform us if OVMF has exited Boot Services */
     set_efi_runtime(unserialize_boolean(&inptr));
 

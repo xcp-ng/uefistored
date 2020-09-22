@@ -220,8 +220,6 @@ void handle_ioreq(struct ioreq *ioreq)
         return;
     }
 
-    DDEBUG("Mapping guest memory...\n");
-
     p = map_guest_memory(gfn);
     if (p) {
         /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
