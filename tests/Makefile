@@ -6,7 +6,7 @@ SRCS := $(patsubst %,../%,$(SRCS))
 HDRS := $(shell find . -type f -name '*.h')
 
 LIBS := -lssl -lcrypto -lxml2
-CFLAGS := -g -Wall -Werror -fshort-wchar
+CFLAGS += -g -Wall -Werror -fshort-wchar
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxml2 
 
 # Add mocks
@@ -19,7 +19,6 @@ TEST_SRCS +=                            \
     src/test_auth_func.c                \
     src/test_base64.c                   \
     src/test_common.c                   \
-    src/test_deserialization.c          \
     src/test_xen_variable_server.c      \
     src/test_storage.c                  \
     src/test_xapi.c

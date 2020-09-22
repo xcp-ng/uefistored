@@ -850,7 +850,7 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     status = X509GetCommonName(SignerCert, SignerCertSize, CertCommonName,
                                &CertCommonNameSize);
     if (EFI_ERROR(status)) {
-        DEBUG("Get SignerCert CommonName failed with status %lx\n", status);
+        DDEBUG("Get SignerCert CommonName failed with status %lx\n", status);
         return EFI_ABORTED;
     }
 
@@ -859,7 +859,7 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     //
     if (!X509GetTBSCert(TopLevelCert, TopLevelCertSize, &TbsCert,
                         &TbsCertSize)) {
-        DEBUG("Get Top-level Cert tbsCertificate failed!\n");
+        DDEBUG("Get Top-level Cert tbsCertificate failed!\n");
         return EFI_ABORTED;
     }
 
@@ -2035,7 +2035,7 @@ CleanCertsFromDb(void)
                 status = delete_certs_from_db(name, &AuthVarGuid, var.attrs);
                 CertCleaned = true;
 
-                DEBUG("Recovery!! Cert for Auth Variable is removed for consistency\n");
+                DDEBUG("Recovery!! Cert for Auth Variable is removed for consistency\n");
                 free(name);
                 variable_destroy_noalloc(&var);
                 break;

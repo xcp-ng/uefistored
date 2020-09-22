@@ -76,7 +76,7 @@ EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
     }
 
     if (efi_at_runtime && !(var->attrs & EFI_VARIABLE_RUNTIME_ACCESS)) {
-        DEBUG("Found, but inaccessible at runtime\n");
+        DDEBUG("Found, but inaccessible at runtime\n");
         return EFI_NOT_FOUND;
     }
 

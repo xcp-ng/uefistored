@@ -143,9 +143,9 @@ AuthVariableLibInitialize(void)
                                          &gEfiGlobalVariableGuid,
                                          (void **)&Data, &DataSize);
     if (EFI_ERROR(Status)) {
-        DEBUG("Variable 'PK' does not exist\n");
+        DDEBUG("Variable 'PK' does not exist\n");
     } else {
-        DEBUG("Variable 'PK'  exists\n");
+        DDEBUG("Variable 'PK'  exists\n");
     }
 
     if (Data)
@@ -231,9 +231,9 @@ AuthVariableLibInitialize(void)
         return Status;
     }
 
-  DEBUG("Variable SetupMode is %x\n", mPlatformMode);
-  DEBUG("Variable SecureBoot is %x\n", SecureBootMode);
-  DEBUG("Variable SecureBootEnable is %x\n", SecureBootEnable);
+  DDEBUG("Variable SetupMode is %x\n", mPlatformMode);
+  DDEBUG("Variable SecureBoot is %x\n", SecureBootMode);
+  DDEBUG("Variable SecureBootEnable is %x\n", SecureBootEnable);
 
     //
     // Initialize "CustomMode" in STANDARD_SECURE_BOOT_MODE state.
@@ -276,7 +276,7 @@ AuthVariableLibInitialize(void)
         //
         Status = CleanCertsFromDb();
         if (EFI_ERROR(Status)) {
-            DEBUG("Clean up CertDB fail! Status %lx\n", Status);
+            DDEBUG("Clean up CertDB fail! Status %lx\n", Status);
             return Status;
         }
     }
@@ -391,23 +391,23 @@ AuthVariableLibProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid,
     EFI_STATUS Status;
 
   if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
-    DEBUG("ProcessVarWithPk()\n");
+    DDEBUG("ProcessVarWithPk()\n");
     // Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, TRUE);
   } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
-    DEBUG("ProcessVarWithPk()\n");
+    DDEBUG("ProcessVarWithPk()\n");
     // Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
   } else if (CompareGuid (VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
              ((strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
-        DEBUG("ProcessVarWithPk()\n");
-        DEBUG("ProcessVarWithKek()\n");
+        DDEBUG("ProcessVarWithPk()\n");
+        DDEBUG("ProcessVarWithKek()\n");
         //Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
         if (EFI_ERROR (Status)) {
             // Status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
         }
   } else {
-    DEBUG("process_variable\n");
+    DDEBUG("process_variable\n");
     Status = process_variable(VariableName, VendorGuid, Data, DataSize, Attributes);
   }
 

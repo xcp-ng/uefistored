@@ -106,7 +106,7 @@ int unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
     *ptr += sizeof(ret);
 
     if (ret > buflen || ret > INT_MAX) {
-        DEBUG("ret=%lu\n", ret);
+        DDEBUG("ret=%lu\n", ret);
         return -1;
     }
 

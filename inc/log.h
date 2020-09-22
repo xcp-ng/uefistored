@@ -43,7 +43,8 @@ void log_deinit(void);
         uefistored_fprintf(stdout, "INFO: " __VA_ARGS__);                      \
     } while (0)
 
-#define DEBUG(...)                                                             \
+#ifdef DEBUG
+#define DDEBUG(...)                                                             \
     do {                                                                       \
         if (_logfd > 0) {                                                      \
             dprintf(_logfd, "DEBUG:");                                         \
@@ -62,5 +63,29 @@ void log_deinit(void);
             dprintf(_logfd, __VA_ARGS__);                                      \
         uefistored_fprintf(stdout, __VA_ARGS__);                               \
     } while (0)
+
+static inline void dprint_data(const void *data, size_t datasz)
+{
+    const uint8_t *p = data;
+    size_t i;
+
+    if (!data)
+        return;
+
+    DPRINTF("data(%lu)=", datasz);
+    for (i = 0; i < 8 && i < datasz; i++) {
+        DPRINTF("0x%02x ", p[i]);
+    }
+}
+
+#else
+#define DDEBUG(...) do { } while(0)
+#define DPRINTF(...) do { } while(0)
+#define dprint_data(...) do { } while(0)
+#endif
+
+void dprint_variable(const variable_t *var);
+void dprint_name(const UTF16 *name, size_t namesz);
+void dprint_variable_list(const variable_t *vars, size_t n);
 
 #endif // __H_LOG__

@@ -95,7 +95,7 @@ static void handle_get_variable(void *comm_buf)
 
     buflen = unserialize_uint64(&inptr);
 
-    DEBUG("buflen=%lu\n", buflen);
+    DDEBUG("buflen=%lu\n", buflen);
 
     /* Let XenVariable inform us if OVMF has exited Boot Services */
     set_efi_runtime(unserialize_boolean(&inptr));
@@ -210,14 +210,14 @@ static void handle_set_variable(void *comm_buf)
     namesz = unserialize_namesz(&inptr);
 
     if (namesz == 0) {
-        DEBUG("status=%s\n", efi_status_str(EFI_INVALID_PARAMETER));
+        DDEBUG("status=%s\n", efi_status_str(EFI_INVALID_PARAMETER));
         ptr = comm_buf;
         serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
 
     if (namesz > MAX_VARIABLE_NAME_SIZE) {
-        DEBUG("status=%s\n", efi_status_str(EFI_OUT_OF_RESOURCES));
+        DDEBUG("status=%s\n", efi_status_str(EFI_OUT_OF_RESOURCES));
         ptr = comm_buf;
         serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
         return;
@@ -230,11 +230,11 @@ static void handle_set_variable(void *comm_buf)
 
     datasz = unserialize_data(&inptr, dp, MAX_VARIABLE_DATA_SIZE);
 
-    DEBUG("datasz=%d\n", datasz);
+    DDEBUG("datasz=%d\n", datasz);
 
     if (datasz < 0) {
         ptr = comm_buf;
-        DEBUG("status=%s (0x%02lx)\n",
+        DDEBUG("status=%s (0x%02lx)\n",
                 efi_status_str(EFI_OUT_OF_RESOURCES), EFI_OUT_OF_RESOURCES);
         serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
         free(name);
@@ -249,25 +249,25 @@ static void handle_set_variable(void *comm_buf)
 #if 1
     if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINTN") == 0)
     {
-        DEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
+        DDEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
         free(name);
         return;
     }
     else if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINT32") == 0)
     {
-        DEBUG("XV_DEBUG_UINT32: 0x%x\n",  *((uint32_t*)data));
+        DDEBUG("XV_DEBUG_UINT32: 0x%x\n",  *((uint32_t*)data));
         free(name);
         return;
     }
     else if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINT64") == 0)
     {
-        DEBUG("XV_DEBUG_UINT64: 0x%lx\n",  *((uint64_t*)data));
+        DDEBUG("XV_DEBUG_UINT64: 0x%lx\n",  *((uint64_t*)data));
         free(name);
         return;
     }
     else if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINT8") == 0)
     {
-        DEBUG("XV_DEBUG_UINT8: 0x%x\n",  *((uint8_t*)data));
+        DDEBUG("XV_DEBUG_UINT8: 0x%x\n",  *((uint8_t*)data));
         free(name);
         return;
     }
@@ -275,13 +275,13 @@ static void handle_set_variable(void *comm_buf)
     {
         char stringbuf[512];
         uc2_ascii_safe((UTF16*)data, datasz, stringbuf, 512);
-        DEBUG("XV_DEBUG_STR: %s\n", stringbuf);
+        DDEBUG("XV_DEBUG_STR: %s\n", stringbuf);
         free(name);
         return;
     }
     else if (strcmp16(name, (UTF16*) L"XV_DEBUG_ASCII") == 0)
     {
-        DEBUG("XV_DEBUG_ASCII: %s\n", (char*)data);
+        DDEBUG("XV_DEBUG_ASCII: %s\n", (char*)data);
         free(name);
         return;
     }
@@ -435,7 +435,7 @@ static void save_test_input(void *comm_buf)
     fd = fopen("uefistored.input.dat", "a+");
 
     if (!fd) {
-        DEBUG("failed to open uestored.input.data, %s\n", strerror(errno));
+        DDEBUG("failed to open uestored.input.data, %s\n", strerror(errno));
         return;
     }
 

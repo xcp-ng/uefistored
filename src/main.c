@@ -220,7 +220,7 @@ void handle_ioreq(struct ioreq *ioreq)
         return;
     }
 
-    DEBUG("Mapping guest memory...\n");
+    DDEBUG("Mapping guest memory...\n");
 
     p = map_guest_memory(gfn);
     if (p) {
@@ -318,7 +318,7 @@ static void debug_bufioreq(buf_ioreq_t *buf_ioreq)
     if (!buf_ioreq)
         return;
 
-    DEBUG("BufferedIOReq<type=0x%02x, dir=%d, size=%u, addr=0x%02x, data=0x%02x>\n",
+    DDEBUG("BufferedIOReq<type=0x%02x, dir=%d, size=%u, addr=0x%02x, data=0x%02x>\n",
           buf_ioreq->type, buf_ioreq->dir, buf_ioreq->size, buf_ioreq->addr,
           buf_ioreq->data);
 }
@@ -359,7 +359,7 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage,
 
 static void signal_handler(int sig)
 {
-    DEBUG("uefistored received signal: %s\n", strsignal(sig));
+    DDEBUG("uefistored received signal: %s\n", strsignal(sig));
 
     if (xapi_write_save_file() < 0)
         ERROR("Writing save file failed\n");
@@ -848,7 +848,7 @@ int main(int argc, char **argv)
         goto err;
 
     if ((status = AuthVariableLibInitialize()) != EFI_SUCCESS)
-        DEBUG("AuthVariableLibInitialize() failed, status=%s (0x%lx)",
+        DDEBUG("AuthVariableLibInitialize() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
 
     /*

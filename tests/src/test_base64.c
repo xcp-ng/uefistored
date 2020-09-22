@@ -40,7 +40,7 @@ void test_base64(void)
     ret = from_bytes_to_vars(vars, VAR_MAX, buffer, (size_t)ret);
     test(ret >= 0);
 
-    DEBUG("Variables(%d)\n", ret);
+    DDEBUG("Variables(%d)\n", ret);
     dprint_variable_list(vars, ret);
 
     ptr = serialized;
@@ -48,13 +48,12 @@ void test_base64(void)
     ret = serialize_variable_list(&ptr, SERIALIZED_MAX, vars, VAR_MAX);
     test(ret >= 0);
 
-
     fd = fopen("tmp.data", "w");
     test(fd != NULL);
 
     fwrite(serialized, 1, SERIALIZED_MAX, fd);
     fclose(fd);
-    
+
     test(memcmp(serialized, buffer, min(SERIALIZED_MAX, BUFFER_MAX)) == 0);
 
     return;

@@ -155,7 +155,8 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
 
     ret = from_bytes_to_vars(vars, n, mem, size);
 
-#if 0
+#if DEBUG
+    DDEBUG("Variables\n");
     if (ret >= 0)
         dprint_variable_list(vars, ret);
 #endif
@@ -380,14 +381,14 @@ static int create_header(size_t body_len, char *message, size_t message_size)
 {
     int ret;
 
-    DEBUG("trace\n");
+    DDEBUG("trace\n");
     ret = snprintf(message, message_size, HTTP_HEADER, body_len);
 
     if (ret < 0) {
         return ret;
     }
 
-    DEBUG("trace\n");
+    DDEBUG("trace\n");
     return ret;
 }
 
@@ -513,10 +514,10 @@ int xapi_set_efi_vars(void)
     char buffer[BIG_MESSAGE_SIZE];
     int ret;
 
-    DEBUG("setting NVRAM\n");
+    DDEBUG("setting NVRAM\n");
 
     ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
-    DEBUG("build_set_efi_vars_message: ret=%d\nmessage:\n%s\n", ret, buffer);
+    DDEBUG("build_set_efi_vars_message: ret=%d\nmessage:\n%s\n", ret, buffer);
 
     if (ret < 0) {
         ERROR("Failed to build VM.set_NVRAM_EFI_variables message\n");
@@ -524,7 +525,7 @@ int xapi_set_efi_vars(void)
     }
 
     ret = send_request(buffer, buffer, BIG_MESSAGE_SIZE);
-    DEBUG("send_request:ret=%d\n", ret);
+    DDEBUG("send_request:ret=%d\n", ret);
 
     return ret == 200 ? 0 : -1;
 }
@@ -1026,8 +1027,8 @@ int xapi_variables_request(variable_t *vars, size_t n)
 
     ret = from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
 
-#if 0
-    DEBUG("Variables(%d) from XAPI DB\n============================\n", ret);
+#if 1
+    DDEBUG("Variables(%d) from XAPI DB\n============================\n", ret);
     if ( ret >= 0 )
         dprint_variable_list(vars, ret);
 #endif

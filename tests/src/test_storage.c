@@ -270,9 +270,6 @@ static void test_set_different_attrs_delete_first(void)
         returned_status = storage_set(var->name, &var->guid, var->data, 0, attrs[i]);
         status = storage_set(var->name, &var->guid, var->data, 0, attrs[i]);
 
-        printf("returned_status=%s, status=%s\n",
-                efi_status_str(returned_status), efi_status_str(status));
-
         test(returned_status == EFI_SUCCESS && status == EFI_NOT_FOUND);
 
         status = storage_get(name, &guid, &attr, data, &datasz);

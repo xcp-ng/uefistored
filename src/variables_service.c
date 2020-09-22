@@ -32,7 +32,7 @@ EFI_STATUS evaluate_attrs(uint32_t attrs)
     else if (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS)
         return EFI_SECURITY_VIOLATION;
     else if (attrs & EFI_VARIABLE_APPEND_WRITE)
-        DEBUG("attrs & EFI_VARIABLE_APPEND_WRITE");
+        DDEBUG("attrs & EFI_VARIABLE_APPEND_WRITE");
 
     return EFI_SUCCESS;
 }
@@ -52,50 +52,17 @@ EFI_STATUS
 get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size,
              void *data)
 {
-    size_t buffer_size;
     EFI_STATUS status;
 
     if (!variable || !guid || !attrs || !size || !data)
         return EFI_INVALID_PARAMETER;
 
-    buffer_size = *size;
-
-#if 0
-    if (strcmp16(variable, L"SecureBoot") == 0
-            && memcmp(guid, &gEfiGlobalVariableGuid, sizeof(EFI_GUID)) == 0) {
-
-        if (*size < sizeof(uint8_t)) {
-            status = EFI_BUFFER_TOO_SMALL;
-        } else {
-            uint8_t val = 0;
-            memcpy(data, &val, sizeof(val));
-        }
-
-        *size = sizeof(uint8_t);
-        *attrs = EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                    EFI_VARIABLE_NON_VOLATILE;
-        status = EFI_SUCCESS;
-    } else if (strcmp16(variable, L"SetupMode") == 0
-            && memcmp(guid, &gEfiGlobalVariableGuid, sizeof(EFI_GUID)) == 0) {
-        if (*size < sizeof(uint8_t)) {
-            status = EFI_BUFFER_TOO_SMALL;
-        } else {
-            uint8_t val = 1;
-            memcpy(data, &val, sizeof(val));
-        }
-
-        *size = sizeof(uint8_t);
-        *attrs = EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                    EFI_VARIABLE_NON_VOLATILE;
-        status = EFI_SUCCESS;
-    } else {
-        status = storage_get(variable, guid, attrs, data, size);
-    }
-#endif
-
     status = storage_get(variable, guid, attrs, data, size);
 
-#if DEBUG_VARIABLES_SERVICE
+#if DEBUG
+    size_t buffer_size;
+
+    buffer_size = *size;
     DPRINTF("%s:%d: ", __func__, __LINE__);
     dprint_name(variable, strsize16(variable));
     DPRINTF(", guid=0x%02x", guid->Data1);
@@ -149,7 +116,7 @@ EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
         status = storage_set(name, guid, data, datasz, attrs);
     }
 
-#if DEBUG_VARIABLES_SERVICE
+#if DEBUG
     DPRINTF("%s:%d: ", __func__, __LINE__);
     dprint_name(name, strsize16(name));
     DPRINTF(", attrs=0x%02x", attrs);
@@ -180,7 +147,7 @@ EFI_STATUS query_variable_info(uint32_t attrs, uint64_t *max_variable_storage,
              !(attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS)))
         return EFI_INVALID_PARAMETER;
 
-    DEBUG("attrs=0x%02x\n", attrs);
+    DDEBUG("attrs=0x%02x\n", attrs);
 
     *max_variable_storage = MAX_STORAGE_SIZE;
     *max_variable_size = MAX_VARIABLE_SIZE;

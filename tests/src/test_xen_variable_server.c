@@ -161,7 +161,6 @@ static void test_set_and_get(void)
      */
     status =
             deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
-    printf("status=0x%02lx\n", status);
     test(status == EFI_SUCCESS);
     test(outdata == indata);
 }
@@ -283,8 +282,6 @@ static void test_success_get_next_var_one(void)
 
     ptr = comm_buf;
     status = unserialize_result(&ptr);
-    printf("status=0x%02lx\n", status);
-    printf("EFI_NOT_FOUND=0x%02lx\n", EFI_NOT_FOUND);
     test(status == EFI_NOT_FOUND);
 }
 
@@ -495,15 +492,12 @@ static void test_query_variable_info(void)
 
         /* parse response */
         ptr = comm_buf;
-        EFI_STATUS status = unserialize_result(&ptr);
-
-        printf("status=0x%02lx\n", status);
+        unserialize_result(&ptr);
 
         max_storage_size = unserialize_uint64(&ptr);
         remaining_storage_size = unserialize_uint64(&ptr);
         max_variable_size = unserialize_uint64(&ptr);
 
-        printf("attrs=0x%02x\n", attrs);
         test_eq_int64(max_storage_size, MAX_STORAGE_SIZE);
         test_eq_int64(remaining_storage_size, MAX_STORAGE_SIZE);
         test_eq_int64(max_variable_size, MAX_VARIABLE_SIZE);
