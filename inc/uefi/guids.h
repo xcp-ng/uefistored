@@ -18,7 +18,6 @@ extern EFI_GUID gEfiCallerIdGuid;
 
 extern EFI_GUID gEfiImageSecurityDatabaseGuid;
 
-#if 1
 extern EFI_GUID gEfiCustomModeEnableGuid;
 extern EFI_GUID gEfiSecureBootEnableDisableGuid;
 extern EFI_GUID gEfiCertRsa2048Guid;
@@ -39,7 +38,6 @@ extern EFI_GUID gEfiMdePkgTokenSpaceGuid;
 extern EFI_GUID gEfiEventReadyToBootGuid;
 extern EFI_GUID gEfiEventLegacyBootGuid;
 extern EFI_GUID gEdkiiIfrBitVarstoreGuid;
-#endif
 
 // Protocols
 extern EFI_GUID gEfiSecurityArchProtocolGuid;
