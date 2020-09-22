@@ -33,8 +33,10 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "uefi/authlib.h"
 #include "uefi/auth_var_format.h"
 #include "uefi/global_variable.h"
+#include "uefi/guids.h"
 #include "uefi/image_authentication.h"
 #include "uefi/types.h"
+#include "uefi/utils.h"
 
 ///
 /// Global database array for scratch
@@ -176,6 +178,14 @@ AuthVariableLibInitialize(void)
         return Status;
     }
 
+#if 0
+    uint8_t shim_verbose = 1;
+    Status = storage_set(L"SHIM_VERBOSE", &gShimLockGuid,
+                         &shim_verbose, sizeof(uint8_t),
+                         EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                                 EFI_VARIABLE_RUNTIME_ACCESS);
+#endif
+
     //
     // If "SecureBootEnable" variable exists, then update "SecureBoot" variable.
     // If "SecureBootEnable" variable is SECURE_BOOT_ENABLE and in USER_MODE, Set "SecureBoot" variable to SECURE_BOOT_MODE_ENABLE.
@@ -221,11 +231,9 @@ AuthVariableLibInitialize(void)
         return Status;
     }
 
-#if 0
-  DEBUG ("Variable %s is %x\n", EFI_SETUP_MODE_NAME, mPlatformMode));
-  DEBUG ("Variable %s is %x\n", EFI_SECURE_BOOT_MODE_NAME, SecureBootMode));
-  DEBUG ("Variable %s is %x\n", EFI_SECURE_BOOT_ENABLE_NAME, SecureBootEnable));
-#endif
+  DEBUG("Variable SetupMode is %x\n", mPlatformMode);
+  DEBUG("Variable SecureBoot is %x\n", SecureBootMode);
+  DEBUG("Variable SecureBootEnable is %x\n", SecureBootEnable);
 
     //
     // Initialize "CustomMode" in STANDARD_SECURE_BOOT_MODE state.
@@ -328,7 +336,6 @@ AuthVariableLibInitialize(void)
         return Status;
     }
 
-    DEBUG("Variablel ");
     dprint_name((UTF16 *)EFI_VENDOR_KEYS_VARIABLE_NAME,
                 strsize16((UTF16 *)EFI_VENDOR_KEYS_VARIABLE_NAME));
     DPRINTF(" is %x\n", mVendorKeyState);
@@ -383,27 +390,26 @@ AuthVariableLibProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid,
 {
     EFI_STATUS Status;
 
-#if 0
-  if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (StrCmp (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
-    Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, TRUE);
-  } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (StrCmp (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
-    Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+  if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
+    DEBUG("ProcessVarWithPk()\n");
+    // Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, TRUE);
+  } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
+    DEBUG("ProcessVarWithPk()\n");
+    // Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
   } else if (CompareGuid (VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
-             ((StrCmp (VariableName, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
-              (StrCmp (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
-              (StrCmp (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0)
-             )) {
-    Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
-    if (EFI_ERROR (Status)) {
-      Status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
-    }
+             ((strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
+              (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
+              (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
+        DEBUG("ProcessVarWithPk()\n");
+        DEBUG("ProcessVarWithKek()\n");
+        //Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+        if (EFI_ERROR (Status)) {
+            // Status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
+        }
   } else {
-#endif
-    Status = process_variable(VariableName, VendorGuid, Data, DataSize,
-                              Attributes);
-#if 0
+    DEBUG("process_variable\n");
+    Status = process_variable(VariableName, VendorGuid, Data, DataSize, Attributes);
   }
-#endif
 
     return Status;
 }

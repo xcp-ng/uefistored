@@ -26,7 +26,7 @@ uint64_t strlen16(const UTF16 *str)
         if (!p1)
             break;
 
-        /* zero pointers means we have reached the null-terminator */
+        /* zero means we have reached the null-terminator */
         if (*p1 == 0)
             break;
 
@@ -34,7 +34,7 @@ uint64_t strlen16(const UTF16 *str)
          * We are processing two bytes at a time, so jump two bytes and
          * increment the length
          */
-        p1 += 1;
+        p1++;
         len++;
     }
 
@@ -100,6 +100,10 @@ void dprint_variable(const variable_t *var)
     DPRINTF(", guid=0x%02x",var->guid.Data1);
     DPRINTF(", attrs=0x%02x, ", var->attrs);
     dprint_data(var->data, var->datasz);
+    if (var->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
+        DPRINTF(", Time<Year=%u, Month=%u, Day=%u, Hour=%u, Minute=%u, Second=%u>",
+                var->timestamp.Year, var->timestamp.Month, var->timestamp.Day,
+                var->timestamp.Hour, var->timestamp.Minute, var->timestamp.Second);
     DPRINTF("\n");
 }
 
@@ -163,7 +167,7 @@ void dprint_data(const void *data, size_t datasz)
     if (!data)
         return;
 
-    DPRINTF("data=");
+    DPRINTF("data(%lu)=", datasz);
     for (i = 0; i < 8 && i < datasz; i++) {
         DPRINTF("0x%02x ", p[i]);
     }

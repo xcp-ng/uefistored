@@ -288,7 +288,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
     for_each_variable(variables, var)
     {
         if (var->name == NULL) {
-            ret = variable_create_noalloc(var, name, data, datasz, guid, attrs);
+            ret = variable_create_noalloc(var, name, data, datasz, guid, attrs, NULL);
 
             if (ret < 0)
                 return EFI_DEVICE_ERROR;
@@ -321,7 +321,8 @@ EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid, c
     if (status != EFI_SUCCESS)
         return status;
 
-    memcpy(&var->timestamp, timestamp, sizeof(var->timestamp));
+    if (variable_set_timestamp(var, timestamp) < 0 )
+        return EFI_DEVICE_ERROR;
 
     return EFI_SUCCESS;
 }

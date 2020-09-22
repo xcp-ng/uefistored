@@ -35,10 +35,27 @@ void serialize_data(uint8_t **ptr, void *Data, uint64_t DataSize)
     *ptr += DataSize;
 }
 
-void serialize_uintn(uint8_t **ptr, uint64_t var)
+void serialize_uint16(uint8_t **ptr, uint16_t var)
 {
     memcpy(*ptr, &var, sizeof(var));
     *ptr += sizeof(var);
+}
+
+void serialize_uint8(uint8_t **ptr, uint8_t var)
+{
+    memcpy(*ptr, &var, sizeof(var));
+    *ptr += sizeof(var);
+}
+
+void serialize_uint64(uint8_t **ptr, uint64_t var)
+{
+    memcpy(*ptr, &var, sizeof(var));
+    *ptr += sizeof(var);
+}
+
+void serialize_uintn(uint8_t **ptr, uint64_t var)
+{
+    return serialize_uint64(ptr, var);
 }
 
 void serialize_uint32(uint8_t **ptr, uint32_t var)
@@ -97,6 +114,26 @@ int unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
     *ptr += ret;
 
     return (int)ret;
+}
+
+uint8_t unserialize_uint8(const uint8_t **ptr)
+{
+    uint8_t ret;
+
+    memcpy(&ret, *ptr, sizeof ret);
+    *ptr += sizeof ret;
+
+    return ret;
+}
+
+uint16_t unserialize_uint16(const uint8_t **ptr)
+{
+    uint16_t ret;
+
+    memcpy(&ret, *ptr, sizeof ret);
+    *ptr += sizeof ret;
+
+    return ret;
 }
 
 uint32_t unserialize_uint32(const uint8_t **ptr)
@@ -187,6 +224,8 @@ void unserialize_variable_list_header(const uint8_t **ptr,
 
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 {
+    uint8_t unknown[32];
+    EFI_TIME timestamp;
     UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
     EFI_GUID guid;
     uint8_t *data;
@@ -221,13 +260,53 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 
     unserialize_guid(ptr, &guid);
     attrs = unserialize_uint32(ptr);
-    *ptr += VAR_PADDING;
+    unserialize_timestamp(ptr, &timestamp);
+    unserialize_value(ptr, unknown);
 
-    ret = variable_create_noalloc(var, name, data, datasz, &guid, attrs);
+    ret = variable_create_noalloc(var, name, data, datasz, &guid, attrs, &timestamp);
 
     free(data);
 
     return ret;
+}
+
+void unserialize_timestamp(const uint8_t **p, EFI_TIME *timestamp)
+{
+    if (!p || !timestamp)
+        return;
+
+    timestamp->Year = unserialize_uint16(p);
+    timestamp->Month = unserialize_uint8(p);
+    timestamp->Day = unserialize_uint8(p);
+    timestamp->Hour = unserialize_uint8(p);
+    timestamp->Minute = unserialize_uint8(p);
+    timestamp->Second = unserialize_uint8(p);
+
+    /* These should alqays all be zero, but unserialize anyway in
+     * case the spec advances and changes */
+    timestamp->Pad1 = unserialize_uint8(p);
+    timestamp->Nanosecond = unserialize_uint32(p);
+    timestamp->TimeZone = unserialize_uint16(p);
+    timestamp->Daylight = unserialize_uint8(p);
+    timestamp->Pad2 = unserialize_uint8(p);
+}
+
+void serialize_timestamp(uint8_t **p, const EFI_TIME *timestamp)
+{
+    serialize_uint16(p, timestamp->Year);
+    serialize_uint8(p, timestamp->Month);
+    serialize_uint8(p, timestamp->Day);
+    serialize_uint8(p, timestamp->Hour);
+    serialize_uint8(p, timestamp->Minute);
+    serialize_uint8(p, timestamp->Second);
+
+    /* These should alqays all be zero, but serialize anyway in
+     * case the spec advances and changes */
+    serialize_uint8(p, timestamp->Pad1);
+    serialize_uint32(p, timestamp->Nanosecond);
+    serialize_uint16(p, timestamp->TimeZone);
+    serialize_uint8(p, timestamp->Daylight);
+    serialize_uint8(p, timestamp->Pad2);
 }
 
 /**
@@ -245,18 +324,20 @@ int serialize_var(uint8_t **p, const variable_t *var)
     if (!var->name || !var->data)
         return -1;
 
-    serialize_value(p, var->namesz);
+    serialize_uint64(p, var->namesz - 2);
 
     memcpy(*p, var->name, var->namesz);
-    *p += var->namesz;
+    *p += var->namesz - 2;
 
-    serialize_value(p, var->datasz);
+    serialize_uint64(p, var->datasz);
 
     memcpy(*p, var->data, var->datasz);
     *p += var->datasz;
 
     serialize_value(p, var->guid);
-    serialize_value(p, var->attrs);
+    serialize_uint32(p, var->attrs);
+    serialize_timestamp(p, &var->timestamp);
+    serialize_value(p, var->unknown);
 
     return 0;
 }
@@ -268,9 +349,6 @@ static uint64_t payload_size(const variable_t *var, size_t n)
 
     for (i = 0; i < n; i++) {
         sum += variable_size(&var[i]);
-
-        /* Pad w/ 48 bytes  -- require by XenServer's uefistored */
-        sum += VAR_PADDING;
     }
 
     return sum;
@@ -309,15 +387,13 @@ int serialize_variable_list(uint8_t **ptr, size_t sz, const variable_t *var,
 
     sum = 0;
     for (i = 0; i < n; i++) {
-        sum += variable_size(&var[i]) + VAR_PADDING;
+        sum += variable_size(&var[i]);
 
         if (sum > sz)
             return i;
 
         if (serialize_var(ptr, &var[i]) < 0)
             return i;
-
-        *ptr += VAR_PADDING;
     }
 
     return 0;

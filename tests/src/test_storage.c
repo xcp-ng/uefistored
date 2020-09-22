@@ -39,7 +39,7 @@ static void test_set_and_get(void)
     variable_t tmp = { 0 };
 
     variable_create_noalloc(&tmp, var1.name, var1.data, var1.datasz, &var1.guid,
-                            var1.attrs);
+                            var1.attrs, NULL);
 
     ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz,
                       var1.attrs);
@@ -285,9 +285,9 @@ void test_storage(void)
     EFI_GUID default_guid = DEFAULT_GUID;
 
     variable_create_noalloc(&var1, RTC, RTC_DATA, sizeof(RTC_DATA),
-                            &default_guid, DEFAULT_ATTR);
+                            &default_guid, DEFAULT_ATTR, NULL);
     variable_create_noalloc(&var2, CHEER, CHEER_DATA, sizeof(CHEER_DATA),
-                            &default_guid, DEFAULT_ATTR);
+                            &default_guid, DEFAULT_ATTR, NULL);
 
     DO_TEST(test_set_and_get);
     DO_TEST(test_set_and_get2);

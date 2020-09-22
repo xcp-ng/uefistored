@@ -26,6 +26,9 @@ typedef struct {
 
     /* EFI timestamp for time based auth */
     EFI_TIME timestamp;
+
+    /* TODO: figure out what this field is used for in legacy varstored */
+    uint8_t unknown[32];
 } variable_t;
 
 #define for_each_variable(vars, var)                                           \
@@ -38,7 +41,8 @@ variable_t *variable_create(const UTF16 *name, const uint8_t *data,
 
 int variable_create_noalloc(variable_t *var, const UTF16 *name,
                             const uint8_t *data, const uint64_t datasz,
-                            const EFI_GUID *guid, const uint32_t attrs);
+                            const EFI_GUID *guid, const uint32_t attrs,
+                            const EFI_TIME *timestamp);
 
 void variable_destroy(variable_t *var);
 void variable_destroy_noalloc(variable_t *var);
@@ -51,10 +55,13 @@ int variable_set_data(variable_t *var, const uint8_t *data,
                       const uint64_t datasz);
 int variable_set_guid(variable_t *var, const EFI_GUID *guid);
 int variable_set_name(variable_t *var, const UTF16 *name);
+int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp);
 void variable_printf(const variable_t *var);
 uint64_t variable_size(const variable_t *var);
 variable_t *variable_create_unserialize(const uint8_t **ptr);
-EFI_STATUS storage_iter(variable_t *var);
+
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
+                       size_t bytes_sz);
 
 #define variable_is_valid(var) \
     ((var)->name && (var)->name[0] && (var)->namesz != 0)

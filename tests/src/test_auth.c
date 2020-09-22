@@ -220,6 +220,7 @@ static void test_auth_variable_DER_conf(void)
                              sizeof(valid_der), (void *)valid_der);
 
         printf("%s:fail: index=%lu\n", __func__, index);
+        printf("status=%s\n", efi_status_str(status));
         test(status == EFI_UNSUPPORTED);
 
         status = testutil_set_variable(L"AuthVarDER", &mVarVendorGuid, attr,

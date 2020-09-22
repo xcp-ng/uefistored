@@ -1,4 +1,5 @@
 SRCS :=                                                         \
+        src/base64.c                                            \
         src/common.c                                            \
         src/log.c                                               \
         src/serializer.c                                        \

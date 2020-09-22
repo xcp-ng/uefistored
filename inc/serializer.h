@@ -38,6 +38,13 @@ EFI_STATUS unserialize_result(const uint8_t **ptr);
 void unserialize_variable_list_header(const uint8_t **ptr,
                                       struct variable_list_header *hdr);
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var);
+void unserialize_timestamp(const uint8_t **p, EFI_TIME *timestamp);
+
+#define unserialize_value(p, field)                                              \
+    do {                                                                       \
+        memcpy(&field, *p, sizeof(field));                                     \
+        *p += sizeof(field);                                                   \
+    } while (0)
 
 #define serialize_value(p, field)                                              \
     do {                                                                       \

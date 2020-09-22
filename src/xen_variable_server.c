@@ -461,8 +461,6 @@ void xen_variable_server_handle_request(void *comm_buf)
 
     command = unserialize_uint32(&inptr);
 
-    DEBUG("Handling request from guest XenVariable: 0x%x\n", command);
-
     switch (command) {
     case COMMAND_GET_VARIABLE:
         handle_get_variable(comm_buf);

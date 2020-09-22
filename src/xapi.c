@@ -18,11 +18,13 @@
 #include <libxml/xpath.h>
 #include <libxml/parser.h>
 
-#include "storage.h"
+#include "base64.h"
 #include "common.h"
+#include "storage.h"
 #include "log.h"
 #include "serializer.h"
 #include "xapi.h"
+#include "variable.h"
 
 #define XAPI_CONNECT_RETRIES 5
 #define XAPI_CONNECT_SLEEP 3
@@ -95,42 +97,6 @@ int xapi_parse_arg(char *arg)
     }
 
     return 0;
-}
-
-/**
- * This function populates an array of variables from byte-serialized form.
- *
- * @parm vars the buffer array of variables
- * @parm n the max size of the array
- * @parm bytes pointer to the array of bytes of serialized variables
- * @parm bytes_sz the size of the array of bytes
- *
- * @return the number of variables on success, otherwise -1.
- */
-int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
-                       size_t bytes_sz)
-{
-    int ret;
-    const uint8_t *ptr = bytes;
-    struct variable_list_header hdr;
-    int i;
-
-    if (!vars || !bytes)
-        return -1;
-
-    unserialize_variable_list_header(&ptr, &hdr);
-
-    if (hdr.variable_count > n)
-        return -1;
-
-    for (i = 0; i < hdr.variable_count; i++) {
-        ret = unserialize_var_cached(&ptr, &vars[i]);
-
-        if (ret < 0)
-            break;
-    }
-
-    return i;
 }
 
 /**
@@ -249,81 +215,6 @@ static char *response_body(char *response)
     return body + 4;
 }
 
-int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded,
-                    size_t encoded_size)
-{
-    size_t ret;
-
-    if (!plaintext || n == 0 || !encoded || encoded_size == 0)
-        return -1;
-
-    BIO *mem, *b64;
-
-    b64 = BIO_new(BIO_f_base64());
-    mem = BIO_new_mem_buf(encoded, encoded_size);
-
-    mem = BIO_push(b64, mem);
-
-    BIO_set_flags(mem, BIO_FLAGS_BASE64_NO_NL);
-    BIO_set_close(mem, BIO_CLOSE);
-
-    ret = BIO_read(mem, plaintext, encoded_size);
-
-    BIO_free_all(mem);
-
-    if (ret == 0) {
-        ERROR("No data decrypted!\n");
-        return -1;
-    }
-
-    return ret > INT_MAX ? -2 : (int)ret;
-}
-
-char *bytes_to_base64(uint8_t *buffer, size_t length)
-{
-    BIO *bio = NULL, *b64 = NULL;
-    BUF_MEM *bufferPtr = NULL;
-    char *b64text = NULL;
-
-    if (length <= 0)
-        goto cleanup;
-
-    b64 = BIO_new(BIO_f_base64());
-    if (b64 == NULL)
-        goto cleanup;
-
-    bio = BIO_new(BIO_s_mem());
-    if (bio == NULL)
-        goto cleanup;
-
-    bio = BIO_push(b64, bio);
-
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    BIO_set_close(bio, BIO_CLOSE);
-
-    if (BIO_write(bio, (char *)buffer, (int)length) <= 0)
-        goto cleanup;
-
-    if (BIO_flush(bio) != 1)
-        goto cleanup;
-
-    BIO_get_mem_ptr(bio, &bufferPtr);
-
-    b64text = (char *)malloc((bufferPtr->length + 1) * sizeof(char));
-    if (b64text == NULL)
-        goto cleanup;
-
-    memcpy(b64text, bufferPtr->data, bufferPtr->length);
-    b64text[bufferPtr->length] = '\0';
-    BIO_set_close(bio, BIO_NOCLOSE);
-
-cleanup:
-    BIO_free_all(bio);
-    BUF_MEM_free(bufferPtr);
-
-    return b64text;
-}
-
 size_t list_size(variable_t *variables, size_t n)
 {
     size_t i, sz;
@@ -331,7 +222,7 @@ size_t list_size(variable_t *variables, size_t n)
     sz = sizeof(struct variable_list_header);
 
     for (i = 0; i < n; i++)
-        sz += variable_size(&variables[i]) + VAR_PADDING;
+        sz += variable_size(&variables[i]);
 
     return sz;
 }

@@ -32,8 +32,6 @@ static UTF16 v1[] = { 'B', 'C', '\0' };
 static UTF16 v2[] = { 'Y', 'Z', '\0' };
 static const UTF16 FOO[] = { 'F', 'O', 'O', '\0' };
 static const UTF16 BAR[] = { 'B', 'A', 'R', '\0' };
-static const UTF16 CHEER[] = { 'C', 'H', 'E', 'E', 'R', '\0' };
-static const UTF16 ABCD[] = { 'A', 'B', 'C', 'D', '\0' };
 
 static char *D1 = "WORLD!";
 static char *D2 = "bar";
@@ -99,7 +97,7 @@ static void test_bytes(void)
 
     /* Setup */
     variable_create_noalloc(&orig, FOO, (uint8_t *)BAR, strsize16(BAR),
-                            &default_guid, DEFAULT_ATTR);
+                            &default_guid, DEFAULT_ATTR, NULL);
 
     serialize_variable_list(&p, TEST_PT_SIZE, &orig, 1);
     from_bytes_to_vars(&var, 1, bytes, TEST_PT_SIZE);
@@ -115,11 +113,11 @@ static void test_var_copy(void)
     uint8_t *p;
     const uint8_t *unserial_ptr;
     variable_t orig = { 0 };
-    variable_t *var;
+    variable_t *var = NULL;
 
     /* Setup */
     variable_create_noalloc(&orig, FOO, (uint8_t *)BAR, strsize16(BAR),
-                            &default_guid, DEFAULT_ATTR);
+                            &default_guid, DEFAULT_ATTR, NULL);
 
     /* Do the work */
     p = buf;
@@ -134,67 +132,11 @@ static void test_var_copy(void)
     variable_destroy_noalloc(&orig);
 }
 
-#define EXPECTED_B64_ENC                                                       \
-    "VkFSUwEAA" \
-    "AABAAAAAA" \
-    "AAAGQAAAA" \
-    "AAAAACAAA" \
-    "AAAAAABGA" \
-    "E8ATwAAAA" \
-    "gAAAAAAAA" \
-    "AQgBBAFIA" \
-    "AADdzLuqA" \
-    "AAAAAAAAA" \
-    "AAAAAA8/I" \
-    "AAAAAAAAA" \
-    "AAAAAAAAA" \
-    "AAAAAAAAA" \
-    "AAAAAAAAA" \
-    "AAAAAAAAA" \
-    "AAAAAAAAA" \
-    "AAAAAAAAA" \
-    "AAAA=="
-
-/**
- * Passes if a variable list of size 1 serializes and encodes into
- * the correct base64 string.
- */
-void test_base64_encode(void)
-{
-    char *base64;
-    uint8_t buf[4096] = { 0 };
-    uint8_t *p = (uint8_t *)buf;
-    variable_t orig = { 0 };
-    const char *expected = EXPECTED_B64_ENC;
-
-    /* Setup */
-    orig.namesz = strsize16(FOO);
-    orig.name = malloc(orig.namesz + sizeof(UTF16));
-    strncpy16(orig.name, FOO, orig.namesz + sizeof(UTF16));
-
-    orig.datasz = strsize16(BAR);
-    orig.data = calloc(1, orig.datasz);
-    strncpy16((UTF16 *)orig.data, BAR, orig.datasz);
-
-    orig.guid.Data1 = 0xaabbccdd;
-    orig.attrs = 0xf2f3;
-
-    /* Do the work */
-    serialize_variable_list(&p, 4096, &orig, 1);
-    base64 = bytes_to_base64(buf, list_size(&orig, 1));
-
-    /* Do the test */
-    test(strcmp(base64, expected) == 0);
-    free(base64);
-    free(orig.name);
-    free(orig.data);
-}
-
 /**
  * Passes if serializing a list of size 1 and then deserializig it results in
  * the same list of size 1.
  */
-void test_base64(void)
+void test_xapi_base64(void)
 {
     int sz;
     char *base64;
@@ -227,53 +169,8 @@ void test_base64(void)
 
 #define VARCNT 2
 #define BUFSZ (4096 * 2)
-#define EXPECTED_BASE64_MULT \
-    "VkFSUwEAAAACAAAAAAAAAM4AAAAAAAAACAAAAAAAAABGAE8ATwAAAAgAAAAAAAAA"  \
-    "QgBBAFIAAADt/t7AAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"  \
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAQwBIAEUARQBSAAAA"  \
-    "CgAAAAAAAABBAEIAQwBEAAAA7f7ewAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAA"  \
-    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
-
-void test_base64_multiple(void)
-{
-    int ret;
-    char *base64;
-    const char *expected = EXPECTED_BASE64_MULT;
-    uint8_t buf[BUFSZ] = { 0 };
-    uint8_t *p = (uint8_t *)buf;
-    uint8_t bytes[BUFSZ] = { 0 };
-    variable_t orig[VARCNT] = { { 0 } };
-    variable_t var[VARCNT] = { { 0 } };
-
-    /* Setup */
-    variable_create_noalloc(&orig[0], FOO, (uint8_t *)BAR, strsize16(BAR),
-                            &default_guid, DEFAULT_ATTR);
-    variable_create_noalloc(&orig[1], CHEER, (uint8_t *)ABCD, strsize16(ABCD),
-                            &default_guid, DEFAULT_ATTR);
-
-    /* Do the work */
-    serialize_variable_list(&p, BUFSZ, orig, sizeof(orig) / sizeof(orig[0]));
-    base64 = bytes_to_base64(buf, list_size(orig, VARCNT));
-
-    /* Test the base64 encoding */
-    test(strcmp(base64, expected) == 0);
-    ret = base64_to_bytes(bytes, BUFSZ, base64, strlen(base64));
-    from_bytes_to_vars(var, VARCNT, bytes, ret);
-
-    /* Do the test */
-    test(variable_eq(&var[0], &orig[0]));
-    test(variable_eq(&var[1], &orig[1]));
-
-    variable_destroy_noalloc(&orig[0]);
-    variable_destroy_noalloc(&orig[1]);
-    variable_destroy_noalloc(&var[0]);
-    variable_destroy_noalloc(&var[1]);
-
-    free(base64);
-}
-
-void test_base64_big(void)
+void test_xapi_base64_big(void)
 {
     bool has_bootorder = false, has_conout = false;
     int ret;
@@ -303,7 +200,7 @@ void test_base64_big(void)
     test(has_conout);
 }
 
-void test_base64_big_xml(void)
+void test_xapi_base64_big_xml(void)
 {
     bool has_bootorder = false, has_conout = false;
     int ret;
@@ -421,18 +318,16 @@ void test_xapi(void)
     memset(vars, 0, sizeof(vars));
 
     variable_create_noalloc(&vars[0], v1, (uint8_t *)D1, d1_len, &default_guid,
-                            DEFAULT_ATTR);
+                            DEFAULT_ATTR, NULL);
     variable_create_noalloc(&vars[1], v2, (uint8_t *)D2, d2_len, &default_guid,
-                            DEFAULT_ATTR);
+                            DEFAULT_ATTR, NULL);
 
     //DO_TEST(test_xapi_set_efi_vars);
     DO_TEST(test_var_copy);
     DO_TEST(test_bytes);
-    DO_TEST(test_base64);
-    DO_TEST(test_base64_multiple);
-    DO_TEST(test_base64_encode);
-    DO_TEST(test_base64_big);
-    DO_TEST(test_base64_big_xml);
+    DO_TEST(test_xapi_base64);
+    DO_TEST(test_xapi_base64_big);
+    DO_TEST(test_xapi_base64_big_xml);
     DO_TEST(test_big_request);
     DO_TEST(test_big_request2);
 }

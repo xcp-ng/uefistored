@@ -127,49 +127,32 @@ variable_t *variable_create(const UTF16 *name, const uint8_t *data,
 variable_t *variable_create_unserialize(const uint8_t **ptr)
 {
     variable_t *var;
-    UTF16 name[MAX_VARIABLE_NAME_SIZE] = { 0 };
-    EFI_GUID guid;
-    uint8_t *data;
-    uint64_t namesz, datasz;
-    uint32_t attrs;
+    int ret;
 
-    if (!ptr)
+    var = calloc(1, sizeof(variable_t));
+
+    ret = unserialize_var_cached(ptr, var);
+
+    if (ret < 0)
         return NULL;
 
-    namesz = unserialize_uint64(ptr);
-
-    if (namesz == 0)
-        return NULL;
-
-    memcpy(name, *ptr, namesz);
-    *ptr += namesz;
-
-    datasz = unserialize_uint64(ptr);
-
-    if (datasz == 0)
-        return NULL;
-
-    data = malloc(datasz);
-
-    if (!data)
-        return NULL;
-
-    memcpy(data, *ptr, datasz);
-    *ptr += datasz;
-
-    unserialize_guid(ptr, &guid);
-    attrs = unserialize_uint32(ptr);
-
-    *ptr += VAR_PADDING;
-
-    var = variable_create(name, data, datasz, &guid, attrs);
-    free(data);
     return var;
+}
+
+int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp)
+{
+    if (!var || !timestamp)
+        return -1;
+
+    memcpy(&var->timestamp, timestamp, sizeof(var->timestamp));
+
+    return 0;
 }
 
 int variable_create_noalloc(variable_t *var, const UTF16 *name,
                             const uint8_t *data, const uint64_t datasz,
-                            const EFI_GUID *guid, const uint32_t attrs)
+                            const EFI_GUID *guid, const uint32_t attrs, 
+                            const EFI_TIME *timestamp)
 {
     if (!var || !name || !data || !guid || datasz == 0)
         return -1;
@@ -184,6 +167,9 @@ int variable_create_noalloc(variable_t *var, const UTF16 *name,
         goto cleanup_data;
 
     if (variable_set_attrs(var, attrs) < 0)
+        goto cleanup_data;
+
+    if (timestamp && variable_set_timestamp(var, timestamp) < 0)
         goto cleanup_data;
 
     return 0;
@@ -306,6 +292,12 @@ uint64_t variable_size(const variable_t *var)
     /* ATTRS Value */
     sum += sizeof(var->attrs);
 
+    /* UEFI TimeStamp Value */
+    sum += sizeof(var->timestamp);
+
+    /* unknown field serialized in legacy varstored */
+    sum += sizeof(var->unknown);
+
     return sum;
 }
 
@@ -341,3 +333,40 @@ void variable_printf(const variable_t *var)
     free(name);
     free(data);
 }
+
+/**
+ * This function populates an array of variables from byte-serialized form.
+ *
+ * @parm vars the buffer array of variables
+ * @parm n the max size of the array
+ * @parm bytes pointer to the array of bytes of serialized variables
+ * @parm bytes_sz the size of the array of bytes
+ *
+ * @return the number of variables on success, otherwise -1.
+ */
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
+                       size_t bytes_sz)
+{
+    int ret;
+    const uint8_t *ptr = bytes;
+    struct variable_list_header hdr;
+    int i;
+
+    if (!vars || !bytes)
+        return -1;
+
+    unserialize_variable_list_header(&ptr, &hdr);
+
+    if (hdr.variable_count > n)
+        return -1;
+
+    for (i = 0; i < hdr.variable_count; i++) {
+        ret = unserialize_var_cached(&ptr, &vars[i]);
+
+        if (ret < 0)
+            break;
+    }
+
+    return i;
+}
+
