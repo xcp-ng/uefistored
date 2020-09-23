@@ -27,4 +27,4 @@ docker-shell:
 	docker run $(DOCKER_ARGS) bash
 
 docker-%:
-	docker run $(DOCKER_ARGS) $(notdir $(MAKE)) $* $(MAKEFLAGS)
+	docker run -e CFLAGS='$(CFLAGS)' $(DOCKER_ARGS) $(notdir $(MAKE)) $* $(MAKEFLAGS)
