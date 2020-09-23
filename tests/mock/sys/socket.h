@@ -21,7 +21,6 @@ int get_sockfd(void);
 
 static inline int connect(int fd, const struct sockaddr *addr, uint64_t addrlen)
 {
-    printf("sockfd=%d\n", fd);
     return 0;
 }
 
