@@ -57,12 +57,14 @@ get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size,
     if (!variable || !guid || !attrs || !size || !data)
         return EFI_INVALID_PARAMETER;
 
+#if DEBUG
+    size_t buffer_size;
+    buffer_size = *size;
+#endif
+
     status = storage_get(variable, guid, attrs, data, size);
 
 #if DEBUG
-    size_t buffer_size;
-
-    buffer_size = *size;
     DPRINTF("%s:%d: ", __func__, __LINE__);
     dprint_name(variable, strsize16(variable));
     DPRINTF(", guid=0x%02x", guid->Data1);
