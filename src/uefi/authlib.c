@@ -44,10 +44,10 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 uint8_t *mCertDbStore;
 uint8_t mVendorKeyState;
 uint32_t mMaxCertDbSize;
-uint32_t mPlatformMode;
+uint32_t SetupMode;
 
-EFI_GUID mSignatureSupport[] = { EFI_CERT_SHA1_GUID, EFI_CERT_SHA256_GUID,
-                                 EFI_CERT_RSA2048_GUID, EFI_CERT_X509_GUID };
+EFI_GUID SignatureSupport[] = { EFI_CERT_SHA1_GUID, EFI_CERT_SHA256_GUID,
+                                EFI_CERT_RSA2048_GUID, EFI_CERT_X509_GUID };
 
 #define VAR_CHECK_VARIABLE_PROPERTY_REVISION 0x0001
 //
@@ -103,7 +103,82 @@ VARIABLE_ENTRY_PROPERTY mAuthVarEntry[] = {
         sizeof(uint32_t), LONG_MAX } },
 };
 
-void **mAuthVarAddressPointer[9];
+static int init_auth_vars(void)
+
+{
+    EFI_STATUS status;
+    uint8_t SetupMode;
+    uint8_t SecureBoot;
+    uint8_t DeployedMode;
+    uint8_t AuditMode;
+
+    void *data;
+    size_t data_size;
+
+    SetupMode = 0;
+    SecureBoot = 0;
+    DeployedMode = 0;
+    AuditMode = 0;
+
+    status = storage_set(EFI_SIGNATURE_SUPPORT_NAME, &gEfiGlobalVariableGuid,
+                         SignatureSupport, sizeof(SignatureSupport),
+                         EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                                 EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        return -1;
+    }
+
+    status = auth_internal_find_variable(EFI_PLATFORM_KEY_NAME,
+                                         &gEfiGlobalVariableGuid,
+                                         (void **)&data, &data_size);
+
+    if (status != EFI_NOT_FOUND && status != EFI_SUCCESS) {
+        return -1;
+    } else if (status == EFI_NOT_FOUND) {
+        SetupMode = 1;
+    } else {
+        SecureBoot = 1;
+    }
+
+    status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &SetupMode,
+                         sizeof(SetupMode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        return -1;
+    }
+
+    status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &AuditMode,
+                         sizeof(AuditMode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        return -1;
+    }
+
+    status = storage_set(L"DeployedMode", &gEfiGlobalVariableGuid, &DeployedMode,
+                         sizeof(DeployedMode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        return -1;
+    }
+
+    status = storage_set(L"SecureBoot", &gEfiGlobalVariableGuid, &SecureBoot,
+                         sizeof(SecureBoot), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        return -1;
+    }
+
+    DDEBUG("SetVariable(L\"SecureBoot\") == 0x%02lx\n", status);
+    DDEBUG("Variable SetupMode is %x\n", SetupMode);
+    DDEBUG("Variable SecureBoot is %x\n", SecureBoot);
+
+    return 0;
+}
 
 /**
   Initialization for authenticated varibale services.
@@ -122,8 +197,6 @@ AuthVariableLibInitialize(void)
     uint32_t VarAttr;
     uint8_t *Data = NULL;
     uint64_t DataSize;
-    uint8_t SecureBootMode;
-    uint8_t SecureBootEnable;
     uint8_t CustomMode;
     uint32_t ListSize;
 
@@ -139,101 +212,11 @@ AuthVariableLibInitialize(void)
         return EFI_OUT_OF_RESOURCES;
     }
 
-    Status = auth_internal_find_variable(EFI_PLATFORM_KEY_NAME,
-                                         &gEfiGlobalVariableGuid,
-                                         (void **)&Data, &DataSize);
-    if (EFI_ERROR(Status)) {
-        DDEBUG("Variable 'PK' does not exist\n");
-    } else {
-        DDEBUG("Variable 'PK'  exists\n");
+
+    if (init_auth_vars() < 0)
+    {
+        ERROR("Failed to setup Secure Boot variables\n");
     }
-
-    if (Data)
-        free(Data);
-
-    //
-    // Create "SetupMode" variable with BS+RT attribute set.
-    //
-    if (EFI_ERROR(Status)) {
-        mPlatformMode = SETUP_MODE;
-    } else {
-        mPlatformMode = USER_MODE;
-    }
-    Status = storage_set(EFI_SETUP_MODE_NAME, &gEfiGlobalVariableGuid,
-                         &mPlatformMode, sizeof(uint8_t),
-                         EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                                 EFI_VARIABLE_RUNTIME_ACCESS);
-    if (EFI_ERROR(Status)) {
-        return Status;
-    }
-
-    //
-    // Create "SignatureSupport" variable with BS+RT attribute set.
-    //
-    Status = storage_set(EFI_SIGNATURE_SUPPORT_NAME, &gEfiGlobalVariableGuid,
-                         mSignatureSupport, sizeof(mSignatureSupport),
-                         EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                                 EFI_VARIABLE_RUNTIME_ACCESS);
-    if (EFI_ERROR(Status)) {
-        return Status;
-    }
-
-#if 0
-    uint8_t shim_verbose = 1;
-    Status = storage_set(L"SHIM_VERBOSE", &gShimLockGuid,
-                         &shim_verbose, sizeof(uint8_t),
-                         EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                                 EFI_VARIABLE_RUNTIME_ACCESS);
-#endif
-
-    //
-    // If "SecureBootEnable" variable exists, then update "SecureBoot" variable.
-    // If "SecureBootEnable" variable is SECURE_BOOT_ENABLE and in USER_MODE, Set "SecureBoot" variable to SECURE_BOOT_MODE_ENABLE.
-    // If "SecureBootEnable" variable is SECURE_BOOT_DISABLE, Set "SecureBoot" variable to SECURE_BOOT_MODE_DISABLE.
-    //
-    SecureBootEnable = SECURE_BOOT_DISABLE;
-    Status = auth_internal_find_variable(EFI_SECURE_BOOT_ENABLE_NAME,
-                                         &gEfiSecureBootEnableDisableGuid,
-                                         (void **)&Data, &DataSize);
-    if (!EFI_ERROR(Status)) {
-        if (mPlatformMode == USER_MODE) {
-            SecureBootEnable = *(uint8_t *)Data;
-        }
-    } else if (mPlatformMode == USER_MODE) {
-        //
-        // "SecureBootEnable" not exist, initialize it in USER_MODE.
-        //
-        SecureBootEnable = SECURE_BOOT_ENABLE;
-        Status = storage_set(
-                EFI_SECURE_BOOT_ENABLE_NAME, &gEfiSecureBootEnableDisableGuid,
-                &SecureBootEnable, sizeof(uint8_t),
-                EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS);
-        if (EFI_ERROR(Status)) {
-            return Status;
-        }
-    }
-
-    free(Data);
-
-    //
-    // Create "SecureBoot" variable with BS+RT attribute set.
-    //
-    if (SecureBootEnable == SECURE_BOOT_ENABLE && mPlatformMode == USER_MODE) {
-        SecureBootMode = SECURE_BOOT_MODE_ENABLE;
-    } else {
-        SecureBootMode = SECURE_BOOT_MODE_DISABLE;
-    }
-    Status = storage_set(EFI_SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid,
-                         &SecureBootMode, sizeof(uint8_t),
-                         EFI_VARIABLE_RUNTIME_ACCESS |
-                                 EFI_VARIABLE_BOOTSERVICE_ACCESS);
-    if (EFI_ERROR(Status)) {
-        return Status;
-    }
-
-  DDEBUG("Variable SetupMode is %x\n", mPlatformMode);
-  DDEBUG("Variable SecureBoot is %x\n", SecureBootMode);
-  DDEBUG("Variable SecureBootEnable is %x\n", SecureBootEnable);
 
     //
     // Initialize "CustomMode" in STANDARD_SECURE_BOOT_MODE state.
@@ -254,8 +237,6 @@ AuthVariableLibInitialize(void)
     //
     Status = auth_internal_find_variable(EFI_CERT_DB_NAME, &gEfiCertDbGuid,
                                          (void **)&Data, &DataSize);
-
-    free(Data);
 
     if (EFI_ERROR(Status)) {
         VarAttr = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS |
@@ -318,12 +299,9 @@ AuthVariableLibInitialize(void)
                         EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS);
 
         if (EFI_ERROR(Status)) {
-            free(Data);
             return Status;
         }
     }
-
-    free(Data);
 
     //
     // Create "VendorKeys" variable with BS+RT attribute set.

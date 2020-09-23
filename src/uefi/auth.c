@@ -26,7 +26,7 @@ extern SHA256_CTX *mHashCtx;
 extern uint8_t *mCertDbStore;
 extern uint8_t mVendorKeyState;
 extern uint32_t mMaxCertDbSize;
-extern uint8_t mPlatformMode;
+extern uint8_t SetupMode;
 
 //
 // Public Exponent of RSA Key.
@@ -365,8 +365,8 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
     // Update the value of SetupMode variable by a simple mem copy, this could avoid possible
     // variable storage reclaim at runtime.
     //
-    mPlatformMode = (uint8_t)Mode;
-    memcpy(data, &mPlatformMode, sizeof(uint8_t));
+    SetupMode = (uint8_t)Mode;
+    memcpy(data, &SetupMode, sizeof(uint8_t));
 
     if (efi_at_runtime) {
         //
@@ -393,9 +393,9 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
     if (EFI_ERROR(status)) {
         SecureBootMode = SECURE_BOOT_MODE_DISABLE;
     } else {
-        if (mPlatformMode == USER_MODE) {
+        if (SetupMode == USER_MODE) {
             SecureBootMode = SECURE_BOOT_MODE_ENABLE;
-        } else if (mPlatformMode == SETUP_MODE) {
+        } else if (SetupMode == SETUP_MODE) {
             SecureBootMode = SECURE_BOOT_MODE_DISABLE;
         } else {
             return EFI_NOT_FOUND;
@@ -1689,7 +1689,7 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
     // Init state of Del. State may change due to secure check
     //
     Del = false;
-    if (InCustomMode() || (mPlatformMode == SETUP_MODE && !IsPk)) {
+    if (InCustomMode() || (SetupMode == SETUP_MODE && !IsPk)) {
         Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         PayloadSize = data_size - AUTHINFO2_SIZE(data);
         if (PayloadSize == 0) {
@@ -1708,10 +1708,10 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
             return status;
         }
 
-        if ((mPlatformMode != SETUP_MODE) || IsPk) {
+        if ((SetupMode != SETUP_MODE) || IsPk) {
             status = VendorKeyIsModified();
         }
-    } else if (mPlatformMode == USER_MODE) {
+    } else if (SetupMode == USER_MODE) {
         //
         // Verify against X509 Cert in PK database.
         //
@@ -1726,12 +1726,12 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     if (!EFI_ERROR(status) && IsPk) {
-        if (mPlatformMode == SETUP_MODE && !Del) {
+        if (SetupMode == SETUP_MODE && !Del) {
             //
             // If enroll PK in setup mode, need change to user mode.
             //
             status = UpdatePlatformMode(USER_MODE);
-        } else if (mPlatformMode == USER_MODE && Del) {
+        } else if (SetupMode == USER_MODE && Del) {
             //
             // If delete PK in user mode, need change to setup mode.
             //
@@ -1782,7 +1782,7 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     status = EFI_SUCCESS;
-    if (mPlatformMode == USER_MODE &&
+    if (SetupMode == USER_MODE &&
         !(InCustomMode() && UserPhysicalPresent())) {
         //
         // Time-based, verify against X509 Cert KEK.
@@ -1808,7 +1808,7 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
             return status;
         }
 
-        if (mPlatformMode != SETUP_MODE) {
+        if (SetupMode != SETUP_MODE) {
             status = VendorKeyIsModified();
         }
     }
