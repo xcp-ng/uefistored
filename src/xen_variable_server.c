@@ -9,11 +9,11 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
-#include "storage.h"
 #include "common.h"
 #include "info.h"
 #include "log.h"
 #include "serializer.h"
+#include "storage.h"
 #include "uefi/types.h"
 #include "uefi/guids.h"
 #include "varnames.h"
