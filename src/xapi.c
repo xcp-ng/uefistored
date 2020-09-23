@@ -329,14 +329,7 @@ static uint8_t *variable_list_bytes(size_t *size, bool nonvolatile)
     if (ret <= 0)
         return NULL;
 
-#if 0
-    int i;
-
-    for (i=0; i<MAX_VAR_COUNT; i++) {
-        DPRINTF("%s:%d: ", __func__, __LINE__);
-        dprint_variable(&vars[i]);
-    }
-#endif
+    dprint_variable_list(vars, ret);
 
     *size = list_size(vars, ret);
     bytes = malloc(*size);
@@ -381,14 +374,12 @@ static int create_header(size_t body_len, char *message, size_t message_size)
 {
     int ret;
 
-    DDEBUG("trace\n");
     ret = snprintf(message, message_size, HTTP_HEADER, body_len);
 
     if (ret < 0) {
         return ret;
     }
 
-    DDEBUG("trace\n");
     return ret;
 }
 
@@ -514,10 +505,8 @@ int xapi_set_efi_vars(void)
     char buffer[BIG_MESSAGE_SIZE];
     int ret;
 
-    DDEBUG("setting NVRAM\n");
 
     ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
-    DDEBUG("build_set_efi_vars_message: ret=%d\nmessage:\n%s\n", ret, buffer);
 
     if (ret < 0) {
         ERROR("Failed to build VM.set_NVRAM_EFI_variables message\n");
@@ -525,7 +514,6 @@ int xapi_set_efi_vars(void)
     }
 
     ret = send_request(buffer, buffer, BIG_MESSAGE_SIZE);
-    DDEBUG("send_request:ret=%d\n", ret);
 
     return ret == 200 ? 0 : -1;
 }
