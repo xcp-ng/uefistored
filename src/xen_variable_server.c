@@ -228,8 +228,6 @@ static void handle_set_variable(void *comm_buf)
 
     datasz = unserialize_data(&inptr, dp, MAX_VARIABLE_DATA_SIZE);
 
-    DDEBUG("datasz=%d\n", datasz);
-
     if (datasz < 0) {
         ptr = comm_buf;
         DDEBUG("status=%s (0x%02lx)\n",
@@ -363,14 +361,13 @@ static void handle_get_next_variable(void *comm_buf)
     status = unserialize_get_next_variable(inptr, &namesz, &name, &guest_bufsz,
                                            &guid);
     if (status) {
-#if 1
         DPRINTF("%s:%u: ", __func__, __LINE__);
         if (!status) {
             dprint_name(name, namesz);
         }
         DPRINTF(": status=%s (0x%lx), namesz=%lu, guest_bufsz=%lu\n", 
                 efi_status_str(status), status, namesz, guest_bufsz);
-#endif
+
         ptr = comm_buf;
         serialize_result(&ptr, status);
         return;
@@ -402,7 +399,6 @@ static void handle_get_next_variable(void *comm_buf)
         buffer_too_small(comm_buf, guest_bufsz);
         goto cleanup2;
     }
-
 
     assert(status == EFI_SUCCESS);
 
@@ -475,7 +471,7 @@ void xen_variable_server_handle_request(void *comm_buf)
     case COMMAND_NOTIFY_SB_FAILURE:
         /* fall through */
     default:
-        ERROR("cmd: unknown\n");
+        ERROR("cmd: unknown, 0x%x\n", command);
         break;
     }
 }
