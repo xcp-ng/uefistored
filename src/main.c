@@ -831,14 +831,14 @@ int main(int argc, char **argv)
         }
     }
 
+    storage_init();
+
     ret = xapi_connect();
 
     if (ret < 0) {
         ERROR("failed to connect XAPI database\n");
         goto err;
     }
-
-    storage_init();
 
     ret = xapi_init(resume);
 
