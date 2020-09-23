@@ -77,32 +77,6 @@ typedef struct {
 //
 SHA256_CTX *mHashCtx = NULL;
 
-VARIABLE_ENTRY_PROPERTY mAuthVarEntry[] = {
-    { &gEfiSecureBootEnableDisableGuid,
-      EFI_SECURE_BOOT_ENABLE_NAME,
-      { VAR_CHECK_VARIABLE_PROPERTY_REVISION, 0, VARIABLE_ATTRIBUTE_NV_BS,
-        sizeof(uint8_t), sizeof(uint8_t) } },
-    { &gEfiCustomModeEnableGuid,
-      EFI_CUSTOM_MODE_NAME,
-      { VAR_CHECK_VARIABLE_PROPERTY_REVISION, 0, VARIABLE_ATTRIBUTE_NV_BS,
-        sizeof(uint8_t), sizeof(uint8_t) } },
-    { &gEfiVendorKeysNvGuid,
-      EFI_VENDOR_KEYS_NV_VARIABLE_NAME,
-      { VAR_CHECK_VARIABLE_PROPERTY_REVISION,
-        VAR_CHECK_VARIABLE_PROPERTY_READ_ONLY, VARIABLE_ATTRIBUTE_NV_BS_RT_AT,
-        sizeof(uint8_t), sizeof(uint8_t) } },
-    { &gEfiCertDbGuid,
-      EFI_CERT_DB_NAME,
-      { VAR_CHECK_VARIABLE_PROPERTY_REVISION,
-        VAR_CHECK_VARIABLE_PROPERTY_READ_ONLY, VARIABLE_ATTRIBUTE_NV_BS_RT_AT,
-        sizeof(uint32_t), LONG_MAX } },
-    { &gEfiCertDbGuid,
-      EFI_CERT_DB_VOLATILE_NAME,
-      { VAR_CHECK_VARIABLE_PROPERTY_REVISION,
-        VAR_CHECK_VARIABLE_PROPERTY_READ_ONLY, VARIABLE_ATTRIBUTE_BS_RT_AT,
-        sizeof(uint32_t), LONG_MAX } },
-};
-
 static int init_auth_vars(void)
 
 {
@@ -317,24 +291,6 @@ AuthVariableLibInitialize(void)
     dprint_name((UTF16 *)EFI_VENDOR_KEYS_VARIABLE_NAME,
                 strsize16((UTF16 *)EFI_VENDOR_KEYS_VARIABLE_NAME));
     DPRINTF(" is %x\n", mVendorKeyState);
-
-#if 0
-  AuthVarLibContextOut->StructVersion = AUTH_VAR_LIB_CONTEXT_OUT_STRUCT_VERSION;
-  AuthVarLibContextOut->StructSize = sizeof (AUTH_VAR_LIB_CONTEXT_OUT);
-  AuthVarLibContextOut->AuthVarEntry = mAuthVarEntry;
-  AuthVarLibContextOut->AuthVarEntryCount = ARRAY_SIZE (mAuthVarEntry);
-  mAuthVarAddressPointer[0] = (void **) &mCertDbStore;
-  mAuthVarAddressPointer[1] = (void **) &mHashCtx;
-  mAuthVarAddressPointer[2] = (void **) &mAuthVarLibContextIn;
-  mAuthVarAddressPointer[3] = (void **) &(mAuthVarLibContextIn->FindVariable),
-  mAuthVarAddressPointer[4] = (void **) &(mAuthVarLibContextIn->FindNextVariable),
-  mAuthVarAddressPointer[5] = (void **) &(mAuthVarLibContextIn->UpdateVariable),
-  mAuthVarAddressPointer[6] = (void **) &(mAuthVarLibContextIn->GetScratchBuffer),
-  mAuthVarAddressPointer[7] = (void **) &(mAuthVarLibContextIn->CheckRemainingSpaceForConsistency),
-  mAuthVarAddressPointer[8] = (void **) &(mAuthVarLibContextIn->AtRuntime),
-  AuthVarLibContextOut->AddressPointer = mAuthVarAddressPointer;
-  AuthVarLibContextOut->AddressPointerCount = ARRAY_SIZE (mAuthVarAddressPointer);
-#endif
 
     mHashCtx = malloc(sizeof(SHA256_CTX));
 
