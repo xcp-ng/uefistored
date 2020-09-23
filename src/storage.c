@@ -418,3 +418,9 @@ found:
 
     return EFI_SUCCESS;
 }
+
+void _storage_debug(const char *func, int lineno)
+{
+    DDEBUG("%s:%d: All UEFI Variables:\n", func, lineno);
+    dprint_variable_list(variables, MAX_VAR_COUNT);
+}
