@@ -39,6 +39,15 @@
 #define IOREQ_SERVER_FRAME_NR 2
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
+extern FILE *input_snapshot_fd;
+extern FILE *output_snapshot_fd;
+extern FILE *test_log;
+
+static void setup_test_log(void)
+{
+	test_log = fopen("/uefistored.test.log", "a+");
+}
+
 static bool resume;
 
 extern char *xapi_resume_path;
@@ -311,16 +320,6 @@ bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
     return strncmp(data, "true", len) == 0;
 }
 
-static void debug_bufioreq(buf_ioreq_t *buf_ioreq)
-{
-    if (!buf_ioreq)
-        return;
-
-    DDEBUG("BufferedIOReq<type=0x%02x, dir=%d, size=%u, addr=0x%02x, data=0x%02x>\n",
-          buf_ioreq->type, buf_ioreq->dir, buf_ioreq->size, buf_ioreq->addr,
-          buf_ioreq->data);
-}
-
 void handle_bufioreq(buf_ioreq_t *buf_ioreq)
 {
     if (!buf_ioreq) {
@@ -332,8 +331,6 @@ void handle_bufioreq(buf_ioreq_t *buf_ioreq)
         ERROR("UNKNOWN buf_ioreq type %02x)\n", buf_ioreq->type);
         return;
     }
-
-    debug_bufioreq(buf_ioreq);
 }
 
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage,
@@ -475,6 +472,34 @@ static void printargs(int argc, char **argv)
     DPRINTF("\n");
 }
 
+/*
+ * Store the uefistored pid in XenStore to signal to XAPI that uefistored is alive
+ */
+int write_pid()
+{
+    char pidstr[21];
+    char pidalive[0x80];
+    int ret;
+
+    if (snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid",
+                   domid) < 0) {
+        ERROR("buffer error: %d, %s\n", errno, strerror(errno));
+        return -1;
+    }
+
+    if ((ret = snprintf(pidstr, sizeof(pidstr), "%u", getpid()) < 0)) {
+        ERROR("pidstr asprintf failed\n");
+        return -1;
+    }
+
+    if (xs_write(xsh, XBT_NULL, pidalive, pidstr, ret) == false) {
+        ERROR("xs_write failed: %d, %s\n", errno, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 void handler_loop(xenevtchn_handle *xce, buffered_iopage_t *buffered_iopage,
                   evtchn_port_t bufioreq_local_port,
                   evtchn_port_t *remote_vcpu_ports, int vcpu_count,
@@ -543,8 +568,6 @@ int main(int argc, char **argv)
     int ret;
     int option_index = 0;
     int i;
-    char pidstr[21];
-    char pidalive[0x80];
     char c;
     EFI_STATUS status;
 
@@ -570,6 +593,8 @@ int main(int argc, char **argv)
         printf(USAGE);
         exit(1);
     }
+
+    setup_test_log();
 
     install_sighandlers();
 
@@ -822,6 +847,10 @@ int main(int argc, char **argv)
         goto err;
     }
 
+    
+    input_snapshot_fd = fopen(INPUT_SNAPSHOT, "a+"); 
+    output_snapshot_fd = fopen(OUTPUT_SNAPSHOT, "a+"); 
+
     if (root_path) {
         ret = chroot(root_path);
 
@@ -849,28 +878,9 @@ int main(int argc, char **argv)
         DDEBUG("AuthVariableLibInitialize() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
 
-    /*
-     * Store the uefistored pid in XenStore to signal to XAPI that uefistored is alive
-     *
-     * Must be named varstored-pid for XAPI.
-     */
-    ret = snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid",
-                   domid);
-    if (ret < 0) {
-        ERROR("buffer error: %d, %s\n", errno, strerror(errno));
-        goto err;
-    }
 
-    ret = snprintf(pidstr, sizeof(pidstr), "%u", getpid());
-    if (ret < 0) {
-        ERROR("pidstr asprintf failed\n");
-    }
-
-    ret = xs_write(xsh, XBT_NULL, pidalive, pidstr, ret);
-    if (ret == false) {
-        ERROR("xs_write failed: %d, %s\n", errno, strerror(errno));
+    if (write_pid(xsh) < 0)
         goto err;
-    }
 
     handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports,
                  vcpu_count, shared_iopage);

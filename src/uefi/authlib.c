@@ -38,6 +38,10 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "uefi/types.h"
 #include "uefi/utils.h"
 
+uint8_t default_pk[] = {
+#include "default_pk.txt"
+};
+
 ///
 /// Global database array for scratch
 ///
@@ -103,6 +107,11 @@ static int init_auth_vars(void)
         return -1;
     }
 
+    storage_set(L"PK", &gEfiGlobalVariableGuid,
+                default_pk, sizeof(default_pk),
+                EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                EFI_VARIABLE_RUNTIME_ACCESS);
+
     status = auth_internal_find_variable(EFI_PLATFORM_KEY_NAME,
                                          &gEfiGlobalVariableGuid,
                                          (void **)&data, &data_size);
@@ -112,8 +121,10 @@ static int init_auth_vars(void)
     } else if (status == EFI_NOT_FOUND) {
         SetupMode = 1;
     } else {
-        SecureBoot = 1;
+        // TODO: allow enabling secureboot
+        //SecureBoot = 1;
     }
+
 
     status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &SetupMode,
                          sizeof(SetupMode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
@@ -235,6 +246,7 @@ AuthVariableLibInitialize(void)
             return Status;
         }
     }
+
 
     //
     // Create "certdbv" variable with RT+BS+AT set.

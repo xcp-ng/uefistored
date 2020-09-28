@@ -28,6 +28,13 @@ extern uint8_t mVendorKeyState;
 extern uint32_t mMaxCertDbSize;
 extern uint8_t SetupMode;
 
+#ifdef DEBUG
+#define TRACE()               \
+    do {                    \
+        DDEBUG("\n");       \
+    } while ( 0 )
+#endif
+
 //
 // Public Exponent of RSA Key.
 //
@@ -1130,6 +1137,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         (CertData->TimeStamp.TimeZone != 0) ||
         (CertData->TimeStamp.Daylight != 0) ||
         (CertData->TimeStamp.Pad2 != 0)) {
+        TRACE();
         return EFI_SECURITY_VIOLATION;
     }
 
@@ -1139,6 +1147,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
             //
             // TimeStamp check fail, suspicious replay attack, return EFI_SECURITY_VIOLATION.
             //
+            TRACE();
             return EFI_SECURITY_VIOLATION;
         }
     }
@@ -1152,6 +1161,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         //
         // Invalid AuthInfo type, return EFI_SECURITY_VIOLATION.
         //
+        TRACE();
         return EFI_SECURITY_VIOLATION;
     }
 
@@ -1182,6 +1192,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
             if (((*(Sigdata + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
                 (memcmp(Sigdata + 13, &mSha256OidValue,
                         sizeof(mSha256OidValue)) != 0)) {
+                TRACE();
                 return EFI_SECURITY_VIOLATION;
             }
         }
@@ -1213,6 +1224,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     Newdata = malloc(Newdata_size);
 
     if (!Newdata) {
+        TRACE();
         return EFI_OUT_OF_RESOURCES;
     }
 
@@ -1285,6 +1297,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                              &data_size);
         if (EFI_ERROR(status)) {
             free(Newdata);
+            TRACE();
             return status;
         }
 
@@ -1337,6 +1350,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                        &CertStackSize, &TopLevelCert,
                                        &TopLevelCertSize);
         if (!Verifystatus) {
+            TRACE();
             goto Exit;
         }
 
@@ -1351,6 +1365,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
             status = GetCertsFromDb(name, guid, attrs, &CertsInCertDb,
                                     &CertsSizeinDb);
             if (EFI_ERROR(status)) {
+                TRACE();
                 goto Exit;
             }
 
@@ -1366,6 +1381,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                         TopLevelCert, TopLevelCertSize, Sha256Digest);
                 if (EFI_ERROR(status) ||
                     memcmp(Sha256Digest, CertsInCertDb, CertsSizeinDb) != 0) {
+                    TRACE();
                     goto Exit;
                 }
             } else {
@@ -1374,6 +1390,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                 //
                 if ((CertStackSize != CertsSizeinDb) ||
                     (memcmp(SignerCerts, CertsInCertDb, CertsSizeinDb) != 0)) {
+                    TRACE();
                     goto Exit;
                 }
             }
@@ -1382,6 +1399,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         Verifystatus = Pkcs7Verify(Sigdata, SigDataSize, TopLevelCert,
                                    TopLevelCertSize, Newdata, Newdata_size);
         if (!Verifystatus) {
+            TRACE();
             goto Exit;
         }
 
@@ -1395,6 +1413,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                     ReadUnaligned32((uint32_t *)&(CertDataPtr->CertDataLength)),
                     TopLevelCert, TopLevelCertSize);
             if (EFI_ERROR(status)) {
+                TRACE();
                 Verifystatus = false;
                 goto Exit;
             }
@@ -1407,6 +1426,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         TrustedCert = Cert->SignatureData;
         TrustedCertSize =
                 CertList->SignatureSize - (sizeof(EFI_SIGNATURE_DATA) - 1);
+
+        TRACE();
         //
         // Verify Pkcs7 Signeddata via Pkcs7Verify library.
         //
@@ -1414,6 +1435,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                    TrustedCertSize, Newdata, Newdata_size);
     } else {
         free(Newdata);
+        TRACE();
         return EFI_SECURITY_VIOLATION;
     }
 
@@ -1426,17 +1448,20 @@ Exit:
     }
 
     if (!Verifystatus) {
+        TRACE();
         return EFI_SECURITY_VIOLATION;
     }
 
     status = CheckSignatureListFormat(name, guid, PayloadPtr, PayloadSize);
     if (EFI_ERROR(status)) {
+        TRACE();
         return status;
     }
 
     *VarPayloadPtr = PayloadPtr;
     *VarPayloadSize = PayloadSize;
 
+    TRACE();
     return EFI_SUCCESS;
 }
 
@@ -1602,12 +1627,25 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
         TimeStamp = &var->timestamp;
     }
 
+#if 1
+    DPRINTF("%s: Data=[", __func__);
+
+    uint64_t i;
+
+    for (i=0; i<data_size; i++) {
+        DPRINTF("0x%02x", ((uint8_t*)data)[i]);
+    }
+
+    DPRINTF("]\n");
+#endif
+
     status = VerifyTimeBasedPayload(
             name, guid, data, data_size, attrs, AuthVarType,
             TimeStamp,
             &PayloadPtr, &PayloadSize);
 
     if (EFI_ERROR(status)) {
+        DDEBUG("error=%s (0x%02lx)\n", efi_status_str(status), status); 
         return status;
     }
 
@@ -1630,6 +1668,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     // Delete signer's certificates when delete the common authenticated variable.
     //
     if (IsDel && AuthVarType == AuthVarTypePriv && !EFI_ERROR(status)) {
+        TRACE();
         status = delete_certs_from_db(name, guid, attrs);
     }
 
@@ -1641,6 +1680,9 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
         }
     }
 
+    DDEBUG("*VarDel=%d\n", *VarDel);
+
+    DDEBUG("status=%s (0x%02lx)\n", efi_status_str(status), status); 
     return status;
 }
 
@@ -1899,6 +1941,8 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
     /* Find the variable in our db */
     status = storage_get_var_ptr(&var, name, guid);
 
+    TRACE();
+
     /* If it was found and the caller is request its deletion, then delete it */
     if (status == EFI_SUCCESS &&
         is_delete_auth_variable(var->attrs, data, data_size,
@@ -1909,6 +1953,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
          */
         status = storage_set(name, guid, NULL, 0, 0);
 
+        TRACE();
         if (status != EFI_SUCCESS) {
             return status;
         }
@@ -1918,6 +1963,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
             status = delete_certs_from_db(name, guid, attrs);
         }
 
+        DDEBUG("status=0x%02lx\n", status);
         return status;
     }
 
@@ -1925,12 +1971,14 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
         /*
          * Reject Counter Based Auth Variable processing request.
          */
+        TRACE();
         return EFI_UNSUPPORTED;
     } else if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) !=
                0) {
         /*
          * Process Time-based Authenticated variable.
          */
+        TRACE();
         return verify_time_based_payload_and_update(
                 name, guid, data, data_size, attrs, AuthVarTypePriv, NULL);
     }
@@ -1942,12 +1990,14 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
         /*
          * If the variable is already write-protected, it always needs authentication before update.
          */
+        TRACE();
         return EFI_WRITE_PROTECTED;
     }
 
     //
     // Not authenticated variable, just update variable as usual.
     //
+    TRACE();
     return storage_set(name, guid, data, data_size, attrs);
 }
 
