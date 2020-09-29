@@ -43,17 +43,17 @@ void log_deinit(void);
         uefistored_fprintf(stdout, "INFO: " __VA_ARGS__);                      \
     } while (0)
 
-#ifdef DEBUG
-#define DDEBUG(...)                                                             \
+#if 1
+#define DDEBUG(...)                                                            \
     do {                                                                       \
         if (_logfd > 0) {                                                      \
-            dprintf(_logfd, "DEBUG:");                                         \
-            dprintf(_logfd, "%s:%d: ", __func__, __LINE__);                    \
-            dprintf(_logfd, __VA_ARGS__);                                      \
+            if (dprintf(_logfd, "DEBUG:%s:%d:", __func__, __LINE__) < 0)       \
+                uefistored_fprintf(stderr, "failed to write to log file\n");   \
+            if (dprintf(_logfd, __VA_ARGS__) < 0)                              \
+                uefistored_fprintf(stderr, "failed to write to log file\n");   \
         }                                                                      \
                                                                                \
-        uefistored_fprintf(stdout, "DEBUG:");                                  \
-        uefistored_fprintf(stdout, "%s:%d: ", __func__, __LINE__);             \
+        uefistored_fprintf(stdout, "DEBUG:%s:%d: ", __func__, __LINE__);       \
         uefistored_fprintf(stdout, __VA_ARGS__);                               \
     } while (0)
 
@@ -79,6 +79,7 @@ static inline void dprint_data(const void *data, size_t datasz)
 }
 
 #else
+#error "No debug"
 #define DDEBUG(...) do { } while(0)
 #define DPRINTF(...) do { } while(0)
 #define dprint_data(...) do { } while(0)

@@ -28,12 +28,10 @@ extern uint8_t mVendorKeyState;
 extern uint32_t mMaxCertDbSize;
 extern uint8_t SetupMode;
 
-#ifdef DEBUG
 #define TRACE()               \
     do {                    \
         DDEBUG("\n");       \
     } while ( 0 )
-#endif
 
 //
 // Public Exponent of RSA Key.
@@ -1173,6 +1171,47 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     SigDataSize = CertData->AuthInfo.Hdr.dwLength -
                   (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
 
+    uint8_t *WrapData;
+    uint64_t WrapDataSize;
+    bool Wrapped;
+
+    if (!WrapPkcs7Data(Sigdata, SigDataSize, &Wrapped,
+                       &WrapData, &WrapDataSize)) {
+        return EFI_DEVICE_ERROR;
+    }
+
+    DDEBUG("SigDataSize=%u, WrapDataSize=%lu\n", SigDataSize, WrapDataSize);
+
+#if 1
+    uint64_t i;
+    DPRINTF("%s:%d: SigData=[", __func__, __LINE__);
+
+    for (i=0; i<SigDataSize; i++) {
+        DPRINTF("0x%02x", ((uint8_t*)Sigdata)[i]);
+
+        if (i < data_size - 1) {
+            DPRINTF(", ");
+        }
+    }
+
+    DPRINTF("]\n");
+
+    DPRINTF("%s:%d: WrapData=[", __func__, __LINE__);
+
+    for (i=0; i<WrapDataSize; i++) {
+        DPRINTF("0x%02x", ((uint8_t*)WrapData)[i]);
+
+        if (i < WrapDataSize - 1) {
+            DPRINTF(", ");
+        }
+    }
+
+    DPRINTF("]\n");
+#endif
+
+    Sigdata = WrapData;
+    SigDataSize = WrapDataSize;
+
     //
     // Signeddata.digestAlgorithms shall contain the digest algorithm used when preparing the
     // signature. Only a digest algorithm of SHA-256 is accepted.
@@ -1187,10 +1226,10 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     //    in VARIABLE_AUTHENTICATION_2 descriptor.
     //    This field has the fixed offset (+13) and be calculated based on two bytes of length encoding.
     //
-    if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) != 0) {
-        if (SigDataSize >= (13 + sizeof(mSha256OidValue))) {
+    if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) {
+        if (SigDataSize >= (32 + sizeof(mSha256OidValue))) {
             if (((*(Sigdata + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
-                (memcmp(Sigdata + 13, &mSha256OidValue,
+                (memcmp(Sigdata + 32, &mSha256OidValue,
                         sizeof(mSha256OidValue)) != 0)) {
                 TRACE();
                 return EFI_SECURITY_VIOLATION;
@@ -1281,6 +1320,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
             Verifystatus = false;
             goto Exit;
         }
+
 
         //
         // Verify Pkcs7 Signeddata via Pkcs7Verify library.
@@ -1395,6 +1435,20 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                 }
             }
         }
+
+#if 1
+        DPRINTF("%s:%d: SigData=[", __func__, __LINE__);
+
+        for (i=0; i<SigDataSize; i++) {
+            DPRINTF("0x%02x", ((uint8_t*)Sigdata)[i]);
+
+            if (i < SigDataSize - 1) {
+                DPRINTF(", ");
+            }
+        }
+
+        DPRINTF("]\n");
+#endif
 
         Verifystatus = Pkcs7Verify(Sigdata, SigDataSize, TopLevelCert,
                                    TopLevelCertSize, Newdata, Newdata_size);
@@ -1634,6 +1688,10 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
 
     for (i=0; i<data_size; i++) {
         DPRINTF("0x%02x", ((uint8_t*)data)[i]);
+
+        if (i < data_size - 1) {
+            DPRINTF(", ");
+        }
     }
 
     DPRINTF("]\n");

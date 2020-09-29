@@ -23,4 +23,7 @@ void Pkcs7FreeSigners (
   uint8_t        *Certs
   );
 
+bool WrapPkcs7Data(const uint8_t *P7Data, uint64_t P7Length, bool *WrapFlag,
+                   uint8_t **WrapData, uint64_t *WrapDataSize);
+
 #endif // __H_PKCS7_VERIFY_

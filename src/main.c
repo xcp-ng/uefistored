@@ -669,6 +669,7 @@ int main(int argc, char **argv)
     }
 
     log_init(domid);
+
     printargs(argc, argv);
 
     if (!root_path)

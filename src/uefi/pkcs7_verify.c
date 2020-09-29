@@ -257,47 +257,38 @@ bool Pkcs7GetSigners(const uint8_t *P7Data, uint64_t P7Length,
 {
     PKCS7 *Pkcs7;
     bool Status;
-    uint8_t *SignedData;
     const uint8_t *Temp;
-    uint64_t SignedDataSize;
-    bool Wrapped;
     STACK_OF(X509) * Stack;
-    uint8_t Index;
-    uint8_t *CertBuf;
-    uint8_t *OldBuf;
-    uint64_t BufferSize;
-    uint64_t OldSize;
-    uint8_t *SingleCert;
-    uint64_t SingleCertSize;
 
-    if ((P7Data == NULL) || (CertStack == NULL) || (StackLength == NULL) ||
-        (TrustedCert == NULL) || (CertLength == NULL) || (P7Length > INT_MAX)) {
-        return false;
+#if 1
+    int i;
+
+    DPRINTF("%s: P7Data (%lu):\n[", __func__, P7Length);
+    for (i=0; i<P7Length; i++) {
+        DPRINTF("0x%02x", P7Data[i]);
+
+        if (i < P7Length - 1)
+            DPRINTF(", ");
     }
+    DPRINTF("]\n");
+#endif
 
+#if 0
     Status = WrapPkcs7Data(P7Data, P7Length, &Wrapped, &SignedData,
                            &SignedDataSize);
     if (!Status) {
         return Status;
     }
+#endif
 
     Status = false;
     Pkcs7 = NULL;
     Stack = NULL;
-    CertBuf = NULL;
-    OldBuf = NULL;
-    SingleCert = NULL;
 
-    //
-    // Retrieve PKCS#7 Data (DER encoding)
-    //
-    if (SignedDataSize > INT_MAX) {
-        goto _Exit;
-    }
-
-    Temp = SignedData;
-    Pkcs7 = d2i_PKCS7(NULL, (const unsigned char **)&Temp, (int)SignedDataSize);
+    Temp = P7Data;
+    Pkcs7 = d2i_PKCS7(NULL, (const unsigned char **)&Temp, P7Length);
     if (Pkcs7 == NULL) {
+        DDEBUG("Pkcs7 == NULL\n");
         goto _Exit;
     }
 
@@ -305,83 +296,22 @@ bool Pkcs7GetSigners(const uint8_t *P7Data, uint64_t P7Length,
     // Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
     //
     if (!PKCS7_type_is_signed(Pkcs7)) {
+        DDEBUG("Pkcs7 not signed\n");
         goto _Exit;
     }
 
     Stack = PKCS7_get0_signers(Pkcs7, NULL, PKCS7_BINARY);
     if (Stack == NULL) {
+        DDEBUG("PKCS7_get0_signers failed\n");
         goto _Exit;
     }
 
-    //
-    // Convert CertStack to buffer in following format:
-    // uint8_t  CertNumber;
-    // uint32_t Cert1Length;
-    // uint8_t  Cert1[];
-    // uint32_t Cert2Length;
-    // uint8_t  Cert2[];
-    // ...
-    // uint32_t CertnLength;
-    // uint8_t  Certn[];
-    //
-    BufferSize = sizeof(uint8_t);
-    OldSize = BufferSize;
-
-    for (Index = 0;; Index++) {
-        Status = X509PopCertificate(Stack, &SingleCert, &SingleCertSize);
-        if (!Status) {
-            break;
-        }
-
-        OldSize = BufferSize;
-        OldBuf = CertBuf;
-        BufferSize = OldSize + SingleCertSize + sizeof(uint32_t);
-        CertBuf = malloc(BufferSize);
-
-        if (CertBuf == NULL) {
-            goto _Exit;
-        }
-
-        if (OldBuf != NULL) {
-            memcpy(CertBuf, OldBuf, OldSize);
-            free(OldBuf);
-            OldBuf = NULL;
-        }
-
-        WriteUnaligned32((uint32_t *)(CertBuf + OldSize),
-                         (uint32_t)SingleCertSize);
-        memcpy(CertBuf + OldSize + sizeof(uint32_t), SingleCert,
-               SingleCertSize);
-
-        free(SingleCert);
-        SingleCert = NULL;
-    }
-
-    if (CertBuf != NULL) {
-        //
-        // Update CertNumber.
-        //
-        CertBuf[0] = Index;
-
-        *CertLength = BufferSize - OldSize - sizeof(uint32_t);
-        *TrustedCert = malloc(*CertLength);
-        if (*TrustedCert == NULL) {
-            goto _Exit;
-        }
-
-        memcpy(*TrustedCert, CertBuf + OldSize + sizeof(uint32_t), *CertLength);
-        *CertStack = CertBuf;
-        *StackLength = BufferSize;
-        Status = true;
-    }
+    Status = true;
 
 _Exit:
     //
     // Release Resources
     //
-    if (!Wrapped) {
-        free(SignedData);
-    }
 
     if (Pkcs7 != NULL) {
         PKCS7_free(Pkcs7);
@@ -389,19 +319,6 @@ _Exit:
 
     if (Stack != NULL) {
         sk_X509_pop_free(Stack, X509_free);
-    }
-
-    if (SingleCert != NULL) {
-        free(SingleCert);
-    }
-
-    if (!Status && (CertBuf != NULL)) {
-        free(CertBuf);
-        *CertStack = NULL;
-    }
-
-    if (OldBuf != NULL) {
-        free(OldBuf);
     }
 
     return Status;

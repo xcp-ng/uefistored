@@ -31,14 +31,20 @@ void log_init(unsigned int domid)
     ret = snprintf(file_name, LOG_FILE_MAX,
                    "/var/log/uefistored/%u.log", domid);
 
-    if (ret < 0)
+    if (ret < 0) {
         ERROR("BUG: snprintf() error");
+        return;
+    }
 
     _logfd = open(file_name, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
 
-    if (_logfd < 0)
+    if (_logfd < 0) {
         ERROR("failed to open %s, err: %d, %s\n", file_name, errno,
               strerror(errno));
+        return;
+    }
+
+    DDEBUG("Log initialized\n");
 }
 
 void log_deinit(void)
