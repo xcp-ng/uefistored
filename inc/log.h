@@ -1,6 +1,7 @@
 #ifndef __H_LOG__
 #define __H_LOG__
 
+#include <errno.h>
 #include "common.h"
 
 extern int _logfd;
@@ -48,9 +49,9 @@ void log_deinit(void);
     do {                                                                       \
         if (_logfd > 0) {                                                      \
             if (dprintf(_logfd, "DEBUG:%s:%d:", __func__, __LINE__) < 0)       \
-                uefistored_fprintf(stderr, "failed to write to log file\n");   \
+                uefistored_fprintf(stderr, "failed to write to log file: %s\n", strerror(errno));   \
             if (dprintf(_logfd, __VA_ARGS__) < 0)                              \
-                uefistored_fprintf(stderr, "failed to write to log file\n");   \
+                uefistored_fprintf(stderr, "failed to write to log file: %s\n", strerror(errno));   \
         }                                                                      \
                                                                                \
         uefistored_fprintf(stdout, "DEBUG:%s:%d: ", __func__, __LINE__);       \

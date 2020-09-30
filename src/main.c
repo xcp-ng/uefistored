@@ -41,12 +41,6 @@
 
 extern FILE *input_snapshot_fd;
 extern FILE *output_snapshot_fd;
-extern FILE *test_log;
-
-static void setup_test_log(void)
-{
-	test_log = fopen("/uefistored.test.log", "a+");
-}
 
 static bool resume;
 
@@ -593,8 +587,6 @@ int main(int argc, char **argv)
         printf(USAGE);
         exit(1);
     }
-
-    setup_test_log();
 
     install_sighandlers();
 

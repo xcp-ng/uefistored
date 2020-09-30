@@ -26,6 +26,7 @@
 FILE *input_snapshot_fd;
 FILE *output_snapshot_fd;
 
+#if 0
 FILE *test_log;
 
 #define MYLOG(...)  				\
@@ -33,6 +34,9 @@ FILE *test_log;
 	    fprintf(test_log, __VA_ARGS__); 	\
 	    fflush(test_log);			\
 	} while (0)
+#else
+#define MYLOG(...) do { } while( 0 )
+#endif
 
 #if 0
 static void save_shmem_page(void *comm_buf, FILE *fd)

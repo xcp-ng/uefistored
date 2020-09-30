@@ -1209,9 +1209,6 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     DPRINTF("]\n");
 #endif
 
-    Sigdata = WrapData;
-    SigDataSize = WrapDataSize;
-
     //
     // Signeddata.digestAlgorithms shall contain the digest algorithm used when preparing the
     // signature. Only a digest algorithm of SHA-256 is accepted.
@@ -1227,9 +1224,9 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     //    This field has the fixed offset (+13) and be calculated based on two bytes of length encoding.
     //
     if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) {
-        if (SigDataSize >= (32 + sizeof(mSha256OidValue))) {
-            if (((*(Sigdata + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
-                (memcmp(Sigdata + 32, &mSha256OidValue,
+        if (WrapDataSize >= (32 + sizeof(mSha256OidValue))) {
+            if (((*(WrapData + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
+                (memcmp(WrapData + 32, &mSha256OidValue,
                         sizeof(mSha256OidValue)) != 0)) {
                 TRACE();
                 return EFI_SECURITY_VIOLATION;
@@ -1382,17 +1379,32 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                               CertList->SignatureListSize);
         }
     } else if (AuthVarType == AuthVarTypePriv) {
+#if 1
+        DPRINTF("%s:%d: WrapData=[", __func__, __LINE__);
+
+        for (i=0; i<WrapDataSize; i++) {
+            DPRINTF("0x%02x", ((uint8_t*)WrapData)[i]);
+
+            if (i < WrapDataSize - 1) {
+                DPRINTF(", ");
+            }
+        }
+
+        DPRINTF("]\n");
+#endif
+
         //
         // Process common authenticated variable except PK/KEK/DB/DBX/DBT.
         // Get signer's certificates from Signeddata.
         //
-        Verifystatus = Pkcs7GetSigners(Sigdata, SigDataSize, &SignerCerts,
+        Verifystatus = Pkcs7GetSigners(WrapData, WrapDataSize, &SignerCerts,
                                        &CertStackSize, &TopLevelCert,
                                        &TopLevelCertSize);
         if (!Verifystatus) {
             TRACE();
             goto Exit;
         }
+        TRACE();
 
         //
         // Get previously stored signer's certificates from certdb or certdbv for existing

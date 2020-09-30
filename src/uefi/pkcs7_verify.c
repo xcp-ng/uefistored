@@ -317,10 +317,6 @@ _Exit:
         PKCS7_free(Pkcs7);
     }
 
-    if (Stack != NULL) {
-        sk_X509_pop_free(Stack, X509_free);
-    }
-
     return Status;
 }
 
