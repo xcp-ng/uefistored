@@ -26,7 +26,7 @@
 FILE *input_snapshot_fd;
 FILE *output_snapshot_fd;
 
-#if 0
+#if 1
 FILE *test_log;
 
 #define MYLOG(...)  				\
@@ -378,11 +378,7 @@ static void handle_get_next_variable(void *comm_buf)
     status = unserialize_get_next_variable(inptr, &namesz, &name, &guest_bufsz,
                                            &guid);
     if (status) {
-        DPRINTF("%s:%u: ", __func__, __LINE__);
-        if (!status) {
-            dprint_name(name, namesz);
-        }
-        DPRINTF(": status=%s (0x%lx), namesz=%lu, guest_bufsz=%lu\n", 
+        DPRINTF("status=%s (0x%lx), namesz=%lu, guest_bufsz=%lu\n", 
                 efi_status_str(status), status, namesz, guest_bufsz);
 
         ptr = comm_buf;
@@ -454,6 +450,14 @@ static void log_get(void *comm_buf)
     bool at_runtime;
     uint64_t i;
 
+    (void)ptr;
+    (void)name;
+    (void)guid;
+    (void)name_len;
+    (void)data_len;
+    (void)at_runtime;
+    (void)i;
+
     ptr = comm_buf;
     unserialize_uint32(&ptr); /* version */
     unserialize_uint32(&ptr);
@@ -484,6 +488,9 @@ static void log_get(void *comm_buf)
 static void log_data(uint8_t *data, uint64_t data_len)
 {
     uint64_t i;
+
+    (void)data;
+    (void)data_len;
 
     if (!data)
         return;
@@ -523,6 +530,15 @@ static void log_set(const void *comm_buf)
     EFI_GUID guid;
     uint32_t attr;
     bool at_runtime;
+
+    (void)ptr;
+    (void)name;
+    (void)data;
+    (void)name_len;
+    (void)data_len;
+    (void)guid;
+    (void)attr;
+    (void)at_runtime;
 
     ptr = comm_buf;
     unserialize_uint32(&ptr); /* version */
@@ -566,6 +582,14 @@ static void log_result(const void *comm_buf, uint32_t command)
     uint64_t data_len = 0; 
     const uint8_t *ptr = comm_buf;
     uint64_t result;
+    uint8_t name[MAX_VARIABLE_NAME_SIZE] = {0};
+    EFI_GUID guid;
+
+    (void) attrs;
+    (void) data;
+    (void) data_len;
+    (void) result;
+    (void) ptr;
 
     switch (command) {
     case COMMAND_GET_VARIABLE:
@@ -586,21 +610,45 @@ static void log_result(const void *comm_buf, uint32_t command)
         } else {
             MYLOG(">\n");
         }
-	break;
+        break;
     }
 
     case COMMAND_SET_VARIABLE:
     {
         result = unserialize_uintn(&ptr);
         MYLOG("Response: SET<result=%s (0x%02lx)>\n", efi_status_str(result), result);
-	break;
+        break;
     }
 
     case COMMAND_GET_NEXT_VARIABLE:
     {
         result = unserialize_uintn(&ptr);
-        MYLOG("Response: GET_NEXT<result=%s (0x%02lx)>\n", efi_status_str(result), result);
-	break;
+
+        if (result == EFI_SUCCESS) {
+            uint64_t name_len = unserialize_data(&ptr, name, MAX_VARIABLE_DATA_SIZE);
+            unserialize_guid(&ptr, &guid);
+
+            MYLOG("Response: GET_NEXT<result=%s (0x%02lx)",
+                    efi_status_str(result), result);
+
+            MYLOG(", guid=");
+            log_guid(&guid);
+
+            MYLOG("name=");
+            log_name(name, name_len);
+            MYLOG(">\n");
+        } else if (result == EFI_BUFFER_TOO_SMALL) {
+            uint64_t required_size;
+
+            required_size = unserialize_uintn(&ptr);
+
+            MYLOG("Response: GET_NEXT<result=%s (0x%02lx), required_size=%lu>\n",
+                    efi_status_str(result), result, required_size);
+        } else {
+            MYLOG("Response: GET_NEXT<result=%s (0x%02lx)\n",
+                    efi_status_str(result), result);
+        }
+        break;
     }
 
     default:

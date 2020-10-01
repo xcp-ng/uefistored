@@ -65,7 +65,7 @@ void log_deinit(void);
         uefistored_fprintf(stdout, __VA_ARGS__);                               \
     } while (0)
 
-static inline void dprint_data(const void *data, size_t datasz)
+static inline void _dprint_data(const char *func, int lineno, const void *data, size_t datasz)
 {
     const uint8_t *p = data;
     size_t i;
@@ -73,11 +73,17 @@ static inline void dprint_data(const void *data, size_t datasz)
     if (!data)
         return;
 
-    DPRINTF("data(%lu)=", datasz);
-    for (i = 0; i < 8 && i < datasz; i++) {
+    DPRINTF("%s:%d: data(%lu)=[", func, lineno, datasz);
+    for (i = 0; i < datasz; i++) {
         DPRINTF("0x%02x ", p[i]);
+
+        if (i < datasz - 1)
+            DPRINTF(", ");
     }
+    DPRINTF("]\n");
 }
+
+#define dprint_data(data, datasz) _dprint_data(__func__, __LINE__, data, datasz)
 
 #else
 #error "No debug"

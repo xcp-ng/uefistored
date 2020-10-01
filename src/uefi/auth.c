@@ -5,8 +5,13 @@
  */
 
 #include <assert.h>
+
+#include <openssl/objects.h>
 #include <openssl/rsa.h>
-#include <openssl/sha.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/pkcs7.h>
+#include <openssl/err.h>
 
 #include "log.h"
 #include "storage.h"
@@ -61,6 +66,57 @@ EFI_SIGNATURE_ITEM mSupportSigItem[] = {
     { EFI_CERT_X509_SHA512_GUID, 0, 80 }
 };
 
+#if 0
+static X509 *
+X509_from_buf(const uint8_t *buf, long len)
+{
+    const uint8_t *ptr = buf;
+
+    return d2i_X509(NULL, &ptr, len);
+}
+#endif
+
+static EFI_STATUS
+X509_get_tbs_cert(X509 *cert, uint8_t **tbs_cert, UINTN *tbs_len)
+{
+    int asn1_tag, obj_class, len;
+    long tmp_len;
+    uint8_t *buf, *ptr, *tbs_ptr;
+
+    buf = X509_to_buf(cert, &len);
+    if (!buf)
+        return EFI_DEVICE_ERROR;
+
+    ptr = buf;
+    tmp_len = 0;
+    ASN1_get_object((const unsigned char **)&ptr, &tmp_len, &asn1_tag,
+                    &obj_class, len);
+    if (asn1_tag != V_ASN1_SEQUENCE) {
+        free(buf);
+        return EFI_SECURITY_VIOLATION;
+    }
+
+    tbs_ptr = ptr;
+    ASN1_get_object((const unsigned char **)&ptr, &tmp_len, &asn1_tag,
+                    &obj_class, tmp_len);
+    if (asn1_tag != V_ASN1_SEQUENCE) {
+        free(buf);
+        return EFI_SECURITY_VIOLATION;
+    }
+
+    *tbs_len = tmp_len + (ptr - tbs_ptr);
+    *tbs_cert = malloc(*tbs_len);
+    if (!*tbs_cert) {
+        free(buf);
+        return EFI_DEVICE_ERROR;
+    }
+    memcpy(*tbs_cert, tbs_ptr, *tbs_len);
+    free(buf);
+
+    return EFI_SUCCESS;
+}
+
+
 /**
  * Compare two guids.
  *
@@ -72,6 +128,54 @@ EFI_SIGNATURE_ITEM mSupportSigItem[] = {
 bool static inline compare_guid(EFI_GUID *guid1, EFI_GUID *guid2)
 {
     return memcmp(guid1, guid2, sizeof(EFI_GUID)) == 0;
+}
+
+/*
+ * Calculate SHA256 digest of:
+ *   SignerCert CommonName + ToplevelCert tbsCertificate
+ * Adapted from edk2/varstored.
+ */
+static EFI_STATUS sha256_sig(STACK_OF(X509) *certs, X509 *top_level_cert, uint8_t *digest)
+{
+    SHA256_CTX ctx;
+    char name[128];
+    X509_NAME *x509_name;
+    uint8_t *tbs_cert;
+    UINTN tbs_cert_len;
+    EFI_STATUS status;
+    int name_len;
+
+    x509_name = X509_get_subject_name(sk_X509_value(certs, 0));
+    if (!x509_name)
+        return EFI_SECURITY_VIOLATION;
+
+    name_len = X509_NAME_get_text_by_NID(x509_name, NID_commonName,
+                                         name, sizeof(name));
+    if (name_len < 0)
+        return EFI_SECURITY_VIOLATION;
+    name_len++; /* Include trailing NUL character */
+
+    status = X509_get_tbs_cert(top_level_cert, &tbs_cert, &tbs_cert_len);
+    if (status != EFI_SUCCESS)
+        return status;
+
+    status = EFI_DEVICE_ERROR;
+    if (!SHA256_Init(&ctx))
+        goto out;
+
+    if (!SHA256_Update(&ctx, name, strlen(name)))
+        goto out;
+
+    if (!SHA256_Update(&ctx, tbs_cert, tbs_cert_len))
+        goto out;
+
+    if (!SHA256_Final(digest, &ctx))
+        goto out;
+
+    status = EFI_SUCCESS;
+out:
+    free(tbs_cert);
+    return status;
 }
 
 /**
@@ -1080,7 +1184,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     uint8_t *PayloadPtr;
     uint64_t PayloadSize;
     uint32_t Attr;
-    bool Verifystatus;
+    bool verify_status;
     EFI_STATUS status;
     EFI_SIGNATURE_LIST *CertList;
     EFI_SIGNATURE_DATA *Cert;
@@ -1091,30 +1195,25 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     uint64_t Newdata_size;
     uint8_t *Buffer;
     uint64_t Length;
-    uint8_t *TopLevelCert;
-    uint64_t TopLevelCertSize;
-    uint8_t *TrustedCert;
-    uint64_t TrustedCertSize;
-    uint8_t *SignerCerts;
+    X509 *TopLevelCert;
+    uint8_t *TopLevelCertBuf;
+    int TopLevelCertSize;
+    X509 *TrustedCert;
+    STACK_OF(X509) *SignerCerts;
     uint64_t CertStackSize;
-    uint8_t *CertsInCertDb;
-    uint32_t CertsSizeinDb;
-    uint8_t Sha256Digest[SHA256_DIGEST_SIZE];
-    EFI_CERT_DATA *CertDataPtr;
+    uint8_t digest[SHA256_DIGEST_SIZE];
 
     //
     // 1. TopLevelCert is the top-level issuer certificate in signature Signer Cert Chain
     // 2. TrustedCert is the certificate which firmware trusts. It could be saved in protected
     //     storage or PK payload on PK init
     //
-    Verifystatus = false;
+    verify_status = false;
     CertData = NULL;
     Newdata = NULL;
     Attr = attrs;
     SignerCerts = NULL;
     TopLevelCert = NULL;
-    CertsInCertDb = NULL;
-    CertDataPtr = NULL;
 
     //
     // When the attribute EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS is
@@ -1288,10 +1387,15 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         // Verify that the signature has been made with the current Platform Key (no chaining for PK).
         // First, get signer's certificates from Signeddata.
         //
-        Verifystatus = Pkcs7GetSigners(Sigdata, SigDataSize, &SignerCerts,
-                                       &CertStackSize, &TopLevelCert,
-                                       &TopLevelCertSize);
-        if (!Verifystatus) {
+        verify_status = Pkcs7GetSigners(Sigdata, SigDataSize,
+                                       &SignerCerts, &CertStackSize);
+        if (!verify_status) {
+            goto Exit;
+        }
+
+        TopLevelCertBuf = X509_to_buf(TopLevelCert, &TopLevelCertSize);
+        if (!TopLevelCertBuf) {
+            status = EFI_DEVICE_ERROR;
             goto Exit;
         }
 
@@ -1303,18 +1407,19 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                              &gEfiGlobalVariableGuid, &data,
                                              &data_size);
         if (EFI_ERROR(status)) {
-            Verifystatus = false;
+            verify_status = false;
             goto Exit;
         }
         CertList = (EFI_SIGNATURE_LIST *)data;
         Cert = (EFI_SIGNATURE_DATA *)((uint8_t *)CertList +
                                       sizeof(EFI_SIGNATURE_LIST) +
                                       CertList->SignatureHeaderSize);
+
         if ((TopLevelCertSize !=
              (CertList->SignatureSize - (sizeof(EFI_SIGNATURE_DATA) - 1))) ||
-            (memcmp(Cert->SignatureData, TopLevelCert, TopLevelCertSize) !=
+            (memcmp(Cert->SignatureData, TopLevelCertBuf, TopLevelCertSize) !=
              0)) {
-            Verifystatus = false;
+            verify_status = false;
             goto Exit;
         }
 
@@ -1322,8 +1427,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         //
         // Verify Pkcs7 Signeddata via Pkcs7Verify library.
         //
-        Verifystatus = Pkcs7Verify(Sigdata, SigDataSize, TopLevelCert,
-                                   TopLevelCertSize, Newdata, Newdata_size);
+        verify_status = Pkcs7Verify(Sigdata, SigDataSize, TopLevelCert,
+                                   Newdata, Newdata_size);
 
     } else if (AuthVarType == AuthVarTypeKek) {
         //
@@ -1354,20 +1459,26 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                              CertList->SignatureHeaderSize) /
                             CertList->SignatureSize;
                 for (Index = 0; Index < CertCount; Index++) {
-                    //
-                    // Iterate each Signature data Node within this CertList for a verify
-                    //
-                    TrustedCert = Cert->SignatureData;
+
+                    /*
+                     * Iterate each Signature data Node within this CertList for a verify
+                     */
+                    TrustedCert = X509_from_buf(Cert->SignatureData,
+                                                CertList->SignatureSize -
+                                                (sizeof(EFI_SIGNATURE_DATA) - 1));
+
+                    /*
                     TrustedCertSize = CertList->SignatureSize -
                                       (sizeof(EFI_SIGNATURE_DATA) - 1);
+                                      */
 
                     //
                     // Verify Pkcs7 Signeddata via Pkcs7Verify library.
                     //
-                    Verifystatus =
+                    verify_status =
                             Pkcs7Verify(Sigdata, SigDataSize, TrustedCert,
-                                        TrustedCertSize, Newdata, Newdata_size);
-                    if (Verifystatus) {
+                                        Newdata, Newdata_size);
+                    if (verify_status) {
                         goto Exit;
                     }
                     Cert = (EFI_SIGNATURE_DATA *)((uint8_t *)Cert +
@@ -1379,126 +1490,64 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                               CertList->SignatureListSize);
         }
     } else if (AuthVarType == AuthVarTypePriv) {
-#if 1
-        DPRINTF("%s:%d: WrapData=[", __func__, __LINE__);
-
-        for (i=0; i<WrapDataSize; i++) {
-            DPRINTF("0x%02x", ((uint8_t*)WrapData)[i]);
-
-            if (i < WrapDataSize - 1) {
-                DPRINTF(", ");
-            }
-        }
-
-        DPRINTF("]\n");
-#endif
-
+#if 0
         //
         // Process common authenticated variable except PK/KEK/DB/DBX/DBT.
         // Get signer's certificates from Signeddata.
         //
-        Verifystatus = Pkcs7GetSigners(WrapData, WrapDataSize, &SignerCerts,
-                                       &CertStackSize, &TopLevelCert,
-                                       &TopLevelCertSize);
-        if (!Verifystatus) {
-            TRACE();
+        verify_status = Pkcs7GetSigners(WrapData, WrapDataSize,
+                                       &SignerCerts, &CertStackSize);
+        if (!verify_status) {
             goto Exit;
         }
-        TRACE();
-
-        //
-        // Get previously stored signer's certificates from certdb or certdbv for existing
-        // variable. Check whether they are identical with signer's certificates
-        // in Signeddata. If not, return error immediately.
-        //
-        if (OrgTimeStamp != NULL) {
-            Verifystatus = false;
-
-            status = GetCertsFromDb(name, guid, attrs, &CertsInCertDb,
-                                    &CertsSizeinDb);
-            if (EFI_ERROR(status)) {
-                TRACE();
-                goto Exit;
-            }
-
-            if (CertsSizeinDb == SHA256_DIGEST_SIZE) {
-                //
-                // Check hash of signer cert CommonName + Top-level issuer tbsCertificate against data in CertDb
-                //
-                CertDataPtr = (EFI_CERT_DATA *)(SignerCerts + 1);
-                status = CalculatePrivAuthVarSignChainSHA256Digest(
-                        CertDataPtr->CertDataBuffer,
-                        ReadUnaligned32(
-                                (uint32_t *)&(CertDataPtr->CertDataLength)),
-                        TopLevelCert, TopLevelCertSize, Sha256Digest);
-                if (EFI_ERROR(status) ||
-                    memcmp(Sha256Digest, CertsInCertDb, CertsSizeinDb) != 0) {
-                    TRACE();
-                    goto Exit;
-                }
-            } else {
-                //
-                // Keep backward compatible with previous solution which saves whole signer certs stack in CertDb
-                //
-                if ((CertStackSize != CertsSizeinDb) ||
-                    (memcmp(SignerCerts, CertsInCertDb, CertsSizeinDb) != 0)) {
-                    TRACE();
-                    goto Exit;
-                }
-            }
-        }
-
-#if 1
-        DPRINTF("%s:%d: SigData=[", __func__, __LINE__);
-
-        for (i=0; i<SigDataSize; i++) {
-            DPRINTF("0x%02x", ((uint8_t*)Sigdata)[i]);
-
-            if (i < SigDataSize - 1) {
-                DPRINTF(", ");
-            }
-        }
-
-        DPRINTF("]\n");
 #endif
+        (void)CertStackSize;
 
-        Verifystatus = Pkcs7Verify(Sigdata, SigDataSize, TopLevelCert,
-                                   TopLevelCertSize, Newdata, Newdata_size);
-        if (!Verifystatus) {
-            TRACE();
+        PKCS7 *pkcs7;
+        status = pkcs7_get_signers(WrapData, WrapDataSize, &pkcs7, &SignerCerts);
+        if (status != EFI_SUCCESS)
+        {
+            verify_status = false;
             goto Exit;
         }
 
-        if ((OrgTimeStamp == NULL) && (PayloadSize != 0)) {
-            //
-            // When adding a new common authenticated variable, always save Hash of cn of signer cert + tbsCertificate of Top-level issuer
-            //
-            CertDataPtr = (EFI_CERT_DATA *)(SignerCerts + 1);
-            status = InsertCertsToDb(
-                    name, guid, attrs, CertDataPtr->CertDataBuffer,
-                    ReadUnaligned32((uint32_t *)&(CertDataPtr->CertDataLength)),
-                    TopLevelCert, TopLevelCertSize);
-            if (EFI_ERROR(status)) {
-                TRACE();
-                Verifystatus = false;
-                goto Exit;
-            }
+        if (sk_X509_num(SignerCerts) == 0) {
+            verify_status = false;
+            goto Exit;
+        }
+
+        TopLevelCert = sk_X509_value(SignerCerts, sk_X509_num(SignerCerts) - 1);
+
+        //status = sha256_sig((STACK_OF(X509) *)SignerCerts, (X509*) TopLevelCert, digest);
+        (void)sha256_sig;
+        (void)digest;
+
+        verify_status = Pkcs7Verify(Sigdata, SigDataSize, TopLevelCert,
+                                   Newdata, Newdata_size);
+        if (!verify_status) {
+            TRACE();
+            goto Exit;
         }
     } else if (AuthVarType == AuthVarTypePayload) {
         CertList = (EFI_SIGNATURE_LIST *)PayloadPtr;
         Cert = (EFI_SIGNATURE_DATA *)((uint8_t *)CertList +
                                       sizeof(EFI_SIGNATURE_LIST) +
                                       CertList->SignatureHeaderSize);
-        TrustedCert = Cert->SignatureData;
-        TrustedCertSize =
-                CertList->SignatureSize - (sizeof(EFI_SIGNATURE_DATA) - 1);
+        /*
+         * TrustedCert = (X509*)Cert->SignatureData;
+         * TrustedCertSize =
+         *        CertList->SignatureSize - (sizeof(EFI_SIGNATURE_DATA) - 1);
+        */
+        TrustedCert = X509_from_buf(Cert->SignatureData,
+                                    CertList->SignatureSize -
+                                    (sizeof(EFI_SIGNATURE_DATA) - 1));
 
         TRACE();
         //
         // Verify Pkcs7 Signeddata via Pkcs7Verify library.
         //
-        Verifystatus = Pkcs7Verify(Sigdata, SigDataSize, TrustedCert,
-                                   TrustedCertSize, Newdata, Newdata_size);
+        verify_status = Pkcs7Verify(Sigdata, SigDataSize, TrustedCert,
+                                   Newdata, Newdata_size);
     } else {
         free(Newdata);
         TRACE();
@@ -1509,11 +1558,10 @@ Exit:
     free(Newdata);
 
     if (AuthVarType == AuthVarTypePk || AuthVarType == AuthVarTypePriv) {
-        Pkcs7FreeSigners(TopLevelCert);
-        Pkcs7FreeSigners(SignerCerts);
+        sk_X509_free(SignerCerts);
     }
 
-    if (!Verifystatus) {
+    if (!verify_status) {
         TRACE();
         return EFI_SECURITY_VIOLATION;
     }
@@ -1749,8 +1797,6 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
             *VarDel = false;
         }
     }
-
-    DDEBUG("*VarDel=%d\n", *VarDel);
 
     DDEBUG("status=%s (0x%02lx)\n", efi_status_str(status), status); 
     return status;

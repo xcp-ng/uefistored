@@ -41,6 +41,7 @@
 
 extern FILE *input_snapshot_fd;
 extern FILE *output_snapshot_fd;
+extern FILE *test_log;
 
 static bool resume;
 
@@ -840,9 +841,9 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    
-    input_snapshot_fd = fopen(INPUT_SNAPSHOT, "a+"); 
-    output_snapshot_fd = fopen(OUTPUT_SNAPSHOT, "a+"); 
+    input_snapshot_fd = fopen(INPUT_SNAPSHOT, "a"); 
+    output_snapshot_fd = fopen(OUTPUT_SNAPSHOT, "a"); 
+    test_log = fopen("/uefistored.test.log", "w");
 
     if (root_path) {
         ret = chroot(root_path);

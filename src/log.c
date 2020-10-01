@@ -98,4 +98,3 @@ void dprint_variable_list(const variable_t *vars, size_t n)
         dprint_variable(&vars[i]);
     }
 }
-
