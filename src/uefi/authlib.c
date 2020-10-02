@@ -45,9 +45,6 @@ uint8_t default_pk[] = {
 ///
 /// Global database array for scratch
 ///
-uint8_t *mCertDbStore;
-uint8_t mVendorKeyState;
-uint32_t mMaxCertDbSize;
 uint32_t SetupMode;
 
 EFI_GUID SignatureSupport[] = { EFI_CERT_SHA1_GUID, EFI_CERT_SHA256_GUID,
@@ -178,131 +175,12 @@ static int init_auth_vars(void)
 EFI_STATUS
 AuthVariableLibInitialize(void)
 {
-    EFI_STATUS Status;
-    uint32_t VarAttr;
-    uint8_t *Data = NULL;
-    uint64_t DataSize;
-    uint8_t CustomMode;
-    uint32_t ListSize;
-
-    //
-    // Reserve runtime buffer for certificate database. The size excludes variable header and name size.
-    // Use EFI_CERT_DB_VOLATILE_NAME size since it is longer.
-    //
-    mMaxCertDbSize =
-            (uint32_t)(MAX_VARIABLE_DATA_SIZE + MAX_VARIABLE_NAME_SIZE -
-                       sizeof(EFI_CERT_DB_VOLATILE_NAME));
-    mCertDbStore = malloc(mMaxCertDbSize);
-    if (mCertDbStore == NULL) {
-        return EFI_OUT_OF_RESOURCES;
-    }
-
+    EFI_STATUS Status = EFI_SUCCESS;
 
     if (init_auth_vars() < 0)
     {
         ERROR("Failed to setup Secure Boot variables\n");
     }
-
-    //
-    // Initialize "CustomMode" in STANDARD_SECURE_BOOT_MODE state.
-    //
-    CustomMode = STANDARD_SECURE_BOOT_MODE;
-    Status = storage_set(EFI_CUSTOM_MODE_NAME, &gEfiCustomModeEnableGuid,
-                         &CustomMode, sizeof(uint8_t),
-                         EFI_VARIABLE_NON_VOLATILE |
-                                 EFI_VARIABLE_BOOTSERVICE_ACCESS);
-    if (EFI_ERROR(Status)) {
-        return Status;
-    }
-
-    //
-    // Check "certdb" variable's existence.
-    // If it doesn't exist, then create a new one with
-    // EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set.
-    //
-    Status = auth_internal_find_variable(EFI_CERT_DB_NAME, &gEfiCertDbGuid,
-                                         (void **)&Data, &DataSize);
-
-    if (EFI_ERROR(Status)) {
-        VarAttr = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS |
-                  EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
-
-        ListSize = sizeof(uint32_t);
-
-        Status = storage_set(EFI_CERT_DB_NAME, &gEfiCertDbGuid, &ListSize,
-                             sizeof(ListSize), VarAttr);
-
-        if (EFI_ERROR(Status)) {
-            return Status;
-        }
-    } else {
-        //
-        // Clean up Certs to make certDB & Time based auth variable consistent
-        //
-        Status = CleanCertsFromDb();
-        if (EFI_ERROR(Status)) {
-            DDEBUG("Clean up CertDB fail! Status %lx\n", Status);
-            return Status;
-        }
-    }
-
-
-    //
-    // Create "certdbv" variable with RT+BS+AT set.
-    //
-    VarAttr = EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-              EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
-
-    ListSize = sizeof(uint32_t);
-
-    Status = storage_set(EFI_CERT_DB_VOLATILE_NAME, &gEfiCertDbGuid, &ListSize,
-                         sizeof(uint32_t), VarAttr);
-
-    if (EFI_ERROR(Status)) {
-        return Status;
-    }
-
-    //
-    // Check "VendorKeysNv" variable's existence and create "VendorKeys" variable accordingly.
-    //
-    Status = auth_internal_find_variable(EFI_VENDOR_KEYS_NV_VARIABLE_NAME,
-                                         &gEfiVendorKeysNvGuid, (void **)&Data,
-                                         &DataSize);
-    if (!EFI_ERROR(Status)) {
-        mVendorKeyState = *(uint8_t *)Data;
-    } else {
-        //
-        // "VendorKeysNv" not exist, initialize it in VENDOR_KEYS_VALID state.
-        //
-        mVendorKeyState = VENDOR_KEYS_VALID;
-
-
-        Status = storage_set(
-                EFI_VENDOR_KEYS_NV_VARIABLE_NAME, &gEfiVendorKeysNvGuid,
-                &mVendorKeyState, sizeof(uint8_t),
-                EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                        EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS);
-
-        if (EFI_ERROR(Status)) {
-            return Status;
-        }
-    }
-
-    //
-    // Create "VendorKeys" variable with BS+RT attribute set.
-    //
-    Status = storage_set(EFI_VENDOR_KEYS_VARIABLE_NAME, &gEfiGlobalVariableGuid,
-                         &mVendorKeyState, sizeof(uint8_t),
-                         EFI_VARIABLE_RUNTIME_ACCESS |
-                                 EFI_VARIABLE_BOOTSERVICE_ACCESS);
-    if (EFI_ERROR(Status)) {
-        return Status;
-    }
-
-    dprint_name((UTF16 *)EFI_VENDOR_KEYS_VARIABLE_NAME,
-                strsize16((UTF16 *)EFI_VENDOR_KEYS_VARIABLE_NAME));
-    DPRINTF(" is %x\n", mVendorKeyState);
 
     mHashCtx = malloc(sizeof(SHA256_CTX));
 

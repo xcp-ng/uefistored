@@ -28,9 +28,6 @@
 extern bool efi_at_runtime;
 
 extern SHA256_CTX *mHashCtx;
-extern uint8_t *mCertDbStore;
-extern uint8_t mVendorKeyState;
-extern uint32_t mMaxCertDbSize;
 extern uint8_t SetupMode;
 
 #define TRACE()               \
@@ -414,10 +411,8 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
 **/
 bool NeedPhysicallyPresent(UTF16 *name, EFI_GUID *guid)
 {
-    if ((compare_guid(guid, &gEfiSecureBootEnableDisableGuid) &&
-         (strcmp16(name, EFI_SECURE_BOOT_ENABLE_NAME) == 0)) ||
-        (compare_guid(guid, &gEfiCustomModeEnableGuid) &&
-         (strcmp16(name, EFI_CUSTOM_MODE_NAME) == 0))) {
+    if (compare_guid(guid, &gEfiSecureBootEnableDisableGuid) &&
+         (strcmp16(name, EFI_SECURE_BOOT_ENABLE_NAME) == 0)) {
         return true;
     }
 
@@ -674,41 +669,6 @@ EFI_STATUS CheckSignatureListFormat(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     return EFI_SUCCESS;
-}
-
-/**
-  Update "VendorKeys" variable to record the out of band secure boot key modification.
-
-  @return EFI_SUCCESS           Variable is updated successfully.
-  @return Others                Failed to update variable.
-
-**/
-EFI_STATUS VendorKeyIsModified(void)
-{
-    EFI_STATUS status;
-    EFI_TIME DummyTimeStamp;
-
-    memset(&DummyTimeStamp, 0, sizeof(DummyTimeStamp));
-
-    if (mVendorKeyState == VENDOR_KEYS_MODIFIED) {
-        return EFI_SUCCESS;
-    }
-    mVendorKeyState = VENDOR_KEYS_MODIFIED;
-
-    status = storage_set_with_timestamp(
-            EFI_VENDOR_KEYS_NV_VARIABLE_NAME, &gEfiVendorKeysNvGuid,
-            &mVendorKeyState, sizeof(uint8_t),
-            EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS, &DummyTimeStamp);
-
-    if (EFI_ERROR(status)) {
-        return status;
-    }
-
-    return storage_set(EFI_VENDOR_KEYS_VARIABLE_NAME, &gEfiGlobalVariableGuid,
-                       &mVendorKeyState, sizeof(uint8_t),
-                       EFI_VARIABLE_RUNTIME_ACCESS |
-                               EFI_VARIABLE_BOOTSERVICE_ACCESS);
 }
 
 /**
@@ -1001,146 +961,6 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     }
 
     return EFI_SUCCESS;
-}
-
-/**
-  Insert signer's certificates for common authenticated variable with name
-  and guid in AUTH_CERT_DB_DATA to "certdb" or "certdbv" according to
-  time based authenticated variable attributes. CertData is the SHA256 digest of
-  SignerCert CommonName + TopLevelCert tbsCertificate.
-
-  @param[in]  name      Name of authenticated Variable.
-  @param[in]  guid        Vendor GUID of authenticated Variable.
-  @param[in]  attrs        attrs of authenticated variable.
-  @param[in]  SignerCert        Signer certificate data.
-  @param[in]  SignerCertSize    Length of signer certificate.
-  @param[in]  TopLevelCert      Top-level certificate data.
-  @param[in]  TopLevelCertSize  Length of top-level certificate.
-
-  @retval  EFI_INVALID_PARAMETER Any input parameter is invalid.
-  @retval  EFI_ACCESS_DENIED     An AUTH_CERT_DB_DATA entry with same name
-                                 and guid already exists.
-  @retval  EFI_OUT_OF_RESOURCES  The operation is failed due to lack of resources.
-  @retval  EFI_SUCCESS           Insert an AUTH_CERT_DB_DATA entry to "certdb" or "certdbv"
-
-**/
-EFI_STATUS
-InsertCertsToDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
-                uint8_t *SignerCert, uint64_t SignerCertSize,
-                uint8_t *TopLevelCert, uint64_t TopLevelCertSize)
-{
-    EFI_STATUS status;
-    uint8_t *data;
-    uint64_t data_size;
-    uint32_t VarAttr;
-    uint8_t *NewCertDb;
-    uint32_t NewCertDbSize;
-    uint32_t CertNodeSize;
-    uint32_t NameSize;
-    uint32_t CertDataSize;
-    AUTH_CERT_DB_DATA *Ptr;
-    UTF16 *DbName;
-    uint8_t Sha256Digest[SHA256_DIGEST_SIZE];
-
-    if ((name == NULL) || (guid == NULL) || (SignerCert == NULL) ||
-        (TopLevelCert == NULL)) {
-        return EFI_INVALID_PARAMETER;
-    }
-
-    if ((attrs & EFI_VARIABLE_NON_VOLATILE) != 0) {
-        //
-        // Get variable "certdb".
-        //
-        DbName = EFI_CERT_DB_NAME;
-        VarAttr = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS |
-                  EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
-    } else {
-        //
-        // Get variable "certdbv".
-        //
-        DbName = EFI_CERT_DB_VOLATILE_NAME;
-        VarAttr = EFI_VARIABLE_RUNTIME_ACCESS |
-                  EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
-    }
-
-    //
-    // Get variable "certdb" or "certdbv".
-    //
-    status = auth_internal_find_variable(DbName, &gEfiCertDbGuid,
-                                         (void **)&data, &data_size);
-    if (EFI_ERROR(status)) {
-        return status;
-    }
-
-    if ((data_size == 0) || (data == NULL)) {
-        return EFI_NOT_FOUND;
-    }
-
-    //
-    // Find whether matching cert node already exists in "certdb" or "certdbv".
-    // If yes return error.
-    //
-    status = FindCertsFromDb(name, guid, data, data_size, NULL, NULL, NULL,
-                             NULL);
-
-    if (!EFI_ERROR(status)) {
-        return EFI_ACCESS_DENIED;
-    }
-
-    //
-    // Construct new data content of variable "certdb" or "certdbv".
-    //
-    NameSize = (uint32_t)strlen16(name);
-    CertDataSize = sizeof(Sha256Digest);
-    CertNodeSize = sizeof(AUTH_CERT_DB_DATA) + (uint32_t)CertDataSize +
-                   NameSize * sizeof(UTF16);
-    NewCertDbSize = (uint32_t)data_size + CertNodeSize;
-    if (NewCertDbSize > mMaxCertDbSize) {
-        return EFI_OUT_OF_RESOURCES;
-    }
-
-    status = CalculatePrivAuthVarSignChainSHA256Digest(
-            SignerCert, SignerCertSize, TopLevelCert, TopLevelCertSize,
-            Sha256Digest);
-    if (EFI_ERROR(status)) {
-        return status;
-    }
-
-    NewCertDb = (uint8_t *)mCertDbStore;
-
-    //
-    // Copy the DB entries before inserting node.
-    //
-    memcpy(NewCertDb, data, data_size);
-    //
-    // Update CertDbListSize.
-    //
-    memcpy(NewCertDb, &NewCertDbSize, sizeof(uint32_t));
-    //
-    // Construct new cert node.
-    //
-    Ptr = (AUTH_CERT_DB_DATA *)(NewCertDb + data_size);
-    memcpy(&Ptr->VendorGuid, guid, sizeof(EFI_GUID));
-    memcpy(&Ptr->CertNodeSize, &CertNodeSize, sizeof(uint32_t));
-    memcpy(&Ptr->NameSize, &NameSize, sizeof(uint32_t));
-    memcpy(&Ptr->CertDataSize, &CertDataSize, sizeof(uint32_t));
-
-    memcpy((uint8_t *)Ptr + sizeof(AUTH_CERT_DB_DATA), name,
-           NameSize * sizeof(UTF16));
-
-    memcpy((uint8_t *)Ptr + sizeof(AUTH_CERT_DB_DATA) +
-                   NameSize * sizeof(UTF16),
-           Sha256Digest, CertDataSize);
-
-    //
-    // Set "certdb" or "certdbv".
-    //
-    status = storage_set(DbName, &gEfiCertDbGuid, NewCertDb, NewCertDbSize,
-                         VarAttr);
-
-    return status;
 }
 
 /**
@@ -1580,120 +1400,6 @@ Exit:
 }
 
 /**
-  Delete matching signer's certificates when deleting common authenticated
-  variable by corresponding name and guid from "certdb" or 
-  "certdbv" according to authenticated variable attributes.
-
-  @param[in]  name   Name of authenticated Variable.
-  @param[in]  guid     Vendor GUID of authenticated Variable.
-  @param[in]  attrs        attrs of authenticated variable.
-
-  @retval  EFI_INVALID_PARAMETER Any input parameter is invalid.
-  @retval  EFI_NOT_FOUND         Fail to find "certdb"/"certdbv" or matching certs.
-  @retval  EFI_OUT_OF_RESOURCES  The operation is failed due to lack of resources.
-  @retval  EFI_SUCCESS           The operation is completed successfully.
-
-**/
-EFI_STATUS
-delete_certs_from_db(UTF16 *name, EFI_GUID *guid, uint32_t attrs)
-{
-    EFI_STATUS status;
-    uint8_t *data;
-    uint64_t data_size;
-    uint32_t VarAttr;
-    uint32_t CertNodeOffset;
-    uint32_t CertNodeSize;
-    uint8_t *NewCertDb;
-    uint32_t NewCertDbSize;
-    UTF16 *DbName;
-
-    if ((name == NULL) || (guid == NULL)) {
-        return EFI_INVALID_PARAMETER;
-    }
-
-    if ((attrs & EFI_VARIABLE_NON_VOLATILE) != 0) {
-        //
-        // Get variable "certdb".
-        //
-        DbName = EFI_CERT_DB_NAME;
-        VarAttr = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_RUNTIME_ACCESS |
-                  EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
-    } else {
-        //
-        // Get variable "certdbv".
-        //
-        DbName = EFI_CERT_DB_VOLATILE_NAME;
-        VarAttr = EFI_VARIABLE_RUNTIME_ACCESS |
-                  EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
-    }
-
-    status = auth_internal_find_variable(DbName, &gEfiCertDbGuid,
-                                         (void **)&data, &data_size);
-
-    if (EFI_ERROR(status)) {
-        return status;
-    }
-
-    if ((data_size == 0) || (data == NULL)) {
-        return EFI_NOT_FOUND;
-    }
-
-    if (data_size == sizeof(uint32_t)) {
-        //
-        // There is no certs in "certdb" or "certdbv".
-        //
-        return EFI_SUCCESS;
-    }
-
-    //
-    // Get corresponding cert node from "certdb" or "certdbv".
-    //
-    status = FindCertsFromDb(name, guid, data, data_size, NULL, NULL,
-                             &CertNodeOffset, &CertNodeSize);
-
-    if (EFI_ERROR(status)) {
-        return status;
-    }
-
-    if (data_size < (CertNodeOffset + CertNodeSize)) {
-        return EFI_NOT_FOUND;
-    }
-
-    //
-    // Construct new data content of variable "certdb" or "certdbv".
-    //
-    NewCertDbSize = (uint32_t)data_size - CertNodeSize;
-    NewCertDb = (uint8_t *)mCertDbStore;
-
-    //
-    // Copy the DB entries before deleting node.
-    //
-    memcpy(NewCertDb, data, CertNodeOffset);
-
-    //
-    // Update CertDbListSize.
-    //
-    memcpy(NewCertDb, &NewCertDbSize, sizeof(uint32_t));
-    //
-    // Copy the DB entries after deleting node.
-    //
-    if (data_size > (CertNodeOffset + CertNodeSize)) {
-        memcpy(NewCertDb + CertNodeOffset, data + CertNodeOffset + CertNodeSize,
-               data_size - CertNodeOffset - CertNodeSize);
-    }
-
-    //
-    // Set "certdb" or "certdbv".
-    //
-    status = storage_set(DbName, &gEfiCertDbGuid, NewCertDb, NewCertDbSize,
-                         VarAttr);
-
-    return status;
-}
-
-/**
   Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
 
   Caution: This function may receive untrusted input.
@@ -1787,7 +1493,8 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     //
     if (IsDel && AuthVarType == AuthVarTypePriv && !EFI_ERROR(status)) {
         TRACE();
-        status = delete_certs_from_db(name, guid, attrs);
+
+        //status = delete_certs_from_db(name, guid, attrs);
     }
 
     if (VarDel != NULL) {
@@ -1866,9 +1573,11 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
             return status;
         }
 
+#if 0
         if ((SetupMode != SETUP_MODE) || IsPk) {
             status = VendorKeyIsModified();
         }
+#endif
     } else if (SetupMode == USER_MODE) {
         //
         // Verify against X509 Cert in PK database.
@@ -1964,10 +1673,6 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
                 &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
         if (EFI_ERROR(status)) {
             return status;
-        }
-
-        if (SetupMode != SETUP_MODE) {
-            status = VendorKeyIsModified();
         }
     }
 
@@ -2076,7 +1781,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
 
         if (((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) !=
              0)) {
-            status = delete_certs_from_db(name, guid, attrs);
+            //status = delete_certs_from_db(name, guid, attrs);
         }
 
         DDEBUG("status=0x%02lx\n", status);
@@ -2198,7 +1903,7 @@ CleanCertsFromDb(void)
             if (EFI_ERROR(status) ||
                 (var.attrs &
                  EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
-                status = delete_certs_from_db(name, &AuthVarGuid, var.attrs);
+                //status = delete_certs_from_db(name, &AuthVarGuid, var.attrs);
                 CertCleaned = true;
 
                 DDEBUG("Recovery!! Cert for Auth Variable is removed for consistency\n");

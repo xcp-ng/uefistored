@@ -329,7 +329,7 @@ static uint8_t *variable_list_bytes(size_t *size, bool nonvolatile)
     if (ret <= 0)
         return NULL;
 
-    dprint_variable_list(vars, ret);
+    //dprint_variable_list(vars, ret);
 
     *size = list_size(vars, ret);
     bytes = malloc(*size);
