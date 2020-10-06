@@ -162,7 +162,6 @@ done:
 static void handle_query_variable_info(void *comm_buf)
 {
     uint32_t attrs, version, command;
-    EFI_STATUS status;
     uint8_t *ptr;
     uint64_t max_variable_storage;
     uint64_t remaining_variable_storage;
@@ -174,9 +173,7 @@ static void handle_query_variable_info(void *comm_buf)
 
     if (version != UEFISTORED_VERSION) {
         ERROR("Bad uefistored version: %u\n", version);
-        status = EFI_UNSUPPORTED;
-        ptr = comm_buf;
-        serialize_result(&ptr, status);
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
@@ -184,27 +181,25 @@ static void handle_query_variable_info(void *comm_buf)
 
     if (command != COMMAND_QUERY_VARIABLE_INFO) {
         ERROR("Bad command: %u\n", command);
-        status = EFI_DEVICE_ERROR;
-        ptr = comm_buf;
-        serialize_result(&ptr, status);
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
     attrs = unserialize_uint32(&inptr);
 
-    status = query_variable_info(attrs, &max_variable_storage,
-                                 &remaining_variable_storage,
-                                 &max_variable_size);
-    ;
-
-    if (status != EFI_SUCCESS) {
-        ptr = comm_buf;
-        serialize_result(&ptr, status);
+    if (attrs == 0 ||
+            ((attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
+             !(attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS))) {
+        serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
 
+    max_variable_storage = MAX_STORAGE_SIZE;
+    max_variable_size = MAX_VARIABLE_SIZE;
+    remaining_variable_storage = MAX_STORAGE_SIZE - storage_used();
+
     ptr = comm_buf;
-    serialize_result(&ptr, status);
+    serialize_result(&ptr, EFI_SUCCESS);
     serialize_value(&ptr, max_variable_storage);
     serialize_value(&ptr, remaining_variable_storage);
     serialize_value(&ptr, max_variable_size);
