@@ -23,16 +23,28 @@
 #include "xen_variable_server.h"
 #include "xapi.h"
 
+/* Request for GET_NEXT_VARIABLE */
+struct get_next_request {
+    uint32_t version;
+    uint32_t command;
+    uint64_t guest_buffer_size;
+    uint64_t namesz;
+    uint8_t name[MAX_VARIABLE_NAME_SIZE];
+    EFI_GUID guid;
+};
+
 FILE *input_snapshot_fd;
 FILE *output_snapshot_fd;
 
 #if 1
-FILE *test_log;
+FILE *test_log = NULL;
 
-#define MYLOG(...)  				\
-	do {					\
-	    fprintf(test_log, __VA_ARGS__); 	\
-	    fflush(test_log);			\
+#define MYLOG(...)  				            \
+	do {					                    \
+        if (test_log) {                         \
+            fprintf(test_log, __VA_ARGS__); 	\
+            fflush(test_log);			        \
+        }                                       \
 	} while (0)
 #else
 #define MYLOG(...) do { } while( 0 )
@@ -46,7 +58,7 @@ static void save_shmem_page(void *comm_buf, FILE *fd)
 }
 #endif
 
-static void buffer_too_small(void *comm_buf, size_t required_size)
+static void serialize_buffer_too_small(void *comm_buf, size_t required_size)
 {
     uint8_t *ptr = comm_buf;
 
@@ -119,7 +131,7 @@ static void handle_get_variable(void *comm_buf)
 
     if (status == EFI_BUFFER_TOO_SMALL) {
         free(name);
-        buffer_too_small(comm_buf, buflen);
+        serialize_buffer_too_small(comm_buf, buflen);
         return;
     } else if (status) {
         free(name);
@@ -307,54 +319,32 @@ static void handle_set_variable(void *comm_buf)
     free(name);
 }
 
-static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
-                                                uint64_t *namesz,
-                                                UTF16 **name,
-                                                uint64_t *guest_bufsz,
-                                                EFI_GUID *guid)
+struct get_next_request *unserialize_get_next_request(void *comm_buf)
 {
-    uint32_t command;
-    const uint8_t *inptr = comm_buf;
-    uint32_t version;
+    const uint8_t *ptr;
+    struct get_next_request *request;
 
-    if (!comm_buf || !namesz || !name || !guid)
-        return EFI_DEVICE_ERROR;
+    request = calloc(1, sizeof(struct get_next_request));
 
-    version = unserialize_uint32(&inptr);
+    if (!request)
+        return NULL;
 
-    if (version != UEFISTORED_VERSION)
-        WARNING("OVMF appears to be running an unsupported version of the XenVariable module\n");
+    ptr = comm_buf;
 
-    command = unserialize_uint32(&inptr);
+    request->version = unserialize_uint32(&ptr);
+    request->command = unserialize_uint32(&ptr);
+    request->guest_buffer_size = unserialize_uintn(&ptr);
+    request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+    ((UTF16*)request->name)[request->namesz / 2] = 0;
 
-    assert(command == COMMAND_GET_NEXT_VARIABLE);
+    if (request->namesz < 0) {
+        free(request);
+        return NULL;
+    }
 
-    *guest_bufsz = unserialize_uintn(&inptr);
-    *namesz = unserialize_namesz(&inptr) + sizeof(UTF16);
+    unserialize_guid(&ptr, &request->guid);
 
-    if (*namesz > MAX_VARIABLE_NAME_SIZE)
-        return EFI_INVALID_PARAMETER;
-
-    *name = malloc(*namesz);
-
-    if (!*name)
-        return EFI_DEVICE_ERROR;
-
-    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), *name, *namesz);
-    unserialize_guid(&inptr, guid);
-
-    /* Let XenVariable inform us if OVMF has exited Boot Services */
-    set_efi_runtime(unserialize_boolean(&inptr));
-
-    /*
-     * Because name is the input and output buffer, it is sometimes
-     * populated with guest_bufsz bytes and sometimes namesz bytes.
-     * So we just allocated enough for either case.
-     */
-    if (*guest_bufsz > *namesz)
-        *name = realloc(*name, *guest_bufsz);
-
-    return EFI_SUCCESS;
+    return request;
 }
 
 /**
@@ -368,58 +358,51 @@ static EFI_STATUS unserialize_get_next_variable(const void *comm_buf,
 static void handle_get_next_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
-    const uint8_t *inptr = comm_buf;
-    uint64_t guest_bufsz = 0;
-    uint64_t namesz = 0;
-    UTF16 *name = NULL;
-    EFI_GUID guid;
-    EFI_STATUS status;
+    const variable_t *next;
 
-    status = unserialize_get_next_variable(inptr, &namesz, &name, &guest_bufsz,
-                                           &guid);
-    if (status) {
-        DPRINTF("status=%s (0x%lx), namesz=%lu, guest_bufsz=%lu\n", 
-                efi_status_str(status), status, namesz, guest_bufsz);
+    struct get_next_request *request;
 
-        ptr = comm_buf;
-        serialize_result(&ptr, status);
-        return;
-    }
-
-    DPRINTF("%s:%u: Current=", __func__, __LINE__);
-    dprint_name(name, namesz);
-    DPRINTF(", ");
-
-    status = storage_next(&guest_bufsz, name, &guid);
-
-    if (!status) {
-        DPRINTF("Next=");
-        dprint_name(name, guest_bufsz);
-        DPRINTF(", ");
-    }
-    DPRINTF(" status=%s (0x%lx), namesz=%lu, guest_bufsz=%lu\n", 
-            efi_status_str(status), status, namesz, guest_bufsz);
-
-    if (status == EFI_NOT_FOUND || status == EFI_DEVICE_ERROR) {
-        serialize_result(&ptr, status);
-        goto cleanup2;
-    } else if (status == EFI_BUFFER_TOO_SMALL) {
-        DPRINTF("BUFF TOO SMALL\n");
-        dprint_name(name, namesz);
-        DPRINTF("required bufsz=%lu\n", guest_bufsz);
-        buffer_too_small(comm_buf, guest_bufsz);
-        goto cleanup2;
-    }
-
-    assert(status == EFI_SUCCESS);
+    request = unserialize_get_next_request(comm_buf);
 
     ptr = comm_buf;
-    serialize_result(&ptr, EFI_SUCCESS);
-    serialize_name(&ptr, name);
-    serialize_guid(&ptr, &guid);
 
-cleanup2:
-    free(name);
+    if (!request) {
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        ERROR("Memory error\n");
+        goto err;
+    }
+
+    if (request->version != 1) {
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        ERROR("Bad version: %u\n", request->version);
+        goto err;
+    }
+
+    if (request->command != COMMAND_GET_NEXT_VARIABLE) {
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        ERROR("Bad command: 0x%02x\n", request->command);
+        goto err;
+    }
+
+    next = storage_next_variable((UTF16*)request->name, &request->guid);
+
+    ptr = comm_buf;
+
+    if (!next) {
+        /* Return to guest EFI_NOT_FOUND, no more variables left */
+        serialize_result(&ptr, EFI_NOT_FOUND);
+    } else if (request->guest_buffer_size < next->namesz) {
+        /* Return to guest EFI_BUFFER_TOO_SMALL */
+        serialize_buffer_too_small(ptr, next->namesz + sizeof(UTF16));
+    } else {
+        /* Return to guest EFI_SUCCESS */
+        serialize_result(&ptr, EFI_SUCCESS);
+        serialize_name(&ptr, next->name);
+        serialize_guid(&ptr, &next->guid);
+    }
+
+err:
+    free(request);
 }
 
 static void log_guid(EFI_GUID *guid)

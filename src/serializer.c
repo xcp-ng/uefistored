@@ -75,7 +75,7 @@ void serialize_command(uint8_t **ptr, command_t cmd)
     serialize_uint32(ptr, (uint32_t)cmd);
 }
 
-void serialize_guid(uint8_t **ptr, EFI_GUID *guid)
+void serialize_guid(uint8_t **ptr, const EFI_GUID *guid)
 {
     memcpy(*ptr, guid, 16);
     *ptr += 16;

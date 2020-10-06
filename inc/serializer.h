@@ -21,7 +21,7 @@ void serialize_uintn(uint8_t **ptr, uint64_t var);
 void serialize_uint32(uint8_t **ptr, uint32_t var);
 void serialize_boolean(uint8_t **ptr, bool var);
 void serialize_command(uint8_t **ptr, command_t cmd);
-void serialize_guid(uint8_t **ptr, EFI_GUID *Guid);
+void serialize_guid(uint8_t **ptr, const EFI_GUID *Guid);
 void serialize_result(uint8_t **ptr, EFI_STATUS status);
 int serialize_var(uint8_t **p, const variable_t *var);
 int serialize_variable_list(uint8_t **ptr, size_t sz, const variable_t *var,

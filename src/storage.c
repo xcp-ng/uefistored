@@ -332,6 +332,67 @@ uint64_t storage_used(void)
     return used;
 }
 
+variable_t *storage_get_first(void)
+{
+    size_t i;
+    variable_t *var;
+
+    /* Find the first variable */
+    for (i=0; i<MAX_VAR_COUNT; i++) {
+        var = &variables[i];
+        if (variable_is_valid(var))
+            break;
+    }
+
+    if (i >= MAX_VAR_COUNT)
+        return NULL;
+
+    return var;
+}
+
+const variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
+{
+    size_t i;
+    size_t prev_namesz;
+    const variable_t *var;
+
+    prev_namesz = strsize16(name);
+
+    if (name[0] == 0) {
+        return storage_get_first();
+    }
+
+    var = variables;
+
+    /* Find the previous variable (passed in from caller) */
+    for (i=0; i<MAX_VAR_COUNT; i++) {
+        var = &variables[i];
+
+        if (var->namesz != prev_namesz)
+            continue;
+
+        if (strcmp16(var->name, name) == 0 &&
+                memcmp(guid, &var->guid, sizeof(EFI_GUID)) == 0) {
+            break;
+        }
+    }
+
+    /* Go to the next variable, the one we want to return! */
+    i++;
+
+    /* Find the next variable */
+    for (; i<MAX_VAR_COUNT; i++) {
+        if (variable_is_valid(&variables[i]))
+            break;
+    }
+
+    /* If we are at the end of the array, return NULL */
+    if (i >= MAX_VAR_COUNT)
+        return NULL;
+
+    return (const variable_t*)&variables[i];
+}
+
 /**
  * Get the next variable in the DB
  *
@@ -361,7 +422,10 @@ EFI_STATUS storage_next(size_t *namesz, UTF16 *name, EFI_GUID *guid)
         return EFI_NOT_FOUND;
 
     if (name[0] == 0 && total > 0) {
-        var = &variables[0];
+        var = storage_get_first();
+        if (!var)
+            return EFI_NOT_FOUND;
+
         goto found;
     }
 
