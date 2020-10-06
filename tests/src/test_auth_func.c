@@ -794,7 +794,7 @@ static void post_test(void)
 
 void test_auth_func(void)
 {
-    AuthVariableLibInitialize();
+    auth_lib_initialize();
     DO_TEST(test_auth_DER_func);
     storage_deinit();
 }

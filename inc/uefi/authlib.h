@@ -13,6 +13,6 @@ AuthVariableLibProcessVariable (
   );
 
 EFI_STATUS
-AuthVariableLibInitialize (void);
+auth_lib_initialize (void);
 
 #endif // __H_AUTHLIB_UEFI_

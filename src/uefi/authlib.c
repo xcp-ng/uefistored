@@ -38,7 +38,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "uefi/types.h"
 #include "uefi/utils.h"
 
-uint8_t default_pk[] = {
+static uint8_t default_pk[] = {
 #include "default_pk.txt"
 };
 
@@ -47,53 +47,34 @@ uint8_t default_pk[] = {
 ///
 uint32_t SetupMode;
 
-EFI_GUID SignatureSupport[] = { EFI_CERT_SHA1_GUID, EFI_CERT_SHA256_GUID,
+static EFI_GUID SignatureSupport[] = { EFI_CERT_SHA1_GUID, EFI_CERT_SHA256_GUID,
                                 EFI_CERT_RSA2048_GUID, EFI_CERT_X509_GUID };
-
-#define VAR_CHECK_VARIABLE_PROPERTY_REVISION 0x0001
-//
-// 1. Set by VariableLock PROTOCOL
-// 2. Set by VarCheck PROTOCOL
-//
-// If set, other fields for check will be ignored.
-//
-#define VAR_CHECK_VARIABLE_PROPERTY_READ_ONLY (1)
-
-typedef struct {
-    uint16_t Revision;
-    uint16_t Property;
-    uint32_t Attributes;
-    uint64_t MinSize;
-    uint64_t MaxSize;
-} VAR_CHECK_VARIABLE_PROPERTY;
-
-typedef struct {
-    EFI_GUID *Guid;
-    UTF16 *Name;
-    VAR_CHECK_VARIABLE_PROPERTY VariableProperty;
-} VARIABLE_ENTRY_PROPERTY;
 
 //
 // Hash context pointer
 //
-SHA256_CTX *mHashCtx = NULL;
+SHA256_CTX *hash_ctx = NULL;
 
-static int init_auth_vars(void)
+/**
+  Initialization for authenticated varibale services.
+  If this initialization returns error status, other APIs will not work
+  and expect to be not called then.
 
+  @retval EFI_SUCCESS               Function successfully executed.
+  @retval EFI_OUT_OF_RESOURCES      Fail to allocate enough resource.
+  @retval EFI_UNSUPPORTED           Unsupported to process authenticated variable.
+
+**/
+EFI_STATUS
+auth_lib_initialize(void)
 {
-    EFI_STATUS status;
-    uint8_t SetupMode;
-    uint8_t SecureBoot;
-    uint8_t DeployedMode;
-    uint8_t AuditMode;
-
+    EFI_STATUS status = EFI_SUCCESS;
     void *data;
     size_t data_size;
-
-    SetupMode = 0;
-    SecureBoot = 0;
-    DeployedMode = 0;
-    AuditMode = 0;
+    uint8_t SetupMode = 0;
+    uint8_t SecureBoot = 0;
+    uint8_t DeployedMode = 0;
+    uint8_t AuditMode = 0;
 
     status = storage_set(EFI_SIGNATURE_SUPPORT_NAME, &gEfiGlobalVariableGuid,
                          SignatureSupport, sizeof(SignatureSupport),
@@ -101,7 +82,7 @@ static int init_auth_vars(void)
                                  EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
-        return -1;
+        return EFI_DEVICE_ERROR;
     }
 
     storage_set(L"PK", &gEfiGlobalVariableGuid,
@@ -114,7 +95,7 @@ static int init_auth_vars(void)
                                          (void **)&data, &data_size);
 
     if (status != EFI_NOT_FOUND && status != EFI_SUCCESS) {
-        return -1;
+        return EFI_DEVICE_ERROR;
     } else if (status == EFI_NOT_FOUND) {
         SetupMode = 1;
     } else {
@@ -128,7 +109,7 @@ static int init_auth_vars(void)
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
-        return -1;
+        return EFI_DEVICE_ERROR;
     }
 
     status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &AuditMode,
@@ -136,7 +117,7 @@ static int init_auth_vars(void)
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
-        return -1;
+        return EFI_DEVICE_ERROR;
     }
 
     status = storage_set(L"DeployedMode", &gEfiGlobalVariableGuid, &DeployedMode,
@@ -144,7 +125,7 @@ static int init_auth_vars(void)
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
-        return -1;
+        return EFI_DEVICE_ERROR;
     }
 
     status = storage_set(L"SecureBoot", &gEfiGlobalVariableGuid, &SecureBoot,
@@ -152,39 +133,20 @@ static int init_auth_vars(void)
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
-        return -1;
+        return EFI_DEVICE_ERROR;
     }
 
     DDEBUG("SetVariable(L\"SecureBoot\") == 0x%02lx\n", status);
     DDEBUG("Variable SetupMode is %x\n", SetupMode);
     DDEBUG("Variable SecureBoot is %x\n", SecureBoot);
 
-    return 0;
-}
+    hash_ctx = malloc(sizeof(SHA256_CTX));
 
-/**
-  Initialization for authenticated varibale services.
-  If this initialization returns error status, other APIs will not work
-  and expect to be not called then.
-
-  @retval EFI_SUCCESS               Function successfully executed.
-  @retval EFI_OUT_OF_RESOURCES      Fail to allocate enough resource.
-  @retval EFI_UNSUPPORTED           Unsupported to process authenticated variable.
-
-**/
-EFI_STATUS
-AuthVariableLibInitialize(void)
-{
-    EFI_STATUS Status = EFI_SUCCESS;
-
-    if (init_auth_vars() < 0)
-    {
-        ERROR("Failed to setup Secure Boot variables\n");
+    if (!hash_ctx) {
+        return EFI_DEVICE_ERROR;
     }
 
-    mHashCtx = malloc(sizeof(SHA256_CTX));
-
-    return Status;
+    return status;
 }
 
 /**
@@ -212,28 +174,28 @@ AuthVariableLibProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid,
                                void *Data, uint64_t DataSize,
                                uint32_t Attributes)
 {
-    EFI_STATUS Status;
+    EFI_STATUS status;
 
   if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
     DDEBUG("ProcessVarWithPk()\n");
-    // Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, TRUE);
+    // status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, TRUE);
   } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
     DDEBUG("ProcessVarWithPk()\n");
-    // Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+    // status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
   } else if (CompareGuid (VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
              ((strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
         DDEBUG("ProcessVarWithPk()\n");
         DDEBUG("ProcessVarWithKek()\n");
-        //Status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
-        if (EFI_ERROR (Status)) {
-            // Status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
+        //status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+        if (EFI_ERROR (status)) {
+            // status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
         }
   } else {
     DDEBUG("process_variable\n");
-    Status = process_variable(VariableName, VendorGuid, Data, DataSize, Attributes);
+    status = process_variable(VariableName, VendorGuid, Data, DataSize, Attributes);
   }
 
-    return Status;
+    return status;
 }

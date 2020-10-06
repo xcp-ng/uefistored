@@ -27,7 +27,7 @@
 
 extern bool efi_at_runtime;
 
-extern SHA256_CTX *mHashCtx;
+extern SHA256_CTX *hash_ctx;
 extern uint8_t SetupMode;
 
 #define TRACE()               \
@@ -936,7 +936,7 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     // Digest SignerCert CN + TopLevelCert tbsCertificate
     //
     memset(Sha256Digest, 0, SHA256_DIGEST_SIZE);
-    Cryptostatus = SHA256_Init(mHashCtx);
+    Cryptostatus = SHA256_Init(hash_ctx);
     if (!Cryptostatus) {
         return EFI_ABORTED;
     }
@@ -945,17 +945,17 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     // '\0' is forced in CertCommonName. No overflow issue
     //
     Cryptostatus =
-            SHA256_Update(mHashCtx, CertCommonName, strlen(CertCommonName));
+            SHA256_Update(hash_ctx, CertCommonName, strlen(CertCommonName));
     if (!Cryptostatus) {
         return EFI_ABORTED;
     }
 
-    Cryptostatus = SHA256_Update(mHashCtx, TbsCert, TbsCertSize);
+    Cryptostatus = SHA256_Update(hash_ctx, TbsCert, TbsCertSize);
     if (!Cryptostatus) {
         return EFI_ABORTED;
     }
 
-    Cryptostatus = SHA256_Final(Sha256Digest, mHashCtx);
+    Cryptostatus = SHA256_Final(Sha256Digest, hash_ctx);
     if (!Cryptostatus) {
         return EFI_ABORTED;
     }

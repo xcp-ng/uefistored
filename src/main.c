@@ -957,8 +957,8 @@ int main(int argc, char **argv)
     if (ret < 0)
         goto err;
 
-    if ((status = AuthVariableLibInitialize()) != EFI_SUCCESS)
-        DDEBUG("AuthVariableLibInitialize() failed, status=%s (0x%lx)",
+    if ((status = auth_lib_initialize()) != EFI_SUCCESS)
+        DDEBUG("auth_lib_initialize() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
 
 
