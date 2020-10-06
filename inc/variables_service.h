@@ -1,5 +1,0 @@
-#ifndef __H_VARIABLES_SERVICE__
-#define __H_VARIABLES_SERVICE__
-
-
-#endif // __H_VARIABLES_SERVICE__

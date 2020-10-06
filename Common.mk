@@ -11,7 +11,6 @@ SRCS :=                                                         \
         src/uefi/x509.c                                         \
         src/uefi/pkcs7_verify.c                                 \
         src/varnames.c                                          \
-        src/variables_service.c                                 \
         src/variable.c                                          \
         src/xapi.c                                              \
         src/xen_variable_server.c

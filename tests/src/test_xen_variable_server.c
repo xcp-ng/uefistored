@@ -11,7 +11,6 @@
 #include "test_common.h"
 #include "uefi/types.h"
 #include "xen_variable_server.h"
-#include "variables_service.h"
 
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;

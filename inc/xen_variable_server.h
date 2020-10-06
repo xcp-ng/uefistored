@@ -17,4 +17,7 @@ EFI_STATUS set_variable(UTF16 *variable, EFI_GUID *guid, uint32_t attrs,
 EFI_STATUS get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs,
                         size_t *size, void *data);
 
+EFI_STATUS evaluate_attrs(uint32_t attrs);
+void set_efi_runtime(bool runtime);
+
 #endif // __H_XEN_VARIABLE_SERVER_

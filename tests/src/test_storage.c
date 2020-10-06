@@ -7,7 +7,7 @@
 #include "test_xapi.h"
 #include "log.h"
 #include "xapi.h"
-#include "variables_service.h"
+#include "xen_variable_server.h"
 
 #include "test_common.h"
 #include "test_storage.h"
