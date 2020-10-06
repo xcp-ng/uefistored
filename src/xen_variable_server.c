@@ -37,32 +37,6 @@ struct request {
     uint32_t attrs;
 };
 
-
-FILE *input_snapshot_fd;
-FILE *output_snapshot_fd;
-
-#if 1
-FILE *test_log = NULL;
-
-#define MYLOG(...)  				            \
-	do {					                    \
-        if (test_log) {                         \
-            fprintf(test_log, __VA_ARGS__); 	\
-            fflush(test_log);			        \
-        }                                       \
-	} while (0)
-#else
-#define MYLOG(...) do { } while( 0 )
-#endif
-
-#if 0
-static void save_shmem_page(void *comm_buf, FILE *fd)
-{
-    fwrite(comm_buf, 1, 4096, fd);
-    fflush(fd);
-}
-#endif
-
 static void serialize_buffer_too_small(void *comm_buf, size_t required_size)
 {
     uint8_t *ptr = comm_buf;
@@ -440,243 +414,6 @@ err:
     free(request);
 }
 
-static void log_guid(EFI_GUID *guid)
-{
-    int i;
-
-    if (!guid) {
-        MYLOG("[]");
-        return;
-    }
-
-    MYLOG("[");
-    for (i=0; i<sizeof(*guid); i++) {
-        MYLOG("0x%02x", ((uint8_t*)guid)[i]);
-        if (i < sizeof(*guid) - 1) {
-            MYLOG(", ");
-        }
-    }
-    MYLOG("]");
-}
-
-static void log_get(void *comm_buf)
-{
-    const uint8_t *ptr = comm_buf;
-    uint8_t name[MAX_VARIABLE_NAME_SIZE];
-    EFI_GUID guid;
-    int name_len, data_len;
-    bool at_runtime;
-    uint64_t i;
-
-    (void)ptr;
-    (void)name;
-    (void)guid;
-    (void)name_len;
-    (void)data_len;
-    (void)at_runtime;
-    (void)i;
-
-    ptr = comm_buf;
-    unserialize_uint32(&ptr); /* version */
-    unserialize_uint32(&ptr);
-
-    MYLOG("Request: GET<");
-
-    name_len = unserialize_namesz(&ptr);
-    unserialize_name(&ptr, BUFFER_REMAINING(comm_buf, ptr), name, name_len + sizeof(UTF16));
-    if (name_len < 0) {
-        MYLOG(">\n");
-        return;
-    }
-    unserialize_guid(&ptr, &guid);
-    data_len = unserialize_uintn(&ptr);
-    at_runtime = unserialize_boolean(&ptr);
-
-    MYLOG("name=");
-    for (i=0; i<name_len; i++) {
-        if (isprint(name[i])) {
-            MYLOG("%c", name[i]);
-        }
-    }
-    MYLOG(", guid=");
-    log_guid(&guid);
-    MYLOG(", data_len=%lu, at_runtime=%s>\n", (size_t)data_len, at_runtime ? "true" : "false");
-}
-
-static void log_data(uint8_t *data, uint64_t data_len)
-{
-    uint64_t i;
-
-    (void)data;
-    (void)data_len;
-
-    if (!data)
-        return;
-
-    if (data_len == 0)
-        return;
-
-    MYLOG("[");
-    for (i=0; i<data_len; i++) {
-	MYLOG("0x%02x", data[i]);
-
-	if (i != data_len - 1) {
-	    MYLOG(", ");
-	}
-    }
-    MYLOG("]");
-}
-
-static void log_name(uint8_t *name, uint64_t name_len)
-{
-    uint64_t i;
-
-    for (i=0; i<name_len; i++) {
-        if (isprint(name[i])) {
-            MYLOG("%c", name[i]);
-        }
-    }
-}
-
-static void log_set(const void *comm_buf)
-{
-    const uint8_t *ptr;
-    uint8_t name[MAX_VARIABLE_NAME_SIZE];
-    uint8_t data[MAX_VARIABLE_DATA_SIZE];
-    int name_len;
-    int data_len;
-    EFI_GUID guid;
-    uint32_t attr;
-    bool at_runtime;
-
-    (void)ptr;
-    (void)name;
-    (void)data;
-    (void)name_len;
-    (void)data_len;
-    (void)guid;
-    (void)attr;
-    (void)at_runtime;
-
-    ptr = comm_buf;
-    unserialize_uint32(&ptr); /* version */
-    unserialize_uint32(&ptr);
-
-    MYLOG("Request: SET<");
-
-    name_len = unserialize_data(&ptr, name, MAX_VARIABLE_NAME_SIZE);
-
-    if (name_len < 0) {
-        MYLOG(">\n");
-        return;
-    }
-
-    unserialize_guid(&ptr, &guid);
-
-    MYLOG("name=");
-    log_name(name, name_len);
-
-    MYLOG(", guid=");
-    log_guid(&guid);
-
-    data_len = unserialize_data(&ptr, data, MAX_VARIABLE_DATA_SIZE);
-
-    if (data_len < 0) {
-        MYLOG(">\n");
-        return;
-    }
-
-    MYLOG(", data=");
-    log_data(data, data_len);
-    attr = unserialize_uint32(&ptr);
-    at_runtime = unserialize_boolean(&ptr);
-    MYLOG(", attr=0x%02x, at_runtime=%s>\n", attr, at_runtime ? "true" : "false");
-}
-
-static void log_result(const void *comm_buf, uint32_t command)
-{
-    uint32_t attrs;
-    uint8_t data[MAX_VARIABLE_DATA_SIZE] = {0};
-    uint64_t data_len = 0; 
-    const uint8_t *ptr = comm_buf;
-    uint64_t result;
-    uint8_t name[MAX_VARIABLE_NAME_SIZE] = {0};
-    EFI_GUID guid;
-
-    (void) attrs;
-    (void) data;
-    (void) data_len;
-    (void) result;
-    (void) ptr;
-
-    switch (command) {
-    case COMMAND_GET_VARIABLE:
-    {
-        result = unserialize_uintn(&ptr);
-        MYLOG("Response: GET<result=%s (0x%02lx)", efi_status_str(result), result);
-
-        if (result == EFI_SUCCESS) {
-            attrs = unserialize_uint32(&ptr);
-            data_len = unserialize_data(&ptr, data, MAX_VARIABLE_DATA_SIZE);
-
-            MYLOG(", attrs=0x%02x, data_len=%lu, data=", attrs, data_len);
-
-            log_data(data, data_len);
-            MYLOG(">\n");
-        } else if (result == EFI_BUFFER_TOO_SMALL) {
-            MYLOG(", required_size=%lu>\n", unserialize_uintn(&ptr));
-        } else {
-            MYLOG(">\n");
-        }
-        break;
-    }
-
-    case COMMAND_SET_VARIABLE:
-    {
-        result = unserialize_uintn(&ptr);
-        MYLOG("Response: SET<result=%s (0x%02lx)>\n", efi_status_str(result), result);
-        break;
-    }
-
-    case COMMAND_GET_NEXT_VARIABLE:
-    {
-        result = unserialize_uintn(&ptr);
-
-        if (result == EFI_SUCCESS) {
-            uint64_t name_len = unserialize_data(&ptr, name, MAX_VARIABLE_DATA_SIZE);
-            unserialize_guid(&ptr, &guid);
-
-            MYLOG("Response: GET_NEXT<result=%s (0x%02lx)",
-                    efi_status_str(result), result);
-
-            MYLOG(", guid=");
-            log_guid(&guid);
-
-            MYLOG("name=");
-            log_name(name, name_len);
-            MYLOG(">\n");
-        } else if (result == EFI_BUFFER_TOO_SMALL) {
-            uint64_t required_size;
-
-            required_size = unserialize_uintn(&ptr);
-
-            MYLOG("Response: GET_NEXT<result=%s (0x%02lx), required_size=%lu>\n",
-                    efi_status_str(result), result, required_size);
-        } else {
-            MYLOG("Response: GET_NEXT<result=%s (0x%02lx)\n",
-                    efi_status_str(result), result);
-        }
-        break;
-    }
-
-    default:
-    	MYLOG("unimplemented: 0x%02x\n", command);
-	break;
-    }
-
-}
-
-
 void xen_variable_server_handle_request(void *comm_buf)
 {
     const uint8_t *inptr = comm_buf;
@@ -692,33 +429,23 @@ void xen_variable_server_handle_request(void *comm_buf)
 
     command = unserialize_uint32(&inptr);
 
-    DDEBUG("command=0x%x\n", command);
-
     switch (command) {
     case COMMAND_GET_VARIABLE:
-        log_get(comm_buf);
         handle_get_variable(comm_buf);
         break;
     case COMMAND_SET_VARIABLE:
-        log_set(comm_buf);
         handle_set_variable(comm_buf);
         break;
     case COMMAND_GET_NEXT_VARIABLE:
-        MYLOG("Request: GET_NEXT<>\n");
         handle_get_next_variable(comm_buf);
         break;
     case COMMAND_QUERY_VARIABLE_INFO:
-        MYLOG("Request: QUERY_VARIABLE_INFO<>\n");
         handle_query_variable_info(comm_buf);
         break;
     case COMMAND_NOTIFY_SB_FAILURE:
-        MYLOG("Request: COMMAND_NOTIFY_SB_FAILURE<>\n");
         /* fall through */
     default:
         ERROR("cmd: unknown, 0x%x\n", command);
         break;
     }
-
-    log_result(comm_buf, command);
-    MYLOG("\n");
 }

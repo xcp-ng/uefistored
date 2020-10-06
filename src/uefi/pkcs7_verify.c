@@ -250,12 +250,6 @@ EFI_STATUS pkcs7_get_signers(const uint8_t *p7data, uint64_t p7_len,
 {
     const uint8_t *ptr;
 
-#if 0
-    MYLOG("%s:%d: p7data >>>>>>>>>>>>>>\n", __func__, __LINE__);
-    log_data(p7data, p7_len);
-    MYLOG("%s:%d:<<<<<<<<<<<<<<\n", __func__, __LINE__);
-#endif
-
     ptr = p7data;
     *pkcs7 = d2i_PKCS7(NULL, &ptr, (int)p7_len);
     if (!*pkcs7)

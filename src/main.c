@@ -934,10 +934,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    input_snapshot_fd = fopen(INPUT_SNAPSHOT, "a"); 
-    output_snapshot_fd = fopen(OUTPUT_SNAPSHOT, "a"); 
-    test_log = fopen("/uefistored.test.log", "w");
-
     if (root_path) {
         ret = chroot(root_path);
 
