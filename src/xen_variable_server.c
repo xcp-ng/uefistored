@@ -21,18 +21,20 @@
 #include "varnames.h"
 #include "variables_service.h"
 #include "xen_variable_server.h"
+#include "uefi/authlib.h"
 #include "xapi.h"
 
 extern bool efi_at_runtime;
 
-/* Request for GET_NEXT_VARIABLE or GET_VARIABLE */
-struct get_request {
+struct request {
     uint32_t version;
     command_t command;
-    uint64_t buffer_size;
-    uint64_t namesz;
+    int namesz;
     uint8_t name[MAX_VARIABLE_NAME_SIZE];
+    int buffer_size;
+    uint8_t buffer[MAX_VARIABLE_DATA_SIZE];
     EFI_GUID guid;
+    uint32_t attrs;
 };
 
 
@@ -69,15 +71,15 @@ static void serialize_buffer_too_small(void *comm_buf, size_t required_size)
     serialize_uintn(&ptr, (uint64_t)required_size);
 }
 
-static struct get_request *unserialize_get_request(void *comm_buf)
+static struct request *unserialize_get_request(void *comm_buf)
 {
-    struct get_request *request;
+    struct request *request;
     const uint8_t *ptr;
 
     if (!comm_buf)
         return NULL;
 
-    request = calloc(1, sizeof(struct get_request));
+    request = calloc(1, sizeof(struct request));
 
     if (!request)
         return NULL;
@@ -114,7 +116,7 @@ static struct get_request *unserialize_get_request(void *comm_buf)
  *
  * @return 0 if no error found, otherwise -1.
  */
-static int serialize_get_error(variable_t *var, struct get_request *request, void *comm_buf)
+static int serialize_get_error(variable_t *var, struct request *request, void *comm_buf)
 {
     int ret;
     uint8_t *ptr = comm_buf;
@@ -148,7 +150,7 @@ static int serialize_get_error(variable_t *var, struct get_request *request, voi
 static void handle_get_variable(void *comm_buf)
 {
     uint8_t *ptr;
-    struct get_request *request;
+    struct request *request;
     variable_t *var;
 
     request = unserialize_get_request(comm_buf);
@@ -234,135 +236,124 @@ static void handle_query_variable_info(void *comm_buf)
     serialize_value(&ptr, max_variable_size);
 }
 
-static void handle_set_variable(void *comm_buf)
+static struct request *unserialize_set_request(void *comm_buf)
 {
-    uint8_t *ptr;
-    const uint8_t *inptr = comm_buf;
-    EFI_GUID guid;
-    int namesz;
-    int datasz;
-    UTF16 *name;
-    uint8_t data[MAX_VARIABLE_DATA_SIZE] = { 0 };
-    void *dp = data;
-    uint32_t attrs, command, version;
-    EFI_STATUS status;
-
-    ptr = comm_buf;
-    version = unserialize_uint32(&inptr);
-
-    if (version != UEFISTORED_VERSION) {
-        ERROR("Invalid XenVariable OVMF module version number: %d, only supports version 1\n",
-              version);
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
-        return;
-    }
-
-    command = unserialize_uint32(&inptr);
-
-    if (command != COMMAND_SET_VARIABLE) {
-        ERROR("BUG: uefistored accidentally passed a non SET_VARIABLE buffer to the"
-              "%s function!, returning EFI_DEVICE_ERROR\n",
-              __func__);
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
-        return;
-    }
-
-    namesz = unserialize_namesz(&inptr);
-
-    if (namesz == 0) {
-        DDEBUG("status=%s\n", efi_status_str(EFI_INVALID_PARAMETER));
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_INVALID_PARAMETER);
-        return;
-    }
-
-    if (namesz > MAX_VARIABLE_NAME_SIZE) {
-        DDEBUG("status=%s\n", efi_status_str(EFI_OUT_OF_RESOURCES));
-        ptr = comm_buf;
-        serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
-        return;
-    }
-
-    name = malloc(namesz + sizeof(UTF16));
-    unserialize_name(&inptr, BUFFER_REMAINING(comm_buf, inptr), name,
-                     namesz + sizeof(UTF16));
-    unserialize_guid(&inptr, &guid);
-
-    datasz = unserialize_data(&inptr, dp, MAX_VARIABLE_DATA_SIZE);
-
-    if (datasz < 0) {
-        ptr = comm_buf;
-        DDEBUG("status=%s (0x%02lx)\n",
-                efi_status_str(EFI_OUT_OF_RESOURCES), EFI_OUT_OF_RESOURCES);
-        serialize_result(&ptr, EFI_OUT_OF_RESOURCES);
-        free(name);
-        return;
-    }
-
-    attrs = unserialize_uint32(&inptr);
-
-    /* Let XenVariable inform us if OVMF has exited Boot Services */
-    set_efi_runtime(unserialize_boolean(&inptr));
-
-#if 0
-    if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINTN") == 0)
-    {
-        DDEBUG("XV_DEBUG_UINTN: 0x%lx\n",  *((uint64_t*)data));
-        free(name);
-        return;
-    }
-    else if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINT32") == 0)
-    {
-        DDEBUG("XV_DEBUG_UINT32: 0x%x\n",  *((uint32_t*)data));
-        free(name);
-        return;
-    }
-    else if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINT64") == 0)
-    {
-        DDEBUG("XV_DEBUG_UINT64: 0x%lx\n",  *((uint64_t*)data));
-        free(name);
-        return;
-    }
-    else if (strcmp16(name, (UTF16*) L"XV_DEBUG_UINT8") == 0)
-    {
-        DDEBUG("XV_DEBUG_UINT8: 0x%x\n",  *((uint8_t*)data));
-        free(name);
-        return;
-    }
-    else if (strcmp16(name, (UTF16*) L"XV_DEBUG_STR") == 0)
-    {
-        char stringbuf[512];
-        uc2_ascii_safe((UTF16*)data, datasz, stringbuf, 512);
-        DDEBUG("XV_DEBUG_STR: %s\n", stringbuf);
-        free(name);
-        return;
-    }
-    else if (strcmp16(name, (UTF16*) L"XV_DEBUG_ASCII") == 0)
-    {
-        DDEBUG("XV_DEBUG_ASCII: %s\n", (char*)data);
-        free(name);
-        return;
-    }
-#endif
-
-    status = set_variable(name, &guid, attrs, (size_t)datasz, dp);
-    ptr = comm_buf;
-    serialize_result(&ptr, status);
-
-    free(name);
-}
-
-struct get_request *unserialize_get_next_request(void *comm_buf)
-{
+    struct request *request;
     const uint8_t *ptr;
-    struct get_request *request;
 
     if (!comm_buf)
         return NULL;
 
-    request = calloc(1, sizeof(struct get_request));
+    request = calloc(1, sizeof(struct request));
+
+    if (!request)
+        return NULL;
+
+    ptr = comm_buf;
+
+    request->version = unserialize_uint32(&ptr);
+
+    if (request->version != UEFISTORED_VERSION) {
+        free(request);
+        return NULL;
+    }
+
+    request->command = (command_t)unserialize_uint32(&ptr);
+    request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+
+    if (request->namesz < 0) {
+        free(request);
+        return NULL;
+    }
+    
+    unserialize_guid(&ptr, &request->guid);
+    request->buffer_size = unserialize_data(&ptr, request->buffer, MAX_VARIABLE_DATA_SIZE);
+    request->attrs = unserialize_uint32(&ptr);
+
+    return request;
+}
+
+/**
+ * Returns true if variable is read-only, otherwise false.
+ */
+static bool is_ro(UTF16 *variable)
+{
+    if (!variable)
+        return false;
+
+    return strcmp16(variable, SECURE_BOOT_NAME) == 0;
+}
+
+static void handle_set_variable(void *comm_buf)
+{
+    uint8_t *ptr = comm_buf;
+    struct request *request;
+    EFI_STATUS status;
+
+    request = unserialize_set_request(comm_buf);
+
+    if (!request) {
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        ERROR("Memory error\n");
+        goto done;
+    }
+
+    if (request->version != 1) {
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        ERROR("Bad version: %u\n", request->version);
+        goto done;
+    }
+
+    if (request->command != COMMAND_SET_VARIABLE) {
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        ERROR("Bad command: 0x%02x\n", request->command);
+        goto done;
+    }
+
+    if (request->name[0] == 0 ||
+            ((request->attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
+             !(request->attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS))) {
+        serialize_result(&ptr, EFI_INVALID_PARAMETER);
+        goto done;
+    }
+
+    if (is_ro((UTF16*)request->name)) {
+        serialize_result(&ptr, EFI_WRITE_PROTECTED);
+        goto done;
+    }
+
+    status = evaluate_attrs(request->attrs);
+
+    if (status != EFI_SUCCESS) {
+        serialize_result(&ptr, status);
+        goto done;
+    }
+
+    if (request->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
+        status = AuthVariableLibProcessVariable((UTF16*)request->name, &request->guid,
+                                                request->buffer, request->buffer_size,
+                                                request->attrs);
+    } else {
+        status = storage_set((UTF16*)request->name, &request->guid,
+                             request->buffer, request->buffer_size,
+                             request->attrs);
+    }
+
+    serialize_result(&ptr, status);
+
+done:
+    free(request);
+}
+
+struct request *unserialize_get_next_request(void *comm_buf)
+{
+    const uint8_t *ptr;
+    struct request *request;
+
+    if (!comm_buf)
+        return NULL;
+
+    request = calloc(1, sizeof(struct request));
 
     if (!request)
         return NULL;
@@ -404,7 +395,7 @@ static void handle_get_next_variable(void *comm_buf)
     uint8_t *ptr = comm_buf;
     const variable_t *next;
 
-    struct get_request *request;
+    struct request *request;
 
     request = unserialize_get_next_request(comm_buf);
 
