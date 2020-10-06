@@ -34,6 +34,7 @@ uint64_t storage_used(void);
 EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid);
 EFI_STATUS storage_get_var_ptr(variable_t **var, const UTF16 *name, const EFI_GUID *guid);
 EFI_STATUS storage_iter(variable_t *var);
+variable_t *storage_find_variable(const UTF16 *name, const EFI_GUID *guid);
 
 void _storage_debug(const char *func, int lineno);
 

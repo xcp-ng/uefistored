@@ -48,49 +48,6 @@ static bool is_ro(UTF16 *variable)
     return strcmp16(variable, SECURE_BOOT_NAME) == 0;
 }
 
-EFI_STATUS
-get_variable(UTF16 *variable, EFI_GUID *guid, uint32_t *attrs, size_t *size,
-             void *data)
-{
-    EFI_STATUS status;
-
-    if (!variable || !guid || !attrs || !size || !data)
-        return EFI_INVALID_PARAMETER;
-
-#if DEBUG
-    size_t buffer_size;
-    buffer_size = *size;
-#endif
-
-    status = storage_get(variable, guid, attrs, data, size);
-
-#if DEBUG
-    DPRINTF("%s:%d: ", __func__, __LINE__);
-    dprint_name(variable, strsize16(variable));
-    DPRINTF(", guid=0x%02x", guid->Data1);
-    if (!status)
-        DPRINTF(", attrs=0x%02x, ", *attrs);
-    DPRINTF(", status=%s (0x%02lx), size=%lu, buffer_size=%lu",
-            efi_status_str(status), status, *size, buffer_size);
-
-
-    if (!status) {
-        uint8_t *p;
-        size_t i;
-
-        p = data;
-
-        DPRINTF(", data (%lu)=", *size);
-        for (i=0; i<*size; i++) {
-            DPRINTF("0x%02x, ", p[i]);
-        }
-    }
-    DPRINTF("\n");
-#endif
-
-    return status;
-}
-
 EFI_STATUS set_variable(UTF16 *name, EFI_GUID *guid, uint32_t attrs,
                         size_t datasz, void *data)
 {

@@ -60,6 +60,11 @@ int storage_exists(const UTF16 *name, const EFI_GUID *guid)
     return 0;
 }
 
+variable_t *storage_find_variable(const UTF16 *name, const EFI_GUID *guid)
+{
+    return find_variable(name, guid, variables, MAX_VAR_COUNT);
+}
+
 EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
                        void *data, size_t *data_size)
 {
