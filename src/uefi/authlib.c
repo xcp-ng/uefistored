@@ -45,7 +45,7 @@ static uint8_t default_pk[] = {
 ///
 /// Global database array for scratch
 ///
-uint32_t SetupMode;
+uint32_t setup_mode;
 
 static EFI_GUID SignatureSupport[] = { EFI_CERT_SHA1_GUID, EFI_CERT_SHA256_GUID,
                                 EFI_CERT_RSA2048_GUID, EFI_CERT_X509_GUID };
@@ -71,8 +71,8 @@ auth_lib_initialize(void)
     EFI_STATUS status = EFI_SUCCESS;
     void *data;
     size_t data_size;
-    uint8_t SetupMode = 0;
-    uint8_t SecureBoot = 0;
+    uint8_t setup_mode = 0;
+    uint8_t secure_boot = 0;
     uint8_t DeployedMode = 0;
     uint8_t AuditMode = 0;
 
@@ -97,15 +97,15 @@ auth_lib_initialize(void)
     if (status != EFI_NOT_FOUND && status != EFI_SUCCESS) {
         return EFI_DEVICE_ERROR;
     } else if (status == EFI_NOT_FOUND) {
-        SetupMode = 1;
+        setup_mode = 1;
     } else {
         // TODO: allow enabling secureboot
-        //SecureBoot = 1;
+        //secure_boot = 1;
     }
 
 
-    status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &SetupMode,
-                         sizeof(SetupMode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+    status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &setup_mode,
+                         sizeof(setup_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
@@ -128,17 +128,16 @@ auth_lib_initialize(void)
         return EFI_DEVICE_ERROR;
     }
 
-    status = storage_set(L"SecureBoot", &gEfiGlobalVariableGuid, &SecureBoot,
-                         sizeof(SecureBoot), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+    status = storage_set(L"SecureBoot", &gEfiGlobalVariableGuid, &secure_boot,
+                         sizeof(secure_boot), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
         return EFI_DEVICE_ERROR;
     }
 
-    DDEBUG("SetVariable(L\"SecureBoot\") == 0x%02lx\n", status);
-    DDEBUG("Variable SetupMode is %x\n", SetupMode);
-    DDEBUG("Variable SecureBoot is %x\n", SecureBoot);
+    DDEBUG("setup_mode is %x\n", setup_mode);
+    DDEBUG("secure_boot is %x\n", secure_boot);
 
     hash_ctx = malloc(sizeof(SHA256_CTX));
 
@@ -170,7 +169,7 @@ auth_lib_initialize(void)
 
 **/
 EFI_STATUS
-AuthVariableLibProcessVariable(UTF16 *VariableName, EFI_GUID *VendorGuid,
+auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
                                void *Data, uint64_t DataSize,
                                uint32_t Attributes)
 {
