@@ -36,11 +36,6 @@ struct request {
     uint32_t attrs;
 };
 
-void set_efi_runtime(bool runtime)
-{
-    efi_at_runtime = runtime;
-}
-
 EFI_STATUS evaluate_attrs(uint32_t attrs)
 {
     /* No support for hardware error record */
@@ -102,6 +97,8 @@ static struct request *unserialize_get_request(void *comm_buf)
     
     unserialize_guid(&ptr, &request->guid);
     request->buffer_size = unserialize_uint64(&ptr);
+
+    efi_at_runtime = unserialize_boolean(&ptr);
 
     return request;
 }
@@ -264,6 +261,8 @@ static struct request *unserialize_set_request(void *comm_buf)
     request->buffer_size = unserialize_data(&ptr, request->buffer, MAX_VARIABLE_DATA_SIZE);
     request->attrs = unserialize_uint32(&ptr);
 
+    efi_at_runtime = unserialize_boolean(&ptr);
+
     return request;
 }
 
@@ -372,6 +371,8 @@ struct request *unserialize_get_next_request(void *comm_buf)
     }
 
     unserialize_guid(&ptr, &request->guid);
+
+    efi_at_runtime = unserialize_boolean(&ptr);
 
     return request;
 }
