@@ -323,7 +323,7 @@ static void handle_set_variable(void *comm_buf)
     }
 
     if (request->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
-        status = AuthVariableLibProcessVariable((UTF16*)request->name, &request->guid,
+        status = auth_lib_process_variable((UTF16*)request->name, &request->guid,
                                                 request->buffer, request->buffer_size,
                                                 request->attrs);
     } else {

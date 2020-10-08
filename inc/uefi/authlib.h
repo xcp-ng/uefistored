@@ -4,7 +4,7 @@
 #include "uefi/types.h"
 
 EFI_STATUS
-AuthVariableLibProcessVariable (
+auth_lib_process_variable (
  UTF16         *VariableName,
  EFI_GUID       *VendorGuid,
  void           *Data,

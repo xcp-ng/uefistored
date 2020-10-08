@@ -25,6 +25,9 @@
 #include "uefi/x509.h"
 #include "variable.h"
 
+bool auth_enforce = true;
+bool secure_boot_enable;
+
 extern bool efi_at_runtime;
 
 extern SHA256_CTX *hash_ctx;
@@ -127,7 +130,7 @@ bool static inline compare_guid(EFI_GUID *guid1, EFI_GUID *guid2)
  *   SignerCert CommonName + ToplevelCert tbsCertificate
  * Adapted from edk2/varstored.
  */
-static EFI_STATUS sha256_sig(STACK_OF(X509) *certs, X509 *top_level_cert, uint8_t *digest)
+static EFI_STATUS sha256_priv_sig(STACK_OF(X509) *certs, X509 *top_level_cert, uint8_t *digest)
 {
     SHA256_CTX ctx;
     char name[128];
@@ -1168,7 +1171,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         verify_status = Pkcs7GetSigners(sig_data, sig_data_size,
                                         &SignerCerts, &CertStackSize);
         if (!verify_status) {
-            goto Exit;
+            goto done;
         }
 
         TopLevelCert = sk_X509_value(SignerCerts, sk_X509_num(SignerCerts) - 1);
@@ -1176,7 +1179,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         TopLevelCertBuf = X509_to_buf(TopLevelCert, &TopLevelCertSize);
         if (!TopLevelCertBuf) {
             status = EFI_DEVICE_ERROR;
-            goto Exit;
+            goto done;
         }
 
         /*
@@ -1189,7 +1192,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                              &data_size);
         if (EFI_ERROR(status)) {
             verify_status = false;
-            goto Exit;
+            goto done;
         }
 
         CertList = (EFI_SIGNATURE_LIST *)data;
@@ -1200,12 +1203,12 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         if (TopLevelCertSize !=
              (CertList->SignatureSize - (sizeof(EFI_SIGNATURE_DATA) - 1))) {
             verify_status = false;
-            goto Exit;
+            goto done;
         }
 
         if (memcmp(Cert->SignatureData, TopLevelCertBuf, TopLevelCertSize) != 0) {
             verify_status = false;
-            goto Exit;
+            goto done;
         }
 
         /*
@@ -1262,7 +1265,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                             Pkcs7Verify(sig_data, sig_data_size, TrustedCert,
                                         new_data, new_data_size);
                     if (verify_status) {
-                        goto Exit;
+                        goto done;
                     }
                     Cert = (EFI_SIGNATURE_DATA *)((uint8_t *)Cert +
                                                   CertList->SignatureSize);
@@ -1274,7 +1277,6 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         }
     } else if (AuthVarType == AuthVarTypePriv) {
         (void)CertStackSize;
-        (void)sha256_sig;
         (void)digest;
 
         PKCS7 *pkcs7;
@@ -1283,24 +1285,21 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
 
         if (status != EFI_SUCCESS) {
             verify_status = false;
-            goto Exit;
+            goto done;
         }
 
         if (sk_X509_num(SignerCerts) == 0) {
             verify_status = false;
-            goto Exit;
+            goto done;
         }
 
         TopLevelCert = sk_X509_value(SignerCerts, sk_X509_num(SignerCerts) - 1);
 
-        //status = sha256_sig((STACK_OF(X509) *)SignerCerts, (X509*) TopLevelCert, digest);
-        (void)sha256_sig;
-        (void)digest;
 
         verify_status = Pkcs7Verify(sig_data, sig_data_size, TopLevelCert,
-                                   new_data, new_data_size);
+                                    new_data, new_data_size);
         if (!verify_status) {
-            goto Exit;
+            goto done;
         }
     } else if (AuthVarType == AuthVarTypePayload) {
         CertList = (EFI_SIGNATURE_LIST *)PayloadPtr;
@@ -1326,7 +1325,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         return EFI_SECURITY_VIOLATION;
     }
 
-Exit:
+done:
     free(new_data);
 
     if (AuthVarType == AuthVarTypePk || AuthVarType == AuthVarTypePriv) {

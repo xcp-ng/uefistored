@@ -5,18 +5,20 @@
 #include <stdbool.h>
 #include "uefi/types.h"
 
-typedef struct {
-    /* namesz is not strictly needed, but we use it to speed up comparisons */
-    uint64_t namesz;
+#define SHA256_DIGEST_SIZE 32
 
+typedef struct {
     /* The variable name */
     UTF16 *name;
 
-    /* The size of the variable's data or value */
-    uint64_t datasz;
+    /* namesz is not strictly needed, but we use it to speed up comparisons */
+    uint64_t namesz;
 
     /* Pointer to the data itself */
     uint8_t *data;
+
+    /* The size of the variable's data or value */
+    uint64_t datasz;
 
     /* The variable GUID */
     EFI_GUID guid;
@@ -27,8 +29,8 @@ typedef struct {
     /* EFI timestamp for time based auth */
     EFI_TIME timestamp;
 
-    /* TODO: figure out what this field is used for in legacy varstored */
-    uint8_t unknown[32];
+    /* SHA-256 digest of signer's CN and top-level tbs cert */
+    uint8_t cert[SHA256_DIGEST_SIZE];
 } variable_t;
 
 #define for_each_variable(vars, var)                                           \
