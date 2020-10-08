@@ -1295,6 +1295,28 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
 
         TopLevelCert = sk_X509_value(SignerCerts, sk_X509_num(SignerCerts) - 1);
 
+        status = sha256_priv_sig(SignerCerts, TopLevelCert, digest);
+        if (status != EFI_SUCCESS) {
+            goto done;
+        }
+
+        variable_t *var;
+
+        status = storage_get_var_ptr(&var, name, guid);
+
+        if (status == EFI_SUCCESS) {
+            /*
+             * For private authenticated variables, permissive mode means that the
+             * certificate used to sign the data does not need to match the
+             * previous one. However, it still needs to exist and sign the data
+             * correctly since it is used for verifying subsequent updates.
+             */
+            if (auth_enforce && memcmp(digest, var->cert, SHA256_DIGEST_SIZE)) {
+                verify_status = false;
+                status = EFI_SECURITY_VIOLATION;
+                goto done;
+            }
+        }
 
         verify_status = Pkcs7Verify(sig_data, sig_data_size, TopLevelCert,
                                     new_data, new_data_size);
