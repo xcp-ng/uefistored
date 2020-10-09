@@ -3,19 +3,21 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+
+#include "config.h"
 #include "uefi/types.h"
 
 #define SHA256_DIGEST_SIZE 32
 
-typedef struct {
+typedef struct variable {
     /* The variable name */
-    UTF16 *name;
+    UTF16 name[MAX_VARIABLE_NAME_CHARS];
 
     /* namesz is not strictly needed, but we use it to speed up comparisons */
     uint64_t namesz;
 
     /* Pointer to the data itself */
-    uint8_t *data;
+    uint8_t data[MAX_VARIABLE_DATA_SIZE];
 
     /* The size of the variable's data or value */
     uint64_t datasz;
@@ -33,9 +35,10 @@ typedef struct {
     uint8_t cert[SHA256_DIGEST_SIZE];
 } variable_t;
 
-#define for_each_variable(vars, var)                                           \
-    for ((var) = (vars);                                                       \
-         (var) < &((vars)[sizeof((vars)) / sizeof((vars)[0])]); (var)++)
+#define ARRAY_SIZE(array) (sizeof((array)) / sizeof((array)[0]))
+
+#define for_each_variable(vars, var, __i)                              \
+        for (__i=0; __i<ARRAY_SIZE(vars) && ((var = &vars[__i]) || true); __i++)
 
 variable_t *variable_create(const UTF16 *name, const uint8_t *data,
                             const uint64_t datasz, const EFI_GUID *guid,
@@ -65,7 +68,12 @@ variable_t *variable_create_unserialize(const uint8_t **ptr);
 int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
                        size_t bytes_sz);
 
-#define variable_is_valid(var) \
-    ((var)->name && (var)->name[0] && (var)->namesz != 0)
+static inline bool variable_is_valid(const variable_t *var) {
+    return (var && var->name && var->name[0] && var->namesz != 0);
+}
+
+variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
+                          variable_t variables[MAX_VAR_COUNT], size_t n);
+
 
 #endif // __H_VARIABLE_

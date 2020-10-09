@@ -24,23 +24,12 @@ int variable_set_data(variable_t *var, const uint8_t *data,
     if (!var || !data || datasz == 0)
         return -1;
 
-    if (datasz == 0)
-        return -1;
-
     if (datasz > MAX_VARIABLE_DATA_SIZE)
         return -2;
 
     var->datasz = datasz;
-    var->data = realloc(var->data, var->datasz);
 
-    // TODO: return EFI_OUT_OF_RESOURCES if datasz > MAX_VARIABLE_DATA_SIZE
-
-    if (!var->data) {
-        return -1;
-    }
-
-    memset(var->data, 0, var->datasz);
-    memcpy(var->data, data, var->datasz);
+    memcpy(var->data, data, datasz);
 
     return 0;
 }
@@ -71,12 +60,6 @@ int variable_set_name(variable_t *var, const UTF16 *name)
         return -2;
 
     var->namesz = namesz;
-    var->name = realloc(var->name, var->namesz);
-
-    if (!var->name)
-        return -1;
-
-    memset(var->name, 0, var->namesz);
     strncpy16(var->name, name, var->namesz);
 
     return 0;
@@ -188,14 +171,12 @@ void variable_destroy_noalloc(variable_t *var)
         return;
 
     if (var->name) {
-        free(var->name);
-        var->name = NULL;
+        memset(var->name, 0, MAX_VARIABLE_NAME_SIZE);
         var->namesz = 0;
     }
 
     if (var->data) {
-        free(var->data);
-        var->data = NULL;
+        memset(var->data, 0, MAX_VARIABLE_DATA_SIZE);
         var->datasz = 0;
     }
 
@@ -296,7 +277,7 @@ uint64_t variable_size(const variable_t *var)
     sum += sizeof(var->timestamp);
 
     /* unknown field serialized in legacy varstored */
-    sum += sizeof(var->unknown);
+    sum += sizeof(var->cert);
 
     return sum;
 }
@@ -370,3 +351,22 @@ int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
     return i;
 }
 
+variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
+                          variable_t *variables, size_t n)
+{
+    variable_t *var;
+    size_t i;
+
+    if (!name || !variables || !guid)
+        return NULL;
+
+    for (i = 0; i < n; i++) {
+        var = &variables[i];
+
+        if (strcmp16((UTF16 *)var->name, name) == 0 &&
+            memcmp(guid, &var->guid, sizeof(EFI_GUID)) == 0)
+            return var;
+    }
+
+    return NULL;
+}

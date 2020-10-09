@@ -35,12 +35,13 @@ void storage_deinit(void)
 
 void storage_destroy(void)
 {
+    int i;
     variable_t *var;
 
     total = 0;
     used = 0;
 
-    for_each_variable(variables, var)
+    for_each_variable(variables, var, i)
     {
         variable_destroy_noalloc(var);
     }
@@ -207,6 +208,7 @@ err:
 
 EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid)
 {
+    int i;
     size_t namesz;
     variable_t *var;
 
@@ -215,7 +217,7 @@ EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid)
 
     namesz = strsize16(name);
 
-    for_each_variable(variables, var)
+    for_each_variable(variables, var, i)
     {
         if (var->namesz != namesz)
             continue;
@@ -236,6 +238,7 @@ EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid)
 EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
                 const size_t datasz, const uint32_t attrs)
 {
+    int i;
     int ret;
     size_t namesz;
     variable_t *var;
@@ -259,7 +262,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
         return EFI_DEVICE_ERROR;
 
     /* If it already exists, replace it */
-    for_each_variable(variables, var)
+    for_each_variable(variables, var, i)
     {
         if (var->namesz != namesz)
             continue;
@@ -290,9 +293,9 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
     }
 
     /* If it is completely new, place it in the first found empty slot */
-    for_each_variable(variables, var)
+    for_each_variable(variables, var, i)
     {
-        if (var->name == NULL) {
+        if (var->name[0] == 0) {
             ret = variable_create_noalloc(var, name, data, datasz, guid, attrs, NULL);
 
             if (ret < 0)
@@ -337,25 +340,27 @@ uint64_t storage_used(void)
     return used;
 }
 
-variable_t *storage_get_first(void)
+static variable_t *storage_get_first(void)
 {
-    size_t i;
-    variable_t *var;
+    int i;
+
+    if (total == 0)
+        return NULL;
 
     /* Find the first variable */
     for (i=0; i<MAX_VAR_COUNT; i++) {
-        var = &variables[i];
-        if (variable_is_valid(var))
+        if (variable_is_valid(&variables[i])) {
             break;
+        }
     }
 
     if (i >= MAX_VAR_COUNT)
         return NULL;
 
-    return var;
+    return &variables[i];
 }
 
-const variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
+variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
 {
     size_t i;
     size_t prev_namesz;
@@ -395,7 +400,7 @@ const variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
     if (i >= MAX_VAR_COUNT)
         return NULL;
 
-    return (const variable_t*)&variables[i];
+    return &variables[i];
 }
 
 /**
@@ -486,10 +491,4 @@ found:
     memcpy(guid, &var->guid, sizeof(*guid));
 
     return EFI_SUCCESS;
-}
-
-void _storage_debug(const char *func, int lineno)
-{
-    DDEBUG("%s:%d: All UEFI Variables:\n", func, lineno);
-    dprint_variable_list(variables, MAX_VAR_COUNT);
 }

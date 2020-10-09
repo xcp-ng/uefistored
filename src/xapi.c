@@ -155,12 +155,6 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
 
     ret = from_bytes_to_vars(vars, n, mem, size);
 
-#if DEBUG
-    DDEBUG("Variables\n");
-    if (ret >= 0)
-        dprint_variable_list(vars, ret);
-#endif
-
 cleanup2:
     free(mem);
 
@@ -1014,12 +1008,6 @@ int xapi_variables_request(variable_t *vars, size_t n)
         return 0;
 
     ret = from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
-
-#if 1
-    DDEBUG("Variables(%d) from XAPI DB\n============================\n", ret);
-    if ( ret >= 0 )
-        dprint_variable_list(vars, ret);
-#endif
 
     return ret;
 }

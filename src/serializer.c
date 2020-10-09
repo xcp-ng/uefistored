@@ -224,7 +224,7 @@ void unserialize_variable_list_header(const uint8_t **ptr,
 
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 {
-    uint8_t unknown[32];
+    uint8_t cert[32];
     EFI_TIME timestamp;
     UTF16 name[MAX_VARIABLE_NAME_SIZE] = {0};
     EFI_GUID guid;
@@ -261,7 +261,7 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
     unserialize_guid(ptr, &guid);
     attrs = unserialize_uint32(ptr);
     unserialize_timestamp(ptr, &timestamp);
-    unserialize_value(ptr, unknown);
+    unserialize_value(ptr, cert);
 
     ret = variable_create_noalloc(var, name, data, datasz, &guid, attrs, &timestamp);
 
@@ -337,7 +337,7 @@ int serialize_var(uint8_t **p, const variable_t *var)
     serialize_value(p, var->guid);
     serialize_uint32(p, var->attrs);
     serialize_timestamp(p, &var->timestamp);
-    serialize_value(p, var->unknown);
+    serialize_value(p, var->cert);
 
     return 0;
 }

@@ -326,6 +326,9 @@ static void handle_set_variable(void *comm_buf)
         status = auth_lib_process_variable((UTF16*)request->name, &request->guid,
                                                 request->buffer, request->buffer_size,
                                                 request->attrs);
+
+        if (status == EFI_SUCCESS) {
+        }
     } else {
         status = storage_set((UTF16*)request->name, &request->guid,
                              request->buffer, request->buffer_size,
@@ -388,8 +391,7 @@ struct request *unserialize_get_next_request(void *comm_buf)
 static void handle_get_next_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
-    const variable_t *next;
-
+    variable_t *next;
     struct request *request;
 
     request = unserialize_get_next_request(comm_buf);

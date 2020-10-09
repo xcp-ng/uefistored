@@ -113,26 +113,6 @@ int strncpy16(UTF16 *a, const UTF16 *b, const size_t n)
     return 0;
 }
 
-variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
-                          variable_t *variables, size_t n)
-{
-    variable_t *var;
-    size_t i;
-
-    if (!name || !variables || !guid)
-        return NULL;
-
-    for (i = 0; i < n; i++) {
-        var = &variables[i];
-
-        if (strcmp16((UTF16 *)var->name, name) == 0 &&
-            memcmp(guid, &var->guid, sizeof(EFI_GUID)) == 0)
-            return var;
-    }
-
-    return NULL;
-}
-
 /**
  * Remove any white space from ends of string.
  */

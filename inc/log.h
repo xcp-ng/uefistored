@@ -92,8 +92,5 @@ static inline void _dprint_data(const char *func, int lineno, const void *data, 
 #define dprint_data(...) do { } while(0)
 #endif
 
-void dprint_variable(const variable_t *var);
-void dprint_name(const UTF16 *name, size_t namesz);
-void dprint_variable_list(const variable_t *vars, size_t n);
 
 #endif // __H_LOG__

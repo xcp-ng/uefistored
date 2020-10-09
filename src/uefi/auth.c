@@ -357,7 +357,7 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
   @param[in] data                   data pointer.
   @param[in] data_size               Size of data.
   @param[in] attrs             Attribute value of the variable.
-  @param[in] TimeStamp              Value of associated TimeStamp.
+  @param[in] timestamp              Value of associated timestamp.
 
   @retval EFI_SUCCESS               The update operation is success.
   @retval EFI_INVALID_PARAMETER     Invalid parameter.
@@ -367,34 +367,34 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
 **/
 EFI_STATUS auth_internal_update_variable_with_timestamp(
         UTF16 *name, EFI_GUID *guid, void *data, uint64_t data_size,
-        uint32_t attrs, EFI_TIME *TimeStamp)
+        uint32_t attrs, EFI_TIME *timestamp)
 {
+    variable_t *var;
     EFI_STATUS FindStatus;
-    void *Orgdata;
-    uint64_t Orgdata_size;
 
-    FindStatus =
-            auth_internal_find_variable(name, guid, &Orgdata, &Orgdata_size);
+    FindStatus = storage_get_var_ptr(&var, name, guid);
 
-    //
-    // EFI_VARIABLE_APPEND_WRITE attribute only effects for existing variable
-    //
-    if (!EFI_ERROR(FindStatus) && ((attrs & EFI_VARIABLE_APPEND_WRITE) != 0)) {
-        if ((compare_guid(guid, &gEfiImageSecurityDatabaseGuid) &&
-             ((strcmp16(name, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
-              (strcmp16(name, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
-              (strcmp16(name, EFI_IMAGE_SECURITY_DATABASE2) == 0))) ||
-            (compare_guid(guid, &gEfiGlobalVariableGuid) &&
-             (strcmp16(name, EFI_KEY_EXCHANGE_KEY_NAME) == 0))) {
-            //
-            // For variables with formatted as EFI_SIGNATURE_LIST, the driver shall not perform an append of
-            // EFI_SIGNATURE_DATA values that are already part of the existing variable value.
-            //
-            FilterSignatureList(Orgdata, Orgdata_size, data, &data_size);
+    /*
+     * EFI_VARIABLE_APPEND_WRITE attribute only effects for existing variable
+     */
+    if (!EFI_ERROR(FindStatus) && ((var->attrs & EFI_VARIABLE_APPEND_WRITE) != 0)) {
+        if ((compare_guid(&var->guid, &gEfiImageSecurityDatabaseGuid) &&
+             ((strcmp16(var->name, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
+              (strcmp16(var->name, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
+              (strcmp16(var->name, EFI_IMAGE_SECURITY_DATABASE2) == 0))) ||
+            (compare_guid(&var->guid, &gEfiGlobalVariableGuid) &&
+             (strcmp16(var->name, EFI_KEY_EXCHANGE_KEY_NAME) == 0))) {
+
+            /*
+             * For variables with formatted as EFI_SIGNATURE_LIST, the driver
+             * shall not perform an append of EFI_SIGNATURE_DATA values that are
+             * already part of the existing variable value.
+             */
+            FilterSignatureList(var->data, var->datasz, data, &data_size);
         }
     }
 
-    return storage_set_with_timestamp(name, guid, data, data_size, attrs, TimeStamp);
+    return storage_set_with_timestamp(name, guid, data, data_size, attrs, timestamp);
 }
 
 /**
@@ -411,28 +411,6 @@ bool NeedPhysicallyPresent(UTF16 *name, EFI_GUID *guid)
 {
     if (compare_guid(guid, &gEfiSecureBootEnableDisableGuid) &&
          (strcmp16(name, EFI_SECURE_BOOT_ENABLE_NAME) == 0)) {
-        return true;
-    }
-
-    return false;
-}
-
-/**
-  Determine whether the platform is operating in Custom Secure Boot mode.
-
-  @retval true           The platform is operating in Custom mode.
-  @retval false          The platform is operating in Standard mode.
-
-**/
-bool InCustomMode(void)
-{
-    EFI_STATUS status;
-    void *data;
-    uint64_t data_size;
-
-    status = auth_internal_find_variable(
-            EFI_CUSTOM_MODE_NAME, &gEfiCustomModeEnableGuid, &data, &data_size);
-    if (!EFI_ERROR(status) && (*(uint8_t *)data == CUSTOM_SECURE_BOOT_MODE)) {
         return true;
     }
 
@@ -1507,7 +1485,7 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
     // Init state of Del. State may change due to secure check
     //
     Del = false;
-    if (InCustomMode() || (setup_mode == SETUP_MODE && !IsPk)) {
+    if (setup_mode == SETUP_MODE && !IsPk) {
         Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         PayloadSize = data_size - AUTHINFO2_SIZE(data);
         if (PayloadSize == 0) {
@@ -1602,8 +1580,8 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     status = EFI_SUCCESS;
-    if (setup_mode == USER_MODE &&
-        !(InCustomMode() && UserPhysicalPresent())) {
+
+    if (setup_mode == USER_MODE) {
         //
         // Time-based, verify against X509 Cert KEK.
         //
