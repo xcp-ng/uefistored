@@ -1474,25 +1474,28 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
 
     if ((attrs & EFI_VARIABLE_NON_VOLATILE) == 0 ||
         (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
-        //
-        // PK, KEK and db/dbx/dbt should set EFI_VARIABLE_NON_VOLATILE attribute and should be a time-based
-        // authenticated variable.
-        //
+        /*
+         * PK, KEK and db/dbx/dbt should set EFI_VARIABLE_NON_VOLATILE attribute and should be a time-based
+         * authenticated variable.
+         */
         return EFI_INVALID_PARAMETER;
     }
 
-    //
-    // Init state of Del. State may change due to secure check
-    //
+    /*
+     * Init state of Del. State may change due to secure check
+     */
     Del = false;
+
     if (setup_mode == SETUP_MODE && !IsPk) {
         Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         PayloadSize = data_size - AUTHINFO2_SIZE(data);
+
         if (PayloadSize == 0) {
             Del = true;
         }
 
         status = CheckSignatureListFormat(name, guid, Payload, PayloadSize);
+
         if (EFI_ERROR(status)) {
             return status;
         }
@@ -1500,25 +1503,20 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
         status = auth_internal_update_variable_with_timestamp(
                 name, guid, Payload, PayloadSize, attrs,
                 &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
+
         if (EFI_ERROR(status)) {
             return status;
         }
-
-#if 0
-        if ((setup_mode != SETUP_MODE) || IsPk) {
-            status = VendorKeyIsModified();
-        }
-#endif
     } else if (setup_mode == USER_MODE) {
-        //
-        // Verify against X509 Cert in PK database.
-        //
+        /*
+         * Verify against X509 Cert in PK database.
+         */
         status = verify_time_based_payload_and_update(
                 name, guid, data, data_size, attrs, AuthVarTypePk, &Del);
     } else {
-        //
-        // Verify against the certificate in data payload.
-        //
+        /*
+         * Verify against the certificate in data payload.
+         */
         status = verify_time_based_payload_and_update(
                 name, guid, data, data_size, attrs, AuthVarTypePayload, &Del);
     }
