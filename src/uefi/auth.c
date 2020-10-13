@@ -1464,7 +1464,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
   @return EFI_SUCCESS             Variable passed validation successfully.
 
 **/
-EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
+EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
                             uint64_t data_size, uint32_t attrs, bool IsPk)
 {
     EFI_STATUS status;

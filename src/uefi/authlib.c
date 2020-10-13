@@ -181,17 +181,17 @@ auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
 
   if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
     DDEBUG("ProcessVarWithPk()\n");
-    // status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, TRUE);
+    status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, true);
   } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
-    DDEBUG("ProcessVarWithPk()\n");
-    // status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+    DDEBUG("process_var_with_pk()\n");
+    // status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
   } else if (CompareGuid (VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
              ((strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
-        DDEBUG("ProcessVarWithPk()\n");
+        DDEBUG("process_var_with_pk()\n");
         DDEBUG("ProcessVarWithKek()\n");
-        //status = ProcessVarWithPk (VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+        //status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
         if (EFI_ERROR (status)) {
             // status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
         }
