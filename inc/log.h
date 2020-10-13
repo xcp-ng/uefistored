@@ -2,7 +2,9 @@
 #define __H_LOG__
 
 #include <errno.h>
+
 #include "common.h"
+#include "variable.h"
 
 extern int _logfd;
 extern char strbuf[512];
@@ -85,11 +87,14 @@ static inline void _dprint_data(const char *func, int lineno, const void *data, 
 
 #define dprint_data(data, datasz) _dprint_data(__func__, __LINE__, data, datasz)
 
+void dprint_variable_list(const variable_t *vars, size_t n);
+
 #else
 #error "No debug"
 #define DDEBUG(...) do { } while(0)
 #define DPRINTF(...) do { } while(0)
 #define dprint_data(...) do { } while(0)
+#define dprint_variable_list(...) do { } while(0)
 #endif
 
 
