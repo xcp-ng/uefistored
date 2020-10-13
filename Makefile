@@ -14,7 +14,7 @@ OBJS := $(patsubst %.c,%.o,$(SRCS))
 
 INC := -Iinc/ -Ilibs/
 
-CFLAGS += -g -Wall -Werror -lssl -lcrypto -lxml2 -I/usr/include/libxml2 -fshort-wchar -rdynamic -DDEBUG
+CFLAGS += -g -Wall -Werror -lssl -lcrypto -lxml2 -I/usr/include/libxml2 -fshort-wchar -rdynamic
 
 all:        ## Build uefistored (same as uefistored target)
 all: uefistored
