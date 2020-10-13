@@ -177,7 +177,7 @@ auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
                                void *Data, uint64_t DataSize,
                                uint32_t Attributes)
 {
-    EFI_STATUS status;
+  EFI_STATUS status = EFI_SUCCESS;
 
   if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
     DDEBUG("ProcessVarWithPk()\n");
