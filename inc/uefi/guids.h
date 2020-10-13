@@ -7,7 +7,6 @@ extern EFI_GUID gShimLockGuid;
 
 extern EFI_GUID gEfiCertPkcs7Guid;
 extern EFI_GUID gEfiCertX509Guid;
-extern EFI_GUID gEfiGlobalVariableGuid;
 extern EFI_GUID gEfiCertDbGuid;
 extern EFI_GUID gEfiVendorKeysNvGuid;
 extern EFI_GUID gEfiCertPkcs7Guid;

@@ -24,11 +24,6 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #define EFI_SECURE_BOOT_ENABLE_DISABLE \
   { 0xf0a30bc7, 0xaf08, 0x4556, { 0x99, 0xc4, 0x0, 0x10, 0x9, 0xc9, 0x3a, 0x44 } }
 
-extern EFI_GUID gEfiSecureBootEnableDisableGuid;
-extern EFI_GUID gEfiCertDbGuid;
-extern EFI_GUID gEfiCustomModeEnableGuid;
-extern EFI_GUID gEfiVendorKeysNvGuid;
-
 ///
 /// "SecureBootEnable" variable for the Secure Boot feature enable/disable.
 /// This variable is used for allowing a physically present user to disable
