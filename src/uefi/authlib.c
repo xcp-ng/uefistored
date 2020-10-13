@@ -85,12 +85,16 @@ auth_lib_initialize(void)
         return EFI_DEVICE_ERROR;
     }
 
-    storage_set(L"PK", &gEfiGlobalVariableGuid,
+    status = auth_lib_process_variable(L"PK", &gEfiGlobalVariableGuid,
                 default_pk, sizeof(default_pk),
                 EFI_VARIABLE_BOOTSERVICE_ACCESS |
                 EFI_VARIABLE_RUNTIME_ACCESS);
 
-    status = auth_internal_find_variable(EFI_PLATFORM_KEY_NAME,
+    if (status != EFI_SUCCESS) {
+        ERROR("Failed to set PK\n");
+    }
+
+    status = auth_internal_find_variable(L"PK",
                                          &gEfiGlobalVariableGuid,
                                          (void **)&data, &data_size);
 
