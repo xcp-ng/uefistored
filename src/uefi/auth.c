@@ -176,10 +176,10 @@ out:
 /**
   Filter out the duplicated EFI_SIGNATURE_DATA from the new data by comparing to the original data.
 
-  @param data          Pointer to original EFI_SIGNATURE_LIST.
-  @param data_size      Size of data buffer.
-  @param new_data       Pointer to new EFI_SIGNATURE_LIST.
-  @param new_data_size   Size of new_data buffer.
+  @parm data          Pointer to original EFI_SIGNATURE_LIST.
+  @parm data_size      Size of data buffer.
+  @parm new_data       Pointer to new EFI_SIGNATURE_LIST.
+  @parm new_data_size   Size of new_data buffer.
 
 **/
 EFI_STATUS
@@ -322,15 +322,15 @@ FilterSignatureList(void *data, uint64_t data_size, void *new_data,
   If name is an empty string, then we just return the first
   qualified variable without comparing name and guid.
 
-  @param name          Name of the variable to be found.
-  @param guid            Variable vendor GUID to be found.
-  @param data                  Pointer to data address.
-  @param data_size              Pointer to data size.
+  @parm name          Name of the variable to be found.
+  @parm guid            Variable vendor GUID to be found.
+  @parm data                  Pointer to data address.
+  @parm data_size              Pointer to data size.
 
-  @retval EFI_INVALID_PARAMETER     If name is not an empty string,
+  @return EFI_INVALID_PARAMETER     If name is not an empty string,
                                     while guid is NULL.
-  @retval EFI_SUCCESS               Variable successfully found.
-  @retval EFI_NOT_FOUND             Variable not found
+  @return EFI_SUCCESS               Variable successfully found.
+  @return EFI_NOT_FOUND             Variable not found
 
 **/
 EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
@@ -352,17 +352,17 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
 /**
   Update the variable region with Variable information.
 
-  @param name           Name of variable.
-  @param guid             Guid of variable.
-  @param data                   data pointer.
-  @param data_size               Size of data.
-  @param attrs             Attribute value of the variable.
-  @param timestamp              Value of associated timestamp.
+  @parm name           Name of variable.
+  @parm guid             Guid of variable.
+  @parm data                   data pointer.
+  @parm data_size               Size of data.
+  @parm attrs             Attribute value of the variable.
+  @parm timestamp              Value of associated timestamp.
 
-  @retval EFI_SUCCESS               The update operation is success.
-  @retval EFI_INVALID_PARAMETER     Invalid parameter.
-  @retval EFI_WRITE_PROTECTED       Variable is write-protected.
-  @retval EFI_OUT_OF_RESOURCES      There is not enough resource.
+  @return EFI_SUCCESS               The update operation is success.
+  @return EFI_INVALID_PARAMETER     Invalid parameter.
+  @return EFI_WRITE_PROTECTED       Variable is write-protected.
+  @return EFI_OUT_OF_RESOURCES      There is not enough resource.
 
 **/
 EFI_STATUS auth_internal_update_variable_with_timestamp(
@@ -400,11 +400,11 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
 /**
   Determine whether this operation needs a physical present user.
 
-  @param      name            Name of the Variable.
-  @param      guid              GUID of the Variable.
+  @parm      name            Name of the Variable.
+  @parm      guid              GUID of the Variable.
 
-  @retval true      This variable is protected, only a physical present user could set this variable.
-  @retval false     This variable is not protected.
+  @return true      This variable is protected, only a physical present user could set this variable.
+  @return false     This variable is not protected.
 
 **/
 bool NeedPhysicallyPresent(UTF16 *name, EFI_GUID *guid)
@@ -420,7 +420,7 @@ bool NeedPhysicallyPresent(UTF16 *name, EFI_GUID *guid)
 /**
   Update platform mode.
 
-  @param      Mode                    SETUP_MODE or USER_MODE.
+  @parm      Mode                    SETUP_MODE or USER_MODE.
 
   @return EFI_INVALID_PARAMETER           Invalid parameter.
   @return EFI_SUCCESS                     Update platform mode successfully.
@@ -525,10 +525,10 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
 /**
   Check input data form to make sure it is a valid EFI_SIGNATURE_LIST for PK/KEK/db/dbx/dbt variable.
 
-  @param  name                Name of Variable to be check.
-  @param  guid                  Variable vendor GUID.
-  @param  data                        Point to the variable data to be checked.
-  @param  data_size                    Size of data.
+  @parm  name                Name of Variable to be check.
+  @parm  guid                  Variable vendor GUID.
+  @parm  data                        Point to the variable data to be checked.
+  @parm  data_size                    Size of data.
 
   @return EFI_INVALID_PARAMETER           Invalid signature list format.
   @return EFI_SUCCESS                     Passed signature list format check successfully.
@@ -651,11 +651,11 @@ EFI_STATUS CheckSignatureListFormat(UTF16 *name, EFI_GUID *guid, void *data,
   Compare two EFI_TIME data.
 
 
-  @param FirstTime           A pointer to the first EFI_TIME data.
-  @param SecondTime          A pointer to the second EFI_TIME data.
+  @parm FirstTime           A pointer to the first EFI_TIME data.
+  @parm SecondTime          A pointer to the second EFI_TIME data.
 
-  @retval  true              The FirstTime is not later than the SecondTime.
-  @retval  false             The FirstTime is later than the SecondTime.
+  @return  true              The FirstTime is not later than the SecondTime.
+  @return  false             The FirstTime is later than the SecondTime.
 
 **/
 bool auth_internal_compare_timestamp(EFI_TIME *FirstTime, EFI_TIME *SecondTime)
@@ -688,19 +688,19 @@ bool auth_internal_compare_timestamp(EFI_TIME *FirstTime, EFI_TIME *SecondTime)
   // /// AUTH_CERT_DB_DATA Certsn[];
   //
 
-  @param  name   Name of authenticated Variable.
-  @param  guid     Vendor GUID of authenticated Variable.
-  @param  data           Pointer to variable "certdb" or "certdbv".
-  @param  data_size       Size of variable "certdb" or "certdbv".
-  @param CertOffset     Offset of matching CertData, from starting of data.
-  @param CertDataSize   Length of CertData in bytes.
-  @param CertNodeOffset Offset of matching AUTH_CERT_DB_DATA , from
+  @parm  name   Name of authenticated Variable.
+  @parm  guid     Vendor GUID of authenticated Variable.
+  @parm  data           Pointer to variable "certdb" or "certdbv".
+  @parm  data_size       Size of variable "certdb" or "certdbv".
+  @parm CertOffset     Offset of matching CertData, from starting of data.
+  @parm CertDataSize   Length of CertData in bytes.
+  @parm CertNodeOffset Offset of matching AUTH_CERT_DB_DATA , from
                              starting of data.
-  @param CertNodeSize   Length of AUTH_CERT_DB_DATA in bytes.
+  @parm CertNodeSize   Length of AUTH_CERT_DB_DATA in bytes.
 
-  @retval  EFI_INVALID_PARAMETER Any input parameter is invalid.
-  @retval  EFI_NOT_FOUND         Fail to find matching certs.
-  @retval  EFI_SUCCESS           Find matching certs and output parameters.
+  @return  EFI_INVALID_PARAMETER Any input parameter is invalid.
+  @return  EFI_NOT_FOUND         Fail to find matching certs.
+  @return  EFI_SUCCESS           Find matching certs and output parameters.
 
 **/
 EFI_STATUS FindCertsFromDb(UTF16 *name, EFI_GUID *guid, uint8_t *data,
@@ -794,15 +794,15 @@ EFI_STATUS FindCertsFromDb(UTF16 *name, EFI_GUID *guid, uint8_t *data,
   by corresponding name and guid from "certdb"
   or "certdbv" according to authenticated variable attributes.
 
-  @param  name   Name of authenticated Variable.
-  @param  guid     Vendor GUID of authenticated Variable.
-  @param  attrs        attrs of authenticated variable.
-  @param CertData       Pointer to signer's certificates.
-  @param CertDataSize   Length of CertData in bytes.
+  @parm  name   Name of authenticated Variable.
+  @parm  guid     Vendor GUID of authenticated Variable.
+  @parm  attrs        attrs of authenticated variable.
+  @parm CertData       Pointer to signer's certificates.
+  @parm CertDataSize   Length of CertData in bytes.
 
-  @retval  EFI_INVALID_PARAMETER Any input parameter is invalid.
-  @retval  EFI_NOT_FOUND         Fail to find "certdb"/"certdbv" or matching certs.
-  @retval  EFI_SUCCESS           Get signer's certificates successfully.
+  @return  EFI_INVALID_PARAMETER Any input parameter is invalid.
+  @return  EFI_NOT_FOUND         Fail to find "certdb"/"certdbv" or matching certs.
+  @return  EFI_SUCCESS           Get signer's certificates successfully.
 
 **/
 EFI_STATUS
@@ -863,11 +863,11 @@ GetCertsFromDb(UTF16 *name, EFI_GUID *guid, uint32_t attrs, uint8_t **CertData,
   Calculate SHA256 digest of SignerCert CommonName + ToplevelCert tbsCertificate
   SignerCert and ToplevelCert are inside the signer certificate chain.
 
-  @param  SignerCert          A pointer to SignerCert data.
-  @param  SignerCertSize      Length of SignerCert data.
-  @param  TopLevelCert        A pointer to TopLevelCert data.
-  @param  TopLevelCertSize    Length of TopLevelCert data.
-  @param Sha256Digest       Sha256 digest calculated.
+  @parm  SignerCert          A pointer to SignerCert data.
+  @parm  SignerCertSize      Length of SignerCert data.
+  @parm  TopLevelCert        A pointer to TopLevelCert data.
+  @parm  TopLevelCertSize    Length of TopLevelCert data.
+  @parm Sha256Digest       Sha256 digest calculated.
 
   @return EFI_ABORTED          Digest process failed.
   @return EFI_SUCCESS          SHA256 Digest is succesfully calculated.
@@ -948,24 +948,24 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
   This function will parse the authentication carefully to avoid security issues, like
   buffer overflow, integer overflow.
 
-  @param  name                Name of Variable to be found.
-  @param  guid                  Variable vendor GUID.
-  @param  data                        data pointer.
-  @param  data_size                    Size of data found. If size is less than the
+  @parm  name                Name of Variable to be found.
+  @parm  guid                  Variable vendor GUID.
+  @parm  data                        data pointer.
+  @parm  data_size                    Size of data found. If size is less than the
                                           data, this value contains the required size.
-  @param  attrs                  Attribute value of the variable.
-  @param  AuthVarType                 Verify against PK, KEK database, private database or certificate in data payload.
-  @param  OrgTimeStamp                Pointer to original time stamp,
+  @parm  attrs                  Attribute value of the variable.
+  @parm  AuthVarType                 Verify against PK, KEK database, private database or certificate in data payload.
+  @parm  OrgTimeStamp                Pointer to original time stamp,
                                           original variable is not found if NULL.
-  @param  VarPayloadPtr              Pointer to variable payload address.
-  @param  VarPayloadSize             Pointer to variable payload size.
+  @parm  VarPayloadPtr              Pointer to variable payload address.
+  @parm  VarPayloadSize             Pointer to variable payload size.
 
-  @retval EFI_INVALID_PARAMETER           Invalid parameter.
-  @retval EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
+  @return EFI_INVALID_PARAMETER           Invalid parameter.
+  @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
                                           check carried out by the firmware.
-  @retval EFI_OUT_OF_RESOURCES            Failed to process variable due to lack
+  @return EFI_OUT_OF_RESOURCES            Failed to process variable due to lack
                                           of resources.
-  @retval EFI_SUCCESS                     Variable pass validation successfully.
+  @return EFI_SUCCESS                     Variable pass validation successfully.
 
 **/
 EFI_STATUS
@@ -1356,21 +1356,21 @@ done:
   This function will parse the authentication carefully to avoid security issues, like
   buffer overflow, integer overflow.
 
-  @param  name                Name of Variable to be found.
-  @param  guid                  Variable vendor GUID.
-  @param  data                        data pointer.
-  @param  data_size                    Size of data found. If size is less than the
+  @parm  name                Name of Variable to be found.
+  @parm  guid                  Variable vendor GUID.
+  @parm  data                        data pointer.
+  @parm  data_size                    Size of data found. If size is less than the
                                           data, this value contains the required size.
-  @param  attrs                  Attribute value of the variable.
-  @param  AuthVarType                 Verify against PK, KEK database, private database or certificate in data payload.
-  @param  VarDel                      Delete the variable or not.
+  @parm  attrs                  Attribute value of the variable.
+  @parm  AuthVarType                 Verify against PK, KEK database, private database or certificate in data payload.
+  @parm  VarDel                      Delete the variable or not.
 
-  @retval EFI_INVALID_PARAMETER           Invalid parameter.
-  @retval EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
+  @return EFI_INVALID_PARAMETER           Invalid parameter.
+  @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
                                           check carried out by the firmware.
-  @retval EFI_OUT_OF_RESOURCES            Failed to process variable due to lack
+  @return EFI_OUT_OF_RESOURCES            Failed to process variable due to lack
                                           of resources.
-  @retval EFI_SUCCESS                     Variable pass validation successfully.
+  @return EFI_SUCCESS                     Variable pass validation successfully.
 
 **/
 EFI_STATUS
@@ -1450,18 +1450,18 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
   buffer overflow, integer overflow.
   This function will check attribute carefully to avoid authentication bypass.
 
-  @param  name                Name of Variable to be found.
-  @param  guid                  Variable vendor GUID.
-  @param  data                        data pointer.
-  @param  data_size                    Size of data found. If size is less than the
-                                          data, this value contains the required size.
-  @param  attrs                  Attribute value of the variable
-  @param  IsPk                        Indicate whether it is to process pk.
+  @parm name      Name of Variable to be found.
+  @parm guid      Variable vendor GUID.
+  @parm data      The data pointer.
+  @parm data_size Size of data found. If size is less than the data,
+                   this value contains the required size.
+  @parm attrs     Attribute value of the variable
+  @parm IsPk      Indicate whether it is to process pk.
 
-  @return EFI_INVALID_PARAMETER           Invalid parameter.
-  @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation.
-                                          check carried out by the firmware.
-  @return EFI_SUCCESS                     Variable passed validation successfully.
+  @return EFI_INVALID_PARAMETER   Invalid parameter.
+  @return EFI_SECURITY_VIOLATION  The variable does NOT pass the validation.
+                                  check carried out by the firmware.
+  @return EFI_SUCCESS             Variable passed validation successfully.
 
 **/
 EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
@@ -1550,12 +1550,12 @@ EFI_STATUS ProcessVarWithPk(UTF16 *name, EFI_GUID *guid, void *data,
   buffer overflow, integer overflow.
   This function will check attribute carefully to avoid authentication bypass.
 
-  @param  name                Name of Variable to be found.
-  @param  guid                  Variable vendor GUID.
-  @param  data                        data pointer.
-  @param  data_size                    Size of data found. If size is less than the
+  @parm  name                Name of Variable to be found.
+  @parm  guid                  Variable vendor GUID.
+  @parm  data                        data pointer.
+  @parm  data_size                    Size of data found. If size is less than the
                                           data, this value contains the required size.
-  @param  attrs                  Attribute value of the variable.
+  @parm  attrs                  Attribute value of the variable.
 
   @return EFI_INVALID_PARAMETER           Invalid parameter.
   @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
@@ -1613,13 +1613,13 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
 /**
   Check if it is to delete auth variable.
 
-  @param Orgattrs      Original attribute value of the variable.
-  @param data               data pointer.
-  @param data_size           Size of data.
-  @param attrs         Attribute value of the variable.
+  @parm Orgattrs      Original attribute value of the variable.
+  @parm data               data pointer.
+  @parm data_size           Size of data.
+  @parm attrs         Attribute value of the variable.
 
-  @retval true                  It is to delete auth variable.
-  @retval false                 It is not to delete auth variable.
+  @return true                  It is to delete auth variable.
+  @return false                 It is not to delete auth variable.
 
 **/
 bool is_delete_auth_variable(uint32_t Orgattrs, void *data, uint64_t data_size,
@@ -1754,9 +1754,9 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
   make them inconsistent,  this function is called in AuthVariable Init
   to ensure consistency.
 
-  @retval  EFI_NOT_FOUND         Fail to find variable "certdb".
-  @retval  EFI_OUT_OF_RESOURCES  The operation is failed due to lack of resources.
-  @retval  EFI_SUCCESS           The operation is completed successfully.
+  @return  EFI_NOT_FOUND         Fail to find variable "certdb".
+  @return  EFI_OUT_OF_RESOURCES  The operation is failed due to lack of resources.
+  @return  EFI_SUCCESS           The operation is completed successfully.
 
 **/
 EFI_STATUS
