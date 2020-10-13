@@ -180,7 +180,6 @@ auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
   EFI_STATUS status = EFI_SUCCESS;
 
   if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
-    DDEBUG("ProcessVarWithPk()\n");
     status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, true);
   } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
     DDEBUG("process_var_with_pk()\n");
@@ -200,5 +199,5 @@ auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
     status = process_variable(VariableName, VendorGuid, Data, DataSize, Attributes);
   }
 
-    return status;
+  return status;
 }
