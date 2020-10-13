@@ -8,4 +8,5 @@ if [[ "x${PORT}" == "x" ]]; then
 fi
 
 UEFISTORE=/usr/sbin/uefistored
-scp -P${PORT} uefistored root@${XCP_NG_IP}:${UEFISTORE}
+scp -P${PORT} uefistored root@${HOST}:${UEFISTORE}
+ssh -p${PORT} root@${HOST} -- ln -sf ${UEFISTORE} /usr/sbin/varstored
