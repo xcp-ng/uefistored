@@ -71,7 +71,7 @@ auth_lib_initialize(void)
     EFI_STATUS status = EFI_SUCCESS;
     void *data;
     size_t data_size;
-    uint8_t setup_mode = 0;
+    uint8_t setup_mode = SETUP_MODE;
     uint8_t secure_boot = 0;
     uint8_t DeployedMode = 0;
     uint8_t AuditMode = 0;
