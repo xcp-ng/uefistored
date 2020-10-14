@@ -365,9 +365,9 @@ extern UTF16 SECURE_BOOT_ENABLE[];
 
 #define SHA256_DIGEST_SIZE 32
 
-///
-/// Size of AuthInfo prior to the data payload.
-///
+/*
+ *  Size of AuthInfo prior to the data payload.
+ */
 #define AUTHINFO_SIZE                                                          \
     ((OFFSET_OF(EFI_VARIABLE_AUTHENTICATION, AuthInfo)) +                      \
      (OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData)) +                        \
