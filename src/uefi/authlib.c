@@ -87,8 +87,9 @@ auth_lib_initialize(void)
 
     status = auth_lib_process_variable(L"PK", &gEfiGlobalVariableGuid,
                 default_pk, sizeof(default_pk),
-                EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                EFI_VARIABLE_RUNTIME_ACCESS);
+                EFI_VARIABLE_NON_VOLATILE |
+                EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |
+                EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
         ERROR("Failed to set PK, status=%s (0x%02x)\n", efi_status_str(status), status);
