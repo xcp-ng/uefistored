@@ -92,7 +92,7 @@ auth_lib_initialize(void)
                 EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS) {
-        ERROR("Failed to set PK, status=%s (0x%02x)\n", efi_status_str(status), status);
+        ERROR("Failed to set PK, status=%s (0x%02lx)\n", efi_status_str(status), status);
     }
 
     status = auth_internal_find_variable(L"PK",
