@@ -1073,7 +1073,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     // signature. Only a digest algorithm of SHA-256 is accepted.
     //
     //    According to PKCS#7 Definition:
-    //        Signeddata ::= SEQUENCE {
+    //        SignedData ::= SEQUENCE {
     //            version Version,
     //            digestAlgorithms DigestAlgorithmIdentifiers,
     //            contentInfo ContentInfo,
