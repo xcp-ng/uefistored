@@ -300,17 +300,21 @@ PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth)
     return pkcs7;
 }
 
-uint8_t *pkcs7_get_top_cert_der(PKCS7 *pkcs7, int *top_cert_der_size)
+X509 *pkcs7_get_top_cert(PKCS7 *pkcs7)
 {
     STACK_OF(X509) *certs;
-    X509 *top_cert;
 
     certs = PKCS7_get0_signers(pkcs7, NULL, PKCS7_BINARY);
 
     if (!certs)
         return NULL;
 
-    top_cert = sk_X509_value(certs, sk_X509_num(certs) - 1);
+    return sk_X509_value(certs, sk_X509_num(certs) - 1);
+}
+
+uint8_t *pkcs7_get_top_cert_der(PKCS7 *pkcs7, int *top_cert_der_size)
+{
+    X509 *top_cert = pkcs7_get_top_cert(pkcs7);
 
     if (!top_cert)
         return NULL;
