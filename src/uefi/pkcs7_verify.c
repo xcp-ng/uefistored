@@ -33,11 +33,12 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <openssl/pkcs7.h>
 
 #include "log.h"
+#include "uefi/auth.h"
+#include "uefi/guids.h"
 #include "uefi/utils.h"
+#include "uefi/image_authentication.h"
 #include "uefi/types.h"
 #include "openssl_custom.h"
-
-#define TRACE() DDEBUG("\n")
 
 uint8_t mOidValue[9] = { 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02 };
 
@@ -925,10 +926,7 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     const uint8_t *Temp;
     uint64_t SignedDataSize;
     bool Wrapped;
-    uint8_t *buf;
-    int len;
 
-    TRACE();
     //
     // Check input parameters.
     //
@@ -941,20 +939,10 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     DataBio = NULL;
     CertStore = NULL;
 
-    TRACE();
-
-    buf = X509_to_buf(TrustedCert, &len);
-    dprint_data(buf, len);
-    free(buf);
-    dprint_data(P7Data, P7Length);
-    dprint_data(InData, DataLength);
-
-
     if (EVP_add_digest(EVP_sha256()) == 0) {
         return false;
     }
 
-    TRACE();
     Status = WrapPkcs7Data(P7Data, P7Length, &Wrapped, &SignedData,
                            &SignedDataSize);
     if (!Status) {
@@ -968,14 +956,12 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     // Retrieve PKCS#7 Data (DER encoding)
     //
     if (SignedDataSize > INT_MAX) {
-        TRACE();
         goto _Exit;
     }
 
     Temp = SignedData;
     Pkcs7 = d2i_PKCS7(NULL, (const unsigned char **)&Temp, (int)SignedDataSize);
     if (Pkcs7 == NULL) {
-        TRACE();
         goto _Exit;
     }
 
@@ -983,7 +969,6 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     // Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
     //
     if (!PKCS7_type_is_signed(Pkcs7)) {
-        TRACE();
         goto _Exit;
     }
 
@@ -992,7 +977,6 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     //
     CertStore = X509_STORE_new();
     if (CertStore == NULL) {
-        TRACE();
         goto _Exit;
     }
 
@@ -1001,7 +985,6 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
 #endif
 
     if (!(X509_STORE_add_cert(CertStore, TrustedCert))) {
-        TRACE();
         goto _Exit;
     }
 
@@ -1011,12 +994,10 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     //
     DataBio = BIO_new(BIO_s_mem());
     if (DataBio == NULL) {
-        TRACE();
         goto _Exit;
     }
 
     if (BIO_write(DataBio, InData, (int)DataLength) <= 0) {
-        TRACE();
         goto _Exit;
     }
 
@@ -1052,7 +1033,6 @@ _Exit:
         OPENSSL_free(SignedData);
     }
 
-    TRACE();
     return Status;
 }
 

@@ -71,10 +71,11 @@ auth_lib_initialize(void)
     EFI_STATUS status = EFI_SUCCESS;
     void *data;
     size_t data_size;
-    uint8_t setup_mode = SETUP_MODE;
     uint8_t secure_boot = 0;
     uint8_t DeployedMode = 0;
     uint8_t AuditMode = 0;
+
+    setup_mode = SETUP_MODE;
 
     status = storage_set(EFI_SIGNATURE_SUPPORT_NAME, &gEfiGlobalVariableGuid,
                          SignatureSupport, sizeof(SignatureSupport),
@@ -141,9 +142,6 @@ auth_lib_initialize(void)
         return EFI_DEVICE_ERROR;
     }
 
-    DDEBUG("setup_mode is %x\n", setup_mode);
-    DDEBUG("secure_boot is %x\n", secure_boot);
-
     hash_ctx = malloc(sizeof(SHA256_CTX));
 
     if (!hash_ctx) {
@@ -181,7 +179,6 @@ auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
   EFI_STATUS status = EFI_SUCCESS;
 
   if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
-    DDEBUG("process_var_with_pk()\n");
     status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, true);
   } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
     DDEBUG("process_var_with_pk()\n");
