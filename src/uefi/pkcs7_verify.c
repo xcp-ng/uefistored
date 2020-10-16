@@ -21,11 +21,13 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <openssl/objects.h>
+#include <openssl/err.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/pkcs7.h>
@@ -43,6 +45,9 @@ uint8_t *X509_to_buf(X509 *cert, int *len)
 {
     uint8_t *ptr, *buf;
 
+    if (!cert || !len)
+        return NULL;
+
     *len = i2d_X509(cert, NULL);
     buf = malloc(*len);
     if (!buf)
@@ -51,6 +56,86 @@ uint8_t *X509_to_buf(X509 *cert, int *len)
     i2d_X509(cert, &ptr);
 
     return buf;
+}
+
+/**
+ * Return true if data points to a ContentInfo structure, otherwise return false.
+ */
+
+bool is_content_info(uint8_t *data, size_t data_size)
+{
+    if (data_size < 16 || 
+        data[4] != 0x06 ||
+        data[5] != 0x09 ||
+        memcmp(data + 6, mOidValue, sizeof(mOidValue)) != 0 ||
+        data[15] != 0xA0 ||
+        data[16] != 0x82)
+        return false;
+
+    return true;
+}
+
+uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t *size)
+{
+    uint32_t wrapped_size;
+    uint8_t *wrapped;
+
+    if (!data || !size)
+        return NULL;
+
+    /*
+     * Wrap PKCS#7 signeddata to a ContentInfo structure - add a header in 19
+     * bytes.
+     */
+    wrapped_size = *size + 19;
+    wrapped = malloc(wrapped_size);
+
+    if (!wrapped) {
+        return NULL;
+    }
+
+    /*
+     * Part1: 0x30, 0x82.
+     */
+    wrapped[0] = 0x30;
+    wrapped[1] = 0x82;
+
+    /*
+     * Part2: Length1 = P7Length + 19 - 4, in big endian.
+     */
+    wrapped[2] = (uint8_t)(((uint16_t)(wrapped_size - 4)) >> 8);
+    wrapped[3] = (uint8_t)(((uint16_t)(wrapped_size - 4)) & 0xff);
+
+    /*
+     *  Part3: 0x06, 0x09.
+     */
+    wrapped[4] = 0x06;
+    wrapped[5] = 0x09;
+
+    /*
+     * Part4: OID value -- 0x2A 0x86 0x48 0x86 0xF7 0x0D 0x01 0x07 0x02.
+     */
+    memcpy(wrapped + 6, mOidValue, sizeof(mOidValue));
+
+    /*
+     * Part5: 0xA0, 0x82.
+     */
+    wrapped[15] = 0xA0;
+    wrapped[16] = 0x82;
+
+    /*
+     * Part6: Length2 = P7Length, in big endian.
+     */
+    wrapped[17] = (uint8_t)(((uint16_t)*size) >> 8);
+    wrapped[18] = (uint8_t)(((uint16_t)*size) & 0xff);
+
+    /*
+     * Part7: P7Data.
+     */
+    memcpy(wrapped + 19, data, *size);
+    *size = wrapped_size;
+
+    return wrapped;
 }
 
 /**
@@ -269,6 +354,77 @@ EFI_STATUS pkcs7_get_signers(const uint8_t *p7data, uint64_t p7_len,
     }
 
     return EFI_SUCCESS;
+}
+
+/**
+ * Extract OpenSSL PKCS7 from EFI_VARIABLE_AUTHENTICATION_2.
+ */
+PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth)
+{
+    PKCS7 *pkcs7 = NULL;
+    uint8_t *sig_data;
+    uint32_t sig_data_size;
+    unsigned char *temp;
+
+    if (!auth) {
+        return NULL;
+    }
+
+    sig_data = auth->AuthInfo.CertData;
+    sig_data_size = auth->AuthInfo.Hdr.dwLength -
+                  (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
+
+    if (sig_data_size == 0) {
+        ERROR("size=0, EFI_VARIABLE_AUTHENTICATION_2 contains no SignedData cert\n");
+        return NULL;
+    }
+
+    if (!is_content_info(sig_data, sig_data_size)) {
+        sig_data = wrap_with_content_info(sig_data, &sig_data_size);
+
+        if (!sig_data) {
+            ERROR("failed to wrap with ContentInfo\n");
+            return NULL;
+        }
+    }
+
+    temp = sig_data;
+    pkcs7 = d2i_PKCS7(NULL, (const unsigned char**)&temp, (int)sig_data_size);
+
+    if (pkcs7 == NULL) {
+        ERROR("%s\n", ERR_error_string(ERR_get_error(), NULL));
+        ERROR("Failed to parse EFI_VARIABLE_AUTHENTICATION_2 SignedData cert\n");
+        return NULL;
+    }
+
+    if (!PKCS7_type_is_signed(pkcs7)) {
+        ERROR("EFI_VARIABLE_AUTHENTICATION_2 SignedData was not signed\n");
+        PKCS7_free(pkcs7);
+        return NULL;
+    }
+
+    if (sig_data != auth->AuthInfo.CertData)
+        free(sig_data);
+
+    return pkcs7;
+}
+
+uint8_t *pkcs7_get_top_cert_der(PKCS7 *pkcs7, int *top_cert_der_size)
+{
+    STACK_OF(X509) *certs;
+    X509 *top_cert;
+
+    certs = PKCS7_get0_signers(pkcs7, NULL, PKCS7_BINARY);
+
+    if (!certs)
+        return NULL;
+
+    top_cert = sk_X509_value(certs, sk_X509_num(certs) - 1);
+
+    if (!top_cert)
+        return NULL;
+
+    return X509_to_buf(top_cert, top_cert_der_size);
 }
 
 /**
