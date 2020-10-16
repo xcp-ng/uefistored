@@ -6,6 +6,8 @@
 
 #include <stdint.h>
 
+#include "munit/munit.h"
+
 #include "uefi/authlib.h"
 #include "uefi/types.h"
 #include "storage.h"
@@ -209,7 +211,7 @@ static void test_auth_variable_DER_conf(void)
     status = testutil_set_variable(L"AuthVarDER", &mVarVendorGuid, attr,
                          sizeof(invalid_der), (void *)invalid_der);
 
-    test(status == EFI_SECURITY_VIOLATION);
+    munit_assert(status == EFI_SECURITY_VIOLATION);
 
     for (index = 0; index < sizeof(attr_array) / sizeof(attr_array[0]);
          index = index + 1) {
@@ -221,32 +223,24 @@ static void test_auth_variable_DER_conf(void)
 
         printf("%s:fail: index=%lu\n", __func__, index);
         printf("status=%s\n", efi_status_str(status));
-        test(status == EFI_UNSUPPORTED);
+        munit_assert(status == EFI_UNSUPPORTED);
 
         status = testutil_set_variable(L"AuthVarDER", &mVarVendorGuid, attr,
                              sizeof(invalid_der), (void *)invalid_der);
 
-        test(status == EFI_UNSUPPORTED);
+        munit_assert(status == EFI_UNSUPPORTED);
 
         status = testutil_query_variable_info(attr, &max_variable_storage_size,
                                    &remaining_variable_storage_size,
                                    &maximum_variable_size);
 
-        test(status == EFI_SUCCESS || status == EFI_UNSUPPORTED);
+        munit_assert(status == EFI_SUCCESS || status == EFI_UNSUPPORTED);
     }
-}
-
-static void pre_test(void)
-{
-}
-
-static void post_test(void)
-{
 }
 
 void test_auth(void)
 {
     auth_lib_initialize();
-    DO_TEST(test_auth_variable_DER_conf);
+    test_auth_variable_DER_conf();
     storage_deinit();
 }

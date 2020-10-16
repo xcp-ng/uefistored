@@ -3,6 +3,8 @@
 #include <string.h>
 #include <uchar.h>
 
+#include "munit/munit.h"
+
 #include "storage.h"
 #include "common.h"
 #include "log.h"
@@ -72,7 +74,7 @@ static void test_nonexistent_variable_returns_not_found(void)
     xen_variable_server_handle_request(comm_buf);
 
     // xen_variable_server_handle_request(comm_buf);
-    test(getstatus(comm_buf) == EFI_NOT_FOUND);
+    munit_assert(getstatus(comm_buf) == EFI_NOT_FOUND);
 }
 
 static EFI_STATUS deserialize_xen_get_var_response(void *buf,
@@ -160,8 +162,8 @@ static void test_set_and_get(void)
      */
     status =
             deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
-    test(status == EFI_SUCCESS);
-    test(outdata == indata);
+    munit_assert(status == EFI_SUCCESS);
+    munit_assert(outdata == indata);
 }
 
 /**
@@ -190,7 +192,7 @@ static void test_big_set(void)
     xen_variable_server_handle_request(tempbuf);
 
     /* Perform test assertion */
-    test(getstatus(tempbuf) == EFI_OUT_OF_RESOURCES);
+    munit_assert(getstatus(tempbuf) == EFI_OUT_OF_RESOURCES);
 
     /* Cleanup */
     free(indata);
@@ -217,7 +219,7 @@ static void test_zero_set(void)
     XenSetVariable(rtcname, &guid, attr, insz, &indata);
     xen_variable_server_handle_request(comm_buf);
 
-    test(getstatus(comm_buf) == EFI_SUCCESS);
+    munit_assert(getstatus(comm_buf) == EFI_SUCCESS);
 }
 
 /**
@@ -240,7 +242,7 @@ static void test_empty_get_next_var(void)
     /* Call GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, varname, &guid);
     xen_variable_server_handle_request(comm_buf);
-    test(getstatus(comm_buf) == EFI_NOT_FOUND);
+    munit_assert(getstatus(comm_buf) == EFI_NOT_FOUND);
 
     /* Cleanup */
     free(varname);
@@ -272,8 +274,8 @@ static void test_success_get_next_var_one(void)
     unserialize_data(&ptr, buf, varname_sz);
 
     /* Assertions */
-    test(status == EFI_SUCCESS);
-    test(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
+    munit_assert(status == EFI_SUCCESS);
+    munit_assert(memcmp(buf, rtcnamebytes, sizeof(rtcnamebytes)) == 0);
 
     /* Do second call */
     XenGetNextVariableName(&varname_sz, buf, &guid);
@@ -281,7 +283,7 @@ static void test_success_get_next_var_one(void)
 
     ptr = comm_buf;
     status = unserialize_result(&ptr);
-    test(status == EFI_NOT_FOUND);
+    munit_assert(status == EFI_NOT_FOUND);
 }
 
 static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], void *val,
@@ -337,8 +339,8 @@ static void test_success_get_next_var_two(void)
     unserialize_result(&ptr);
     unserialize_data(&ptr, &copies[1], varname_sz);
 
-    test(contains(copies, rtcnamebytes, sizeof(rtcnamebytes)));
-    test(contains(copies, mtcnamebytes, sizeof(mtcnamebytes)));
+    munit_assert(contains(copies, rtcnamebytes, sizeof(rtcnamebytes)));
+    munit_assert(contains(copies, mtcnamebytes, sizeof(mtcnamebytes)));
 
     /* Store the second variable from GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, (char16_t *)&copies[1], &guid);
@@ -346,7 +348,7 @@ static void test_success_get_next_var_two(void)
 
     ptr = comm_buf;
     status = unserialize_result(&ptr);
-    test(status == EFI_NOT_FOUND);
+    munit_assert(status == EFI_NOT_FOUND);
 }
 
 static void test_get_next_var_buf_too_small(void)
@@ -373,8 +375,8 @@ static void test_get_next_var_buf_too_small(void)
     newsz = unserialize_uintn(&ptr);
 
     /* Assertions */
-    test(status == EFI_BUFFER_TOO_SMALL);
-    test(newsz == strsize16(rtcnamebytes));
+    munit_assert(status == EFI_BUFFER_TOO_SMALL);
+    munit_assert(newsz == strsize16(rtcnamebytes));
 }
 
 static void test_runtime_access_attr(void)
@@ -402,7 +404,7 @@ static void test_runtime_access_attr(void)
     status =
             deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
 
-    test(status == EFI_NOT_FOUND);
+    munit_assert(status == EFI_NOT_FOUND);
 }
 
 /**
@@ -425,14 +427,14 @@ static void test_query_variable_info_bad_attrs(void)
 
 
     ptr = comm_buf;
-    test(unserialize_result(&ptr) == EFI_SUCCESS);
+    munit_assert(unserialize_result(&ptr) == EFI_SUCCESS);
 
     XenQueryVariableInfo(
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
             &max_storage_size, &remaining_storage_size, &max_variable_size);
     xen_variable_server_handle_request(comm_buf);
     ptr = comm_buf;
-    test(unserialize_result(&ptr) == EFI_SUCCESS);
+    munit_assert(unserialize_result(&ptr) == EFI_SUCCESS);
 
     XenQueryVariableInfo(EFI_VARIABLE_RUNTIME_ACCESS |
                                  EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS,
@@ -440,7 +442,7 @@ static void test_query_variable_info_bad_attrs(void)
                          &max_variable_size);
     xen_variable_server_handle_request(comm_buf);
     ptr = comm_buf;
-    test(unserialize_result(&ptr) == EFI_INVALID_PARAMETER);
+    munit_assert(unserialize_result(&ptr) == EFI_INVALID_PARAMETER);
 }
 
 /**
@@ -449,15 +451,15 @@ static void test_query_variable_info_bad_attrs(void)
 static void test_valid_attrs(void)
 {
     /* We don't support authenticated writes yet */
-    test(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
+    munit_assert(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
                      EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS) != EFI_SUCCESS);
 
     /* We don't support hardware error record yet  */
-    test(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
+    munit_assert(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
                      EFI_VARIABLE_HARDWARE_ERROR_RECORD) != EFI_SUCCESS);
 
     /* Runetime accesss requires boot access */
-    test(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS &
+    munit_assert(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS &
                      ~EFI_VARIABLE_BOOTSERVICE_ACCESS) != EFI_SUCCESS);
 }
 
@@ -497,26 +499,29 @@ static void test_query_variable_info(void)
         remaining_storage_size = unserialize_uint64(&ptr);
         max_variable_size = unserialize_uint64(&ptr);
 
-        test_eq_int64(max_storage_size, MAX_STORAGE_SIZE);
-        test_eq_int64(remaining_storage_size, MAX_STORAGE_SIZE);
-        test_eq_int64(max_variable_size, MAX_VARIABLE_SIZE);
+        munit_assert_long(max_storage_size, =, MAX_STORAGE_SIZE);
+        munit_assert_long(remaining_storage_size, =, MAX_STORAGE_SIZE);
+        munit_assert_long(max_variable_size, =, MAX_VARIABLE_SIZE);
 
         attrs >>= 1;
     }
 }
 
+#define WRAP_TEST(test) \
+    do { pre_test(); test(); post_test(); } while ( 0 )
+
 void test_xen_variable_server(void)
 {
-    DO_TEST(test_nonexistent_variable_returns_not_found);
-    DO_TEST(test_set_and_get);
-    DO_TEST(test_big_set);
-    DO_TEST(test_zero_set);
-    DO_TEST(test_empty_get_next_var);
-    DO_TEST(test_success_get_next_var_one);
-    DO_TEST(test_success_get_next_var_two);
-    DO_TEST(test_get_next_var_buf_too_small);
-    DO_TEST(test_runtime_access_attr);
-    DO_TEST(test_query_variable_info);
-    DO_TEST(test_query_variable_info_bad_attrs);
-    DO_TEST(test_valid_attrs);
+    WRAP_TEST(test_nonexistent_variable_returns_not_found);
+    WRAP_TEST(test_set_and_get);
+    WRAP_TEST(test_big_set);
+    WRAP_TEST(test_zero_set);
+    WRAP_TEST(test_empty_get_next_var);
+    WRAP_TEST(test_success_get_next_var_one);
+    WRAP_TEST(test_success_get_next_var_two);
+    WRAP_TEST(test_get_next_var_buf_too_small);
+    WRAP_TEST(test_runtime_access_attr);
+    WRAP_TEST(test_query_variable_info);
+    WRAP_TEST(test_query_variable_info_bad_attrs);
+    WRAP_TEST(test_valid_attrs);
 }
