@@ -958,6 +958,49 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     return EFI_SUCCESS;
 }
 
+static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
+               uint8_t *sig_data, uint32_t sig_data_size,
+               uint8_t *new_data, uint64_t new_data_size)
+{
+    bool ret;
+    uint8_t *top_cert_der;
+    int top_cert_der_size;
+    PKCS7 *pkcs7;
+    EFI_SIGNATURE_LIST *old_esl;
+    uint64_t old_esl_size;
+    EFI_STATUS status;
+
+    pkcs7 = pkcs7_from_auth(efi_auth);
+
+    if (!pkcs7)
+        return false;
+
+    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
+
+    if (!top_cert_der)
+        return false;
+
+    status = auth_internal_find_variable(L"PK",
+                                         &gEfiGlobalVariableGuid, (void*)&old_esl,
+                                         &old_esl_size);
+
+    if (status != EFI_SUCCESS)
+        return false;
+
+    if (!pk_new_cert_valid(top_cert_der, top_cert_der_size, old_esl))
+        return false;
+
+    /*
+     * Verify Pkcs7 SignedData.
+     */
+    ret = Pkcs7Verify(sig_data, sig_data_size, pkcs7_get_top_cert(pkcs7),
+                               new_data, new_data_size);
+
+    PKCS7_free(pkcs7);
+
+    return ret;
+}
+
 /**
   Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
 
@@ -1010,13 +1053,10 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     uint8_t *Buffer;
     uint64_t Length;
     X509 *top_cert = NULL;
-    uint8_t *top_cert_der;
-    int top_cert_der_size;
     X509 *TrustedCert;
     STACK_OF(X509) *SignerCerts = NULL;
     uint64_t CertStackSize;
     uint8_t digest[SHA256_DIGEST_SIZE];
-    PKCS7 *pkcs7 = NULL;
 
     //
     // 1. top_cert is the top-level issuer certificate in signature Signer Cert Chain
@@ -1159,43 +1199,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     memcpy(Buffer, PayloadPtr, PayloadSize);
 
     if (AuthVarType == AuthVarTypePk) {
-        pkcs7 = pkcs7_from_auth(efi_auth);
-
-        if (!pkcs7) {
-            verify_status = false;
-            goto done;
-        }
-
-        top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
-
-        if (!top_cert_der) {
-            verify_status = false;
-            goto done;
-        }
-
-        EFI_SIGNATURE_LIST *old_esl;
-        uint64_t old_esl_size;
-
-        status = auth_internal_find_variable(L"PK",
-                                             &gEfiGlobalVariableGuid, (void*)&old_esl,
-                                             &old_esl_size);
-
-        if (status != EFI_SUCCESS) {
-            verify_status = false;
-            goto done;
-        }
-
-        if (!pk_new_cert_valid(top_cert_der, top_cert_der_size, old_esl)) {
-            verify_status = false;
-            goto done;
-        }
-
-        /*
-         * Verify Pkcs7 SignedData.
-         */
-        verify_status = Pkcs7Verify(sig_data, sig_data_size, top_cert,
-                                   new_data, new_data_size);
-
+        verify_status = verify_pk(efi_auth, sig_data, sig_data_size,
+                                  new_data, new_data_size);
     } else if (AuthVarType == AuthVarTypeKek) {
         //
         // Get KEK database from variable.

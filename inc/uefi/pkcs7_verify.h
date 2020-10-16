@@ -36,6 +36,7 @@ EFI_STATUS pkcs7_get_signers(const uint8_t *p7data, uint64_t p7_len,
                                     PKCS7 **pkcs7, STACK_OF(X509) **certs);
 
 PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth);
+X509 *pkcs7_get_top_cert(PKCS7 *pkcs7);
 uint8_t *pkcs7_get_top_cert_der(PKCS7 *pkcs7, int *top_cert_der_size);
 uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,  uint32_t *new_size);
 bool is_content_info(const uint8_t *data, size_t data_size);
