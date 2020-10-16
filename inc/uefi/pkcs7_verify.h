@@ -1,6 +1,7 @@
 #ifndef __H_PKCS7_VERIFY_
 #define __H_PKCS7_VERIFY_
 
+#include "uefi/image_authentication.h"
 #include <openssl/x509.h>
 
 bool Pkcs7GetSigners (
