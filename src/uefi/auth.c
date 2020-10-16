@@ -998,6 +998,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     STACK_OF(X509) *SignerCerts = NULL;
     uint64_t CertStackSize;
     uint8_t digest[SHA256_DIGEST_SIZE];
+    PKCS7 *pkcs7 = NULL;
 
     //
     // 1. TopLevelCert is the top-level issuer certificate in signature Signer Cert Chain
@@ -1141,22 +1142,17 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     memcpy(Buffer, PayloadPtr, PayloadSize);
 
     if (AuthVarType == AuthVarTypePk) {
-        /*
-         * Verify that the signature has been made with the current Platform
-         * Key (no chaining for PK).  First, get signer's certificates from
-         * signed_data.
-         */
-        verify_status = Pkcs7GetSigners(sig_data, sig_data_size,
-                                        &SignerCerts, &CertStackSize);
-        if (!verify_status) {
+        pkcs7 = pkcs7_from_auth(CertData);
+
+        if (!pkcs7) {
+            verify_status = false;
             goto done;
         }
 
-        TopLevelCert = sk_X509_value(SignerCerts, sk_X509_num(SignerCerts) - 1);
+        TopLevelCertBuf = pkcs7_get_top_cert_der(pkcs7, &TopLevelCertSize);
 
-        TopLevelCertBuf = X509_to_buf(TopLevelCert, &TopLevelCertSize);
         if (!TopLevelCertBuf) {
-            status = EFI_DEVICE_ERROR;
+            verify_status = false;
             goto done;
         }
 
@@ -1386,6 +1382,8 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     bool IsDel;
     EFI_TIME *TimeStamp = NULL;
     variable_t *var = NULL;
+
+    DDEBUG("here\n");
 
     memset(&var, 0, sizeof(var));
 

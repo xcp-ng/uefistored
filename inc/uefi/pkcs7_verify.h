@@ -37,4 +37,7 @@ static inline X509* X509_from_buf(const uint8_t *buf, long len)
 EFI_STATUS pkcs7_get_signers(const uint8_t *p7data, uint64_t p7_len,
                                     PKCS7 **pkcs7, STACK_OF(X509) **certs);
 
+PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth);
+uint8_t *pkcs7_get_top_cert_der(PKCS7 *pkcs7, int *top_cert_der_size);
+
 #endif // __H_PKCS7_VERIFY_
