@@ -1077,11 +1077,12 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                   (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
 
     uint8_t *WrapData;
-    uint64_t WrapDataSize;
-    bool Wrapped;
+    uint32_t WrapDataSize;
 
-    if (!WrapPkcs7Data(sig_data, sig_data_size, &Wrapped,
-                       &WrapData, &WrapDataSize)) {
+    WrapData = wrap_with_content_info(sig_data, sig_data_size, &WrapDataSize);
+
+    if (!WrapData) {
+        ERROR("failed to wrap with ContentInfo\n");
         return EFI_DEVICE_ERROR;
     }
 

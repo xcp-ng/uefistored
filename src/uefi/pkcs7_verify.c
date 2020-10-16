@@ -1,26 +1,3 @@
-/** @file
-  PKCS#7 SignedData Verification Wrapper Implementation over OpenSSL.
-
-  Caution: This module requires additional review when modified.
-  This library will have external input - signature (e.g. UEFI Authenticated
-  Variable). It may by input in SMM mode.
-  This external input must be validated carefully to avoid security issue like
-  buffer overflow, integer overflow.
-
-  WrapPkcs7Data(), Pkcs7GetSigners(), Pkcs7Verify() will get UEFI Authenticated
-  Variable and will do basic check for data structure.
-
-Copyright (c) 2009 - 2017, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
-
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-**/
-
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -62,8 +39,7 @@ uint8_t *X509_to_buf(X509 *cert, int *len)
 /**
  * Return true if data points to a ContentInfo structure, otherwise return false.
  */
-
-bool is_content_info(uint8_t *data, size_t data_size)
+bool is_content_info(const uint8_t *data, size_t data_size)
 {
     if (data_size < 16 || 
         data[4] != 0x06 ||
@@ -76,22 +52,42 @@ bool is_content_info(uint8_t *data, size_t data_size)
     return true;
 }
 
-uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t *size)
+/**
+ * Wrap SignedData in a ContentInfo.
+ *
+ * Users may choose SignedData alone or wrapped with a ContentInfo.  OpenSSL
+ * only accepts the ContentInfo form for d2i_PKCS7, so call this to ensure
+ * it is wrapped prior to passing to OpenSSL.
+ *
+ * The return data must be freed by caller.
+ *
+ * Based on tianocore/edk2.
+ */
+uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,  uint32_t *wrapped_size)
 {
-    uint32_t wrapped_size;
     uint8_t *wrapped;
 
-    if (!data || !size)
+    if (!data)
         return NULL;
+
+    if (is_content_info(data, size)) {
+        wrapped = malloc(size);
+        if (!wrapped)
+            return NULL;
+
+        memcpy(wrapped, data, size);
+        return wrapped;
+    }
 
     /*
      * Wrap PKCS#7 signeddata to a ContentInfo structure - add a header in 19
      * bytes.
      */
-    wrapped_size = *size + 19;
-    wrapped = malloc(wrapped_size);
+    *wrapped_size = size + 19;
+    wrapped = malloc(*wrapped_size);
 
     if (!wrapped) {
+        *wrapped_size = 0;
         return NULL;
     }
 
@@ -104,8 +100,8 @@ uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t *size)
     /*
      * Part2: Length1 = P7Length + 19 - 4, in big endian.
      */
-    wrapped[2] = (uint8_t)(((uint16_t)(wrapped_size - 4)) >> 8);
-    wrapped[3] = (uint8_t)(((uint16_t)(wrapped_size - 4)) & 0xff);
+    wrapped[2] = (uint8_t)(((uint16_t)(*wrapped_size - 4)) >> 8);
+    wrapped[3] = (uint8_t)(((uint16_t)(*wrapped_size - 4)) & 0xff);
 
     /*
      *  Part3: 0x06, 0x09.
@@ -127,118 +123,14 @@ uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t *size)
     /*
      * Part6: Length2 = P7Length, in big endian.
      */
-    wrapped[17] = (uint8_t)(((uint16_t)*size) >> 8);
-    wrapped[18] = (uint8_t)(((uint16_t)*size) & 0xff);
+    wrapped[17] = (uint8_t)(((uint16_t)size) >> 8);
+    wrapped[18] = (uint8_t)(((uint16_t)size) & 0xff);
 
     /*
      * Part7: P7Data.
      */
-    memcpy(wrapped + 19, data, *size);
-    *size = wrapped_size;
-
+    memcpy(wrapped + 19, data, size);
     return wrapped;
-}
-
-/**
-  Check input P7Data is a wrapped ContentInfo structure or not. If not construct
-  a new structure to wrap P7Data.
-
-  Caution: This function may receive untrusted input.
-  UEFI Authenticated Variable is external input, so this function will do basic
-  check for PKCS#7 data structure.
-
-  @param[in]  P7Data       Pointer to the PKCS#7 message to verify.
-  @param[in]  P7Length     Length of the PKCS#7 message in bytes.
-  @param[out] WrapFlag     If true P7Data is a ContentInfo structure, otherwise
-                           return false.
-  @param[out] WrapData     If return status of this function is true:
-                           1) when WrapFlag is true, pointer to P7Data.
-                           2) when WrapFlag is false, pointer to a new ContentInfo
-                           structure. It's caller's responsibility to free this
-                           buffer.
-  @param[out] WrapDataSize Length of ContentInfo structure in bytes.
-
-  @retval     true         The operation is finished successfully.
-  @retval     false        The operation is failed due to lack of resources.
-
-**/
-bool WrapPkcs7Data(const uint8_t *P7Data, uint64_t P7Length, bool *WrapFlag,
-                   uint8_t **WrapData, uint64_t *WrapDataSize)
-{
-    bool Wrapped;
-    uint8_t *SignedData;
-
-    //
-    // Check whether input P7Data is a wrapped ContentInfo structure or not.
-    //
-    Wrapped = false;
-    if ((P7Data[4] == 0x06) && (P7Data[5] == 0x09)) {
-        if (memcmp(P7Data + 6, mOidValue, sizeof(mOidValue)) == 0) {
-            if ((P7Data[15] == 0xA0) && (P7Data[16] == 0x82)) {
-                Wrapped = true;
-            }
-        }
-    }
-
-    if (Wrapped) {
-        *WrapData = (uint8_t *)P7Data;
-        *WrapDataSize = P7Length;
-    } else {
-        //
-        // Wrap PKCS#7 signeddata to a ContentInfo structure - add a header in 19 bytes.
-        //
-        *WrapDataSize = P7Length + 19;
-        *WrapData = malloc(*WrapDataSize);
-        if (*WrapData == NULL) {
-            *WrapFlag = Wrapped;
-            return false;
-        }
-
-        SignedData = *WrapData;
-
-        //
-        // Part1: 0x30, 0x82.
-        //
-        SignedData[0] = 0x30;
-        SignedData[1] = 0x82;
-
-        //
-        // Part2: Length1 = P7Length + 19 - 4, in big endian.
-        //
-        SignedData[2] = (uint8_t)(((uint16_t)(*WrapDataSize - 4)) >> 8);
-        SignedData[3] = (uint8_t)(((uint16_t)(*WrapDataSize - 4)) & 0xff);
-
-        //
-        // Part3: 0x06, 0x09.
-        //
-        SignedData[4] = 0x06;
-        SignedData[5] = 0x09;
-
-        //
-        // Part4: OID value -- 0x2A 0x86 0x48 0x86 0xF7 0x0D 0x01 0x07 0x02.
-        //
-        memcpy(SignedData + 6, mOidValue, sizeof(mOidValue));
-
-        //
-        // Part5: 0xA0, 0x82.
-        //
-        SignedData[15] = 0xA0;
-        SignedData[16] = 0x82;
-
-        //
-        // Part6: Length2 = P7Length, in big endian.
-        //
-        SignedData[17] = (uint8_t)(((uint16_t)P7Length) >> 8);
-        SignedData[18] = (uint8_t)(((uint16_t)P7Length) & 0xff);
-
-        //
-        // Part7: P7Data.
-        //
-        memcpy(SignedData + 19, P7Data, P7Length);
-    }
-
-    *WrapFlag = Wrapped;
-    return true;
 }
 
 /**
@@ -380,13 +272,11 @@ PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth)
         return NULL;
     }
 
-    if (!is_content_info(sig_data, sig_data_size)) {
-        sig_data = wrap_with_content_info(sig_data, &sig_data_size);
+    sig_data = wrap_with_content_info(sig_data, sig_data_size, &sig_data_size);
 
-        if (!sig_data) {
-            ERROR("failed to wrap with ContentInfo\n");
-            return NULL;
-        }
+    if (!sig_data) {
+        ERROR("failed to wrap with ContentInfo\n");
+        return NULL;
     }
 
     temp = sig_data;
@@ -609,10 +499,9 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     BIO *DataBio;
     bool Status;
     X509_STORE *CertStore;
-    uint8_t *SignedData;
+    uint8_t *SignedData = NULL;
     const uint8_t *Temp;
-    uint64_t SignedDataSize;
-    bool Wrapped;
+    uint32_t SignedDataSize;
 
     //
     // Check input parameters.
@@ -630,11 +519,11 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
         return false;
     }
 
-    Status = WrapPkcs7Data(P7Data, P7Length, &Wrapped, &SignedData,
-                           &SignedDataSize);
-    if (!Status) {
-        DDEBUG("Status=0x%02x\n", Status);
-        return Status;
+    SignedData = wrap_with_content_info(P7Data, P7Length, &SignedDataSize);
+
+    if (!SignedData) {
+        ERROR("failed to wrap with ContentInfo\n");
+        return false;
     }
 
     Status = false;
@@ -716,9 +605,8 @@ _Exit:
     X509_STORE_free(CertStore);
     PKCS7_free(Pkcs7);
 
-    if (!Wrapped) {
-        OPENSSL_free(SignedData);
-    }
+    if (SignedData)
+        free(SignedData);
 
     return Status;
 }
