@@ -1,3 +1,5 @@
+#include "munit/munit.h"
+
 #include <stdio.h>
 
 #include <sys/types.h>
@@ -25,20 +27,22 @@ void test_base64(void)
     char base64[BASE64_MAX] = {0};
     uint8_t serialized[SERIALIZED_MAX] = {0};
     uint8_t *ptr;
-    variable_t vars[VAR_MAX] = {0};
+    variable_t vars[VAR_MAX];
     FILE *fd;
 
+    memset(vars, 0, sizeof(vars));
+
     fd = fopen(TEST_FILE, "r");
-    test(fd != NULL);
+    munit_assert(fd != NULL);
 
     fread(base64, 1, BASE64_MAX, fd);
     fclose(fd);
 
     ret = base64_to_bytes(buffer, BUFFER_MAX, base64, BASE64_MAX);
-    test(ret >= 0);
+    munit_assert(ret >= 0);
 
     ret = from_bytes_to_vars(vars, VAR_MAX, buffer, (size_t)ret);
-    test(ret >= 0);
+    munit_assert(ret >= 0);
 
     DDEBUG("Variables(%d)\n", ret);
     dprint_variable_list(vars, ret);
@@ -46,15 +50,15 @@ void test_base64(void)
     ptr = serialized;
 
     ret = serialize_variable_list(&ptr, SERIALIZED_MAX, vars, VAR_MAX);
-    test(ret >= 0);
+    munit_assert(ret >= 0);
 
     fd = fopen("tmp.data", "w");
-    test(fd != NULL);
+    munit_assert(fd != NULL);
 
     fwrite(serialized, 1, SERIALIZED_MAX, fd);
     fclose(fd);
 
-    test(memcmp(serialized, buffer, min(SERIALIZED_MAX, BUFFER_MAX)) == 0);
+    munit_assert(memcmp(serialized, buffer, min(SERIALIZED_MAX, BUFFER_MAX)) == 0);
 
     return;
 }

@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "munit/munit.h"
+
 #include "storage.h"
 #include "data/bigbase64.h"
 #include "data/bigrequest.h"
@@ -79,9 +81,9 @@ void test_xapi_set_efi_vars(void)
 
     fd = open("./mock_socket", O_RDWR | O_EXCL, S_IRWXU);
 
-    test(fd > 0);
-    test(read(fd, readbuf, 4096) >= 0);
-    test(strstr(readbuf,
+    munit_assert(fd > 0);
+    munit_assert(read(fd, readbuf, 4096) >= 0);
+    munit_assert(strstr(readbuf,
                 "BAAAAAAAAABCAEMABgAAAAAAAABXT1JMRCEEAAAAAAAAAFkAWgADAAAAAAAAAGJh") !=
          NULL);
 
@@ -92,8 +94,8 @@ static void test_bytes(void)
 {
     uint8_t bytes[4096] = { 0 };
     uint8_t *p = (uint8_t *)bytes;
-    variable_t orig = { 0 };
-    variable_t var = { 0 };
+    variable_t orig = {{ 0 }};
+    variable_t var = {{ 0 }};
 
     /* Setup */
     variable_create_noalloc(&orig, FOO, (uint8_t *)BAR, strsize16(BAR),
@@ -102,7 +104,7 @@ static void test_bytes(void)
     serialize_variable_list(&p, TEST_PT_SIZE, &orig, 1);
     from_bytes_to_vars(&var, 1, bytes, TEST_PT_SIZE);
 
-    test(variable_eq(&orig, &var));
+    munit_assert(variable_eq(&orig, &var));
     variable_destroy_noalloc(&orig);
     variable_destroy_noalloc(&var);
 }
@@ -112,7 +114,7 @@ static void test_var_copy(void)
     uint8_t buf[4096] = { 0 };
     uint8_t *p;
     const uint8_t *unserial_ptr;
-    variable_t orig = { 0 };
+    variable_t orig = {{ 0 }};
     variable_t *var = NULL;
 
     /* Setup */
@@ -126,7 +128,7 @@ static void test_var_copy(void)
     var = variable_create_unserialize(&unserial_ptr);
 
     /* Do the test */
-    test(variable_eq(var, &orig));
+    munit_assert(variable_eq(var, &orig));
 
     variable_destroy(var);
     variable_destroy_noalloc(&orig);
@@ -144,7 +146,7 @@ void test_xapi_base64(void)
     uint8_t *p = (uint8_t *)buf;
     uint8_t bytes[4096] = { 0 };
     variable_t *orig;
-    variable_t var = { 0 };
+    variable_t var = {{ 0 }};
 
     /* Setup */
     orig = variable_create(FOO, (uint8_t *)BAR, strsize16(BAR), &default_guid,
@@ -159,7 +161,7 @@ void test_xapi_base64(void)
     from_bytes_to_vars(&var, 1, bytes, sz);
 
     /* Assert the original variable and the decoded variable are equal */
-    test(variable_eq(&var, orig));
+    munit_assert(variable_eq(&var, orig));
 
     /* Cleanup */
     free(base64);
@@ -176,10 +178,11 @@ void test_xapi_base64_big(void)
     int ret;
     int i;
     uint8_t pt[4096 * 4];
-    variable_t vars[256] = { { 0 } };
+    variable_t vars[256];
+    memset(vars, 0, sizeof(vars));
 
     ret = base64_to_bytes(pt, 4096 * 4, BIG_BASE64, strlen(BIG_BASE64));
-    test(ret > 0);
+    munit_assert(ret > 0);
 
     ret = from_bytes_to_vars(vars, 256, pt, ret);
 
@@ -196,8 +199,8 @@ void test_xapi_base64_big(void)
         variable_destroy_noalloc(&vars[i]);
     }
 
-    test(has_bootorder);
-    test(has_conout);
+    munit_assert(has_bootorder);
+    munit_assert(has_conout);
 }
 
 void test_xapi_base64_big_xml(void)
@@ -207,13 +210,15 @@ void test_xapi_base64_big_xml(void)
     int i;
     char base64[4096 * 4];
     uint8_t pt[4096 * 4];
-    variable_t vars[256] = { { 0 } };
+    variable_t vars[256];
+
+    memset(vars, 0, sizeof(vars));
 
     ret = base64_from_response_body(base64, 4096 * 4, BIG_BASE64_XML);
-    test(ret == 0);
+    munit_assert(ret == 0);
 
     ret = base64_to_bytes(pt, 4096 * 4, base64, strlen(base64));
-    test(ret > 0);
+    munit_assert(ret > 0);
 
     ret = from_bytes_to_vars(vars, 256, pt, ret);
 
@@ -229,8 +234,8 @@ void test_xapi_base64_big_xml(void)
         variable_destroy_noalloc(&vars[i]);
     }
 
-    test(has_bootorder);
-    test(has_conout);
+    munit_assert(has_bootorder);
+    munit_assert(has_conout);
 }
 
 static void test_big_request(void)
@@ -268,7 +273,7 @@ static const char *expected_vars[] = { "Boot0002",
 
 static void test_big_request2(void)
 {
-    variable_t vars[32] = { { 0 } };
+    variable_t vars[32];
     char buffer[4096 * 8];
     char *big_request = BIG_REQUEST2;
     uint8_t plaintext[BIG_MESSAGE_SIZE];
@@ -276,6 +281,8 @@ static void test_big_request2(void)
     const char *name;
     int ret;
     bool found;
+
+    memset(vars, 0, sizeof(vars));
 
     ret = base64_from_response(buffer, 4096 * 8, big_request);
     ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, buffer, strlen(buffer));
@@ -297,13 +304,15 @@ static void test_big_request2(void)
             }
         }
 
-        test(found == true);
+        munit_assert(found == true);
     }
 
     for (i = 0; i < 32; i++) {
         variable_destroy_noalloc(&vars[i]);
     }
 }
+
+#define DO_TEST(test) do { pre_test(); test(); post_test(); } while( 0 )
 
 void test_xapi(void)
 {

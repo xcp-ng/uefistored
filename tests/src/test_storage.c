@@ -1,5 +1,7 @@
 #include <string.h>
 
+#include "munit/munit.h"
+
 #include "storage.h"
 #include "common.h"
 #include "data/bigbase64.h"
@@ -12,6 +14,7 @@
 #include "test_common.h"
 #include "test_storage.h"
 
+extern bool efi_at_runtime;
 
 static UTF16 RTC[] = { 'R', 'T', 'C', 0 };
 static uint8_t RTC_DATA[] = { 0xa, 0xb, 0xc, 0xd };
@@ -35,24 +38,25 @@ static void post_test(void)
 static void test_set_and_get(void)
 {
     EFI_STATUS ret;
+    variable_t tmp;
 
-    variable_t tmp = { 0 };
+    memset(&tmp, 0, sizeof(tmp));
 
     variable_create_noalloc(&tmp, var1.name, var1.data, var1.datasz, &var1.guid,
                             var1.attrs, NULL);
 
     ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz,
                       var1.attrs);
-    test(ret == 0);
+    munit_assert(ret == 0);
 
     ret = storage_get(var1.name, &var1.guid, &var1.attrs, var1.data, &var1.datasz);
-    test(ret == 0);
+    munit_assert(ret == 0);
 
-    test(var1.namesz == tmp.namesz);
-    test(var1.datasz == tmp.datasz);
-    test(memcmp(tmp.name, var1.name, var1.namesz) == 0);
-    test(memcmp(tmp.data, var1.data, var1.datasz) == 0);
-    test(var1.attrs == tmp.attrs);
+    munit_assert(var1.namesz == tmp.namesz);
+    munit_assert(var1.datasz == tmp.datasz);
+    munit_assert(memcmp(tmp.name, var1.name, var1.namesz) == 0);
+    munit_assert(memcmp(tmp.data, var1.data, var1.datasz) == 0);
+    munit_assert(var1.attrs == tmp.attrs);
 
     variable_destroy_noalloc(&tmp);
 }
@@ -63,8 +67,6 @@ static void test_set_and_get2(void)
 
     variable_t tmp;
 
-    tmp.name = malloc(MAX_VARIABLE_NAME_SIZE);
-    tmp.data = malloc(MAX_VARIABLE_DATA_SIZE);
     tmp.datasz = MAX_VARIABLE_DATA_SIZE;
     memcpy(&tmp.guid, &var1.guid, sizeof(tmp.guid));
     tmp.namesz = var1.namesz;
@@ -72,33 +74,30 @@ static void test_set_and_get2(void)
 
     ret = storage_set(var1.name, &var1.guid, var1.data, var1.datasz,
                       var1.attrs);
-    test(ret == 0);
+    munit_assert(ret == 0);
 
     ret = storage_get(tmp.name, &tmp.guid, &tmp.attrs, tmp.data, &tmp.datasz);
 
-    test(ret == 0);
+    munit_assert(ret == 0);
 
-    test(var1.namesz == tmp.namesz);
-    test(var1.datasz == tmp.datasz);
-    test(strcmp16(tmp.name, var1.name) == 0);
-    test(memcmp(tmp.data, var1.data, var1.datasz) == 0);
-    test(var1.attrs == tmp.attrs);
+    munit_assert(var1.namesz == tmp.namesz);
+    munit_assert(var1.datasz == tmp.datasz);
+    munit_assert(strcmp16(tmp.name, var1.name) == 0);
+    munit_assert(memcmp(tmp.data, var1.data, var1.datasz) == 0);
+    munit_assert(var1.attrs == tmp.attrs);
 
     strncpy16(tmp.name, var2.name, MAX_VARIABLE_NAME_SIZE);
     tmp.namesz = var2.namesz;
 
     ret = storage_set(var2.name, &var1.guid, var2.data, var2.datasz,
                       var2.attrs);
-    test(ret == 0);
+    munit_assert(ret == 0);
 
     tmp.datasz = MAX_VARIABLE_DATA_SIZE;
     ret = storage_get(tmp.name, &tmp.guid, &tmp.attrs, tmp.data, &tmp.datasz);
-    test(ret == 0);
+    munit_assert(ret == 0);
 
-    test(variable_eq(&var2, &tmp));
-
-    free(tmp.data);
-    free(tmp.name);
+    munit_assert(variable_eq(&var2, &tmp));
 }
 
 static void test_next(void)
@@ -116,22 +115,21 @@ static void test_next(void)
 
     next_sz = MAX_VARIABLE_NAME_SIZE;
     status = storage_next(&next_sz, next, &next_guid);
-    test(status == 0);
+    munit_assert(status == 0);
 
     next_sz = MAX_VARIABLE_NAME_SIZE;
     status = storage_next(&next_sz, next, &next_guid);
-    test(status == 0);
+    munit_assert(status == 0);
 
     next_sz = MAX_VARIABLE_NAME_SIZE;
     status = storage_next(&next_sz, next, &next_guid);
-    test(status == EFI_NOT_FOUND);
+    munit_assert(status == EFI_NOT_FOUND);
 }
 
 #define DEFINE_VAR(_name, _data)         \
         {                                \
-            .name = (UTF16*)_name,       \
+            .name = _name,       \
             .namesz = sizeof(_name),     \
-            .data = (uint8_t*)_data,     \
             .datasz = sizeof(_data),     \
             .guid = DEFAULT_GUID,        \
             .attrs = DEFAULT_ATTR        \
@@ -143,6 +141,15 @@ static void test_next_after_remove(void)
     UTF16 next[MAX_VARIABLE_NAME_SIZE] = { 0 };
     size_t next_sz = MAX_VARIABLE_NAME_SIZE;
     EFI_GUID next_guid = DEFAULT_GUID;
+
+    const wchar_t *datum [] = {
+        L"DATA1",
+        L"DATA2",
+        L"DATA3",
+        L"DATA4",
+        L"DATA5"
+    };
+
     variable_t vars[] = {
         DEFINE_VAR(L"VAR1", L"DATA1"),
         DEFINE_VAR(L"VAR2", L"DATA2"),
@@ -150,6 +157,13 @@ static void test_next_after_remove(void)
         DEFINE_VAR(L"VAR4", L"DATA4"),
         DEFINE_VAR(L"VAR5", L"DATA5"),
     };
+
+    memcpy(vars[0].data, datum[0], strsize16(datum[0]));
+    memcpy(vars[1].data, datum[1], strsize16(datum[1]));
+    memcpy(vars[2].data, datum[2], strsize16(datum[2]));
+    memcpy(vars[3].data, datum[3], strsize16(datum[3]));
+    memcpy(vars[4].data, datum[4], strsize16(datum[4]));
+
     size_t i;
 
     for (i=0; i<sizeof(vars)/sizeof(vars[0]); i++) {
@@ -161,24 +175,24 @@ static void test_next_after_remove(void)
     for (i=0; i<sizeof(vars)/sizeof(vars[0]); i++) {
         next_sz = MAX_VARIABLE_NAME_SIZE;
         status = storage_next(&next_sz, next, &next_guid);
-        test(status == EFI_SUCCESS);
-        test(strcmp16((UTF16*)next, (UTF16*)vars[i].name) == 0);
+        munit_assert(status == EFI_SUCCESS);
+        munit_assert(strcmp16((UTF16*)next, (UTF16*)vars[i].name) == 0);
     }
 
     next_sz = MAX_VARIABLE_NAME_SIZE;
     status = storage_next(&next_sz, next, &next_guid);
-    test(status == EFI_NOT_FOUND);
+    munit_assert(status == EFI_NOT_FOUND);
 
     /* Remove vars 2 and 3 */
     status = storage_set(vars[1].name, &vars[1].guid,
                 vars[1].data, vars[1].datasz,
                 0);
-    test(status == 0);
+    munit_assert(status == 0);
 
     status = storage_set(vars[2].name, &vars[2].guid,
                 vars[2].data, vars[2].datasz,
                 0);
-    test(status == 0);
+    munit_assert(status == 0);
 
     next_sz = MAX_VARIABLE_NAME_SIZE;
     memset(next, 0, sizeof(next));
@@ -191,13 +205,13 @@ static void test_next_after_remove(void)
 
         next_sz = MAX_VARIABLE_NAME_SIZE;
         status = storage_next(&next_sz, next, &next_guid);
-        test(status == EFI_SUCCESS);
-        test(strcmp16((UTF16*)next, (UTF16*)vars[i].name) == 0);
+        munit_assert(status == EFI_SUCCESS);
+        munit_assert(strcmp16((UTF16*)next, (UTF16*)vars[i].name) == 0);
     }
 
     next_sz = MAX_VARIABLE_NAME_SIZE;
     status = storage_next(&next_sz, next, &next_guid);
-    test(status == EFI_NOT_FOUND);
+    munit_assert(status == EFI_NOT_FOUND);
 }
 
 static void test_set_different_attrs(void)
@@ -221,7 +235,7 @@ static void test_set_different_attrs(void)
     uint32_t attr = 0;
     size_t i;
 
-    set_efi_runtime(false);
+    efi_at_runtime = false;
 
     memcpy(name, var->name, var->namesz);
 
@@ -229,12 +243,12 @@ static void test_set_different_attrs(void)
         status = storage_set(var->name, &var->guid, var->data, var->datasz, attrs[i]);
 
         if (i == 0)
-            test(status == EFI_SUCCESS);
+            munit_assert(status == EFI_SUCCESS);
         else
-            test(status == EFI_INVALID_PARAMETER);
+            munit_assert(status == EFI_INVALID_PARAMETER);
 
         status = storage_get(name, &guid, &attr, data, &datasz);
-        test(status == EFI_SUCCESS);
+        munit_assert(status == EFI_SUCCESS);
     }
 }
 
@@ -259,23 +273,25 @@ static void test_set_different_attrs_delete_first(void)
     uint32_t attr;
     EFI_GUID guid = DEFAULT_GUID;
 
-    set_efi_runtime(false);
+    efi_at_runtime = false;
 
     memcpy(name, var->name, var->namesz);
 
     for (i=0; i<sizeof(attrs)/sizeof(attrs[0]); i++) {
         status = storage_set(var->name, &var->guid, var->data, var->datasz, attrs[i]);
-        test(status == EFI_SUCCESS);
+        munit_assert(status == EFI_SUCCESS);
 
         returned_status = storage_set(var->name, &var->guid, var->data, 0, attrs[i]);
         status = storage_set(var->name, &var->guid, var->data, 0, attrs[i]);
 
-        test(returned_status == EFI_SUCCESS && status == EFI_NOT_FOUND);
+        munit_assert(returned_status == EFI_SUCCESS && status == EFI_NOT_FOUND);
 
         status = storage_get(name, &guid, &attr, data, &datasz);
-        test(status == EFI_NOT_FOUND);
+        munit_assert(status == EFI_NOT_FOUND);
     }
 }
+
+#define DO_TEST(test) do { pre_test(); test(); post_test(); } while( 0 )
 
 void test_storage(void)
 {
