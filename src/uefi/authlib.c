@@ -86,6 +86,14 @@ auth_lib_initialize(void)
         return EFI_DEVICE_ERROR;
     }
 
+    status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &setup_mode,
+                         sizeof(setup_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        return EFI_DEVICE_ERROR;
+    }
+
     status = auth_lib_process_variable(L"PK", &gEfiGlobalVariableGuid,
                 default_pk, sizeof(default_pk),
                 EFI_VARIABLE_NON_VOLATILE |
@@ -107,15 +115,6 @@ auth_lib_initialize(void)
     } else {
         // TODO: allow enabling secureboot
         //secure_boot = 1;
-    }
-
-
-    status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &setup_mode,
-                         sizeof(setup_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                         EFI_VARIABLE_RUNTIME_ACCESS);
-
-    if (status != EFI_SUCCESS) {
-        return EFI_DEVICE_ERROR;
     }
 
     status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &AuditMode,
