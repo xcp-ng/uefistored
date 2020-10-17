@@ -72,10 +72,13 @@ uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,  uint32_t *w
 
     if (is_content_info(data, size)) {
         wrapped = malloc(size);
-        if (!wrapped)
+        if (!wrapped) {
+            *wrapped_size = 0;
             return NULL;
+        }
 
         memcpy(wrapped, data, size);
+        *wrapped_size = size;
         return wrapped;
     }
 
@@ -507,9 +510,6 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     const uint8_t *Temp;
     uint32_t SignedDataSize;
 
-    //
-    // Check input parameters.
-    //
     if (P7Data == NULL || InData == NULL ||
         P7Length > INT_MAX || DataLength > INT_MAX) {
         return false;
@@ -532,9 +532,9 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
 
     Status = false;
 
-    //
-    // Retrieve PKCS#7 Data (DER encoding)
-    //
+    /*
+     * Retrieve PKCS#7 Data (DER encoding)
+     */
     if (SignedDataSize > INT_MAX) {
         goto _Exit;
     }
@@ -613,4 +613,84 @@ _Exit:
         free(SignedData);
 
     return Status;
+}
+
+bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
+                 const uint8_t *new_data, uint64_t new_data_size)
+{
+    BIO *bio;
+    bool status;
+    X509_STORE *store;
+
+    if (new_data == NULL || new_data_size > INT_MAX)
+        return false;
+
+    if (EVP_add_digest(EVP_sha256()) == 0)
+        return false;
+
+    status = false;
+
+    //
+    // Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
+    //
+    if (!PKCS7_type_is_signed(pkcs7))
+        return false;
+
+    //
+    // Setup X509 Store for trusted certificate
+    //
+    store = X509_STORE_new();
+
+    if (store == NULL)
+        return false;
+
+#ifndef X509_V_FLAG_NO_CHECK_TIME
+    store->verify_cb = X509_verify_cb;
+#endif
+
+    if (!(X509_STORE_add_cert(store, TrustedCert))) {
+        goto err;
+    }
+
+    /*
+     * For generic PKCS#7 handling, new_data may be NULL if the content is present
+     * in PKCS#7 structure. So ignore NULL checking here.
+     */
+    bio = BIO_new(BIO_s_mem());
+    if (bio == NULL) {
+        goto err;
+    }
+
+    if (BIO_write(bio, new_data, (int)new_data_size) <= 0) {
+        goto err;
+    }
+
+    /*
+     * Allow partial certificate chains, terminated by a non-self-signed but
+     * still trusted intermediate certificate. Also disable time checks.
+    */
+    X509_STORE_set_flags(store,
+                         X509_V_FLAG_PARTIAL_CHAIN);
+
+    /*
+     * OpenSSL PKCS7 Verification by default checks for SMIME (email signing) and
+     * doesn't support the extended key usage for Authenticode Code Signing.
+     * Bypass the certificate purpose checking by enabling any purposes setting.
+     */
+    X509_STORE_set_purpose(store, X509_PURPOSE_ANY);
+
+    /*
+     * Verifies the PKCS#7 signedData structure
+     */
+    status = (bool)PKCS7_verify(pkcs7, NULL, store, bio, NULL,
+                                PKCS7_BINARY);
+
+err:
+    //
+    // Release Resources
+    //
+    BIO_free(bio);
+    X509_STORE_free(store);
+
+    return status;
 }

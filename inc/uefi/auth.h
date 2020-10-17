@@ -18,6 +18,6 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid,
 EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
                             uint64_t data_size, uint32_t attrs, bool IsPk);
 
-bool pk_new_cert_valid(uint8_t *cert_der, uint32_t cert_size, EFI_SIGNATURE_LIST *old_esl);
+bool cert_equals_esl(uint8_t *cert_der, uint32_t cert_size, EFI_SIGNATURE_LIST *old_esl);
 
 #endif // __H__AUTH_

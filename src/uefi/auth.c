@@ -71,7 +71,7 @@ X509_from_buf(const uint8_t *buf, long len)
 }
 #endif
 
-bool pk_new_cert_valid(uint8_t *cert_der, uint32_t cert_size, EFI_SIGNATURE_LIST *old_esl)
+bool cert_equals_esl(uint8_t *cert_der, uint32_t cert_size, EFI_SIGNATURE_LIST *old_esl)
 {
 
     EFI_SIGNATURE_DATA *old_sig_data = (EFI_SIGNATURE_DATA *)((uint8_t *)old_esl +
@@ -454,8 +454,7 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
     uint8_t SecureBootEnable;
     uint64_t Variabledata_size;
 
-    status = auth_internal_find_variable(
-            EFI_SETUP_MODE_NAME, &gEfiGlobalVariableGuid, &data, &data_size);
+    status = auth_internal_find_variable(L"SetupMode", &gEfiGlobalVariableGuid, &data, &data_size);
     if (EFI_ERROR(status)) {
         return status;
     }
@@ -481,7 +480,7 @@ EFI_STATUS UpdatePlatformMode(uint32_t Mode)
     // If it doesn't exist, firmware has no capability to perform driver signing verification,
     // then set "SecureBoot" to 0.
     //
-    status = auth_internal_find_variable(EFI_SECURE_BOOT_MODE_NAME,
+    status = auth_internal_find_variable(L"SecureBoot",
                                          &gEfiGlobalVariableGuid, &data,
                                          &data_size);
     //
@@ -987,13 +986,13 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     if (status != EFI_SUCCESS)
         return false;
 
-    if (!pk_new_cert_valid(top_cert_der, top_cert_der_size, old_esl))
+    if (!cert_equals_esl(top_cert_der, top_cert_der_size, old_esl))
         return false;
 
     /*
      * Verify Pkcs7 SignedData.
      */
-    ret = Pkcs7Verify(sig_data, sig_data_size, pkcs7_get_top_cert(pkcs7),
+    ret = pkcs7_verify(pkcs7, pkcs7_get_top_cert(pkcs7),
                                new_data, new_data_size);
 
     PKCS7_free(pkcs7);
@@ -1157,22 +1156,14 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     PayloadSize =
             data_size - OFFSET_OF_AUTHINFO2_CERT_DATA - (uint64_t)sig_data_size;
 
-    //
-    // Construct a serialization buffer of the values of the name, guid and attrs
-    // parameters of the SetVariable() call and the TimeStamp component of the
-    // EFI_VARIABLE_AUTHENTICATION_2 descriptor followed by the variable's new value
-    // i.e. (name, guid, attrs, TimeStamp, data)
-    //
+    /*
+     * Construct a serialization buffer of the values of the name, guid and attrs
+     * parameters of the SetVariable() call and the TimeStamp component of the
+     * EFI_VARIABLE_AUTHENTICATION_2 descriptor followed by the variable's new value
+     * i.e. (name, guid, attrs, TimeStamp, data).
+     */
     new_data_size = PayloadSize + sizeof(EFI_TIME) + sizeof(uint32_t) +
                    sizeof(EFI_GUID) + strsize16(name) - sizeof(UTF16);
-
-    //
-    // Here is to reuse scratch data area(at the end of volatile variable store)
-    // to reduce SMRAM consumption for SMM variable driver.
-    // The scratch buffer is enough to hold the serialized data and safe to use,
-    // because it is only used at here to do verification temporarily first
-    // and then used in UpdateVariable() for a time based auth variable set.
-    //
     new_data = malloc(new_data_size);
 
     if (!new_data) {

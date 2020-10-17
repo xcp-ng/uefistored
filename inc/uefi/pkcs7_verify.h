@@ -40,5 +40,7 @@ X509 *pkcs7_get_top_cert(PKCS7 *pkcs7);
 uint8_t *pkcs7_get_top_cert_der(PKCS7 *pkcs7, int *top_cert_der_size);
 uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,  uint32_t *new_size);
 bool is_content_info(const uint8_t *data, size_t data_size);
+bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
+                  const uint8_t *new_data, uint64_t new_data_size);
 
 #endif // __H_PKCS7_VERIFY_
