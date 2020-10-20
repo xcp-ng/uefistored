@@ -452,6 +452,8 @@ void xen_variable_server_handle_request(void *comm_buf)
 
     command = unserialize_uint32(&inptr);
 
+    DDEBUG("command: 0x%02x\n", command);
+
     switch (command) {
     case COMMAND_GET_VARIABLE:
         handle_get_variable(comm_buf);
@@ -471,4 +473,9 @@ void xen_variable_server_handle_request(void *comm_buf)
         ERROR("cmd: unknown, 0x%x\n", command);
         break;
     }
+
+#ifdef DEBUG
+    const uint8_t *dbg_ptr = comm_buf;
+    DDEBUG("result: 0x%02lx\n", unserialize_result(&dbg_ptr));
+#endif
 }
