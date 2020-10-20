@@ -290,8 +290,6 @@ poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
         if (read_pointer == write_pointer)
             break;
 
-        DDEBUG("read_pointer != write_pointer\n");
-
         while (read_pointer != write_pointer) {
             unsigned int    slot;
             buf_ioreq_t     *buf_ioreq;
@@ -398,8 +396,6 @@ void handle_bufioreq(buf_ioreq_t *buf_ioreq)
         ERROR("UNKNOWN buf_ioreq type %02x)\n", buf_ioreq->type);
         return;
     }
-
-    DDEBUG("buffered ioreq received\n");
 }
 
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage,
@@ -591,8 +587,6 @@ void handler_loop(xenevtchn_handle *xce, buffered_iopage_t *buffered_iopage,
             continue;
         }
 
-        DDEBUG("poll() successful\n");
-
         port = xenevtchn_pending(xce);
         if (port < 0) {
             ERROR("xenevtchn_pending() error: %d, %s\n", errno,
@@ -610,15 +604,12 @@ void handler_loop(xenevtchn_handle *xce, buffered_iopage_t *buffered_iopage,
             int i;
             buf_ioreq_t *p;
 
-            DDEBUG("handling buffered io\n");
-
             for (i = 0; i < IOREQ_BUFFER_SLOT_NUM; i++) {
                 p = &buffered_iopage->buf_ioreq[i];
                 poll_buffered_iopage(buffered_iopage);
                 handle_bufioreq(p);
             }
         } else {
-            DDEBUG("handling shared io\n");
             for (i = 0; i < vcpu_count; i++) {
                 evtchn_port_t remote_port = remote_vcpu_ports[i];
                 if (remote_port == port) {
@@ -960,7 +951,6 @@ int main(int argc, char **argv)
     if ((status = auth_lib_initialize()) != EFI_SUCCESS)
         DDEBUG("auth_lib_initialize() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
-
 
     if (write_pid(xsh) < 0)
         goto err;
