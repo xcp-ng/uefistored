@@ -122,16 +122,20 @@ static int serialize_get_error(variable_t *var, struct request *request, void *c
 
     ret = 0;
 
-    if (!var || (efi_at_runtime && !(var->attrs & EFI_VARIABLE_RUNTIME_ACCESS))) {
-        /*
-         * The variable was not found or the system is at runtime and the
-         * variable is not accessible at runtime.
-         *
-         * Return to the guest EFI_NOT_FOUND.
-         */
+    /*
+     * The variable was not found or the system is at runtime and the
+     * variable is not accessible at runtime.
+     *
+     * Return to the guest EFI_NOT_FOUND.
+     */
+    if (!var) {
+        serialize_result(&ptr, EFI_NOT_FOUND);
+        DDEBUG("EFI_NOT_FOUND due to no not found\n");
+        ret = -1;
+    } else if (efi_at_runtime && !(var->attrs & EFI_VARIABLE_RUNTIME_ACCESS)) {
+        DDEBUG("EFI_NOT_FOUND due to no runtime access\n");
         serialize_result(&ptr, EFI_NOT_FOUND);
         ret = -1;
-
     } else if (request->buffer_size < var->datasz) {
         /*
          * The guest's buffer is not large enough, return EFI_BUFFER_TOO_SMALL.
@@ -425,7 +429,7 @@ static void handle_get_next_variable(void *comm_buf)
         serialize_result(&ptr, EFI_NOT_FOUND);
     } else if (request->buffer_size < next->namesz) {
         /* Return to guest EFI_BUFFER_TOO_SMALL */
-        serialize_buffer_too_small(ptr, next->namesz + sizeof(UTF16));
+        serialize_buffer_too_small(ptr, next->namesz);
     } else {
         /* Return to guest EFI_SUCCESS */
         serialize_result(&ptr, EFI_SUCCESS);

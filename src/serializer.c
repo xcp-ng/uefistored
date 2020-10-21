@@ -19,7 +19,7 @@ struct variable_list {
 
 void serialize_name(uint8_t **ptr, UTF16 *VariableName)
 {
-    uint64_t VarNameSize = strsize16(VariableName);
+    uint64_t VarNameSize = strsize16(VariableName) - 2;
 
     memcpy(*ptr, &VarNameSize, sizeof VarNameSize);
     *ptr += sizeof VarNameSize;
