@@ -12,6 +12,8 @@
 #include "uefi/types.h"
 #include "log.h"
 
+#define rt_deny_access(attrs) (efi_at_runtime && !(attrs & EFI_VARIABLE_RUNTIME_ACCESS))
+
 extern bool efi_at_runtime;
 
 static variable_t variables[MAX_VAR_COUNT];
@@ -81,7 +83,7 @@ EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
         return EFI_NOT_FOUND;
     }
 
-    if (efi_at_runtime && !(var->attrs & EFI_VARIABLE_RUNTIME_ACCESS)) {
+    if (rt_deny_access(var->attrs)) {
         DDEBUG("Found, but inaccessible at runtime\n");
         return EFI_NOT_FOUND;
     }
@@ -349,7 +351,7 @@ static variable_t *storage_get_first(void)
 
     /* Find the first variable */
     for (i=0; i<MAX_VAR_COUNT; i++) {
-        if (variable_is_valid(&variables[i])) {
+        if (variable_is_valid(&variables[i]) && !rt_deny_access(variables[i].attrs)) {
             break;
         }
     }
@@ -392,8 +394,10 @@ variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
 
     /* Find the next variable */
     for (; i<MAX_VAR_COUNT; i++) {
-        if (variable_is_valid(&variables[i]))
+        if (variable_is_valid(&variables[i]) &&
+                !rt_deny_access(variables[i].attrs)) {
             break;
+        }
     }
 
     /* If we are at the end of the array, return NULL */
