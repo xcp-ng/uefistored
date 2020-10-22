@@ -61,17 +61,16 @@ void dprint_name(const UTF16 *name, size_t namesz)
         return;
 
     uc2_ascii_safe(name, namesz, buf, MAX_VARIABLE_NAME_SIZE);
-    DPRINTF("Variable(%s)", buf);
+    DPRINTF("%s", buf);
 }
 
 /**
  * dprint_variable -  Debug print a variable
  *
  * WARNING: this only prints ASCII characters correctly.
- * Any char code above 255 will be displayed incorrectly.
+ * Any char code above 255 will be skipped.
  */
-
-void dprint_variable(const variable_t *var)
+void _dprint_variable(const variable_t *var)
 {
     if (!var)
         return;
@@ -87,7 +86,7 @@ void dprint_variable(const variable_t *var)
     DPRINTF("\n");
 }
 
-void dprint_variable_list(const variable_t *vars, size_t n)
+void _dprint_variable_list(const variable_t *vars, size_t n)
 {
     size_t i;
 
