@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
 - Harden sandbox with seccomp and rlimits
 - Support variable write appends
 
+## [0.2.2] - 2020-10-21
+### Changed
+- Fix no RT access variable bug (now supporting Windows Server 2016 boot)
+
 ## [0.2.1] - 2020-10-12
 ### Changed
 - Disable debug by default in build
