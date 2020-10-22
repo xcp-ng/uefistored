@@ -17,6 +17,25 @@ HVM domU that XAPI has started.  XenVariable, found in OVMF, knows how to
 communicate with uefistored using the device emulation protocol.  See [OVMF
 and uefistored] for more details.
 
+## Building
+
+Use `make help` to see make targets.
+
+```
+$ make help
+
+uefistored - UEFI Secure Boot support for Guest VMs
+
+all:         Build uefistored (same as uefistored target)
+uefistored:   Build uefistored
+test:        Run uefistored unit tests with address sanitizers
+test-nosan:  Run uefistored unit tests without address sanitizers
+install: uefistored    Install uefistored
+deploy:      Deploy uefistored to a XCP-ng host
+
+
+```
+
 ## Executable
 
 XAPI looks for an executable called varstored, so uefistored must be linked to
@@ -28,7 +47,7 @@ If you just want to deploy to a known host:
 
 ```
 $ make all
-$ XCP_NG_IP=192.168.0.17 make deploy
+$ HOST=192.168.0.17 make deploy
 ```
 
 ## OVMF and uefistored
@@ -47,15 +66,13 @@ event channel notification is used to indicate to the guest that its
 GetVariable request has been served and the response is ready for processing.
 
 [1] uefistored uses the `xenforeignmemory_map()` API to map in the
-    OVFM memory page that XenVariable uses.  XenVariable communicates
+    OVMF memory page that XenVariable uses.  XenVariable communicates
     the location of this page to uefistored using port IO caught by
-    a IOREQ server initialized by uefistored.
+    an IOREQ server initialized by uefistored.
 
 ## UEFI Notes
 
 ### Authenticated Variables
-
-NOT SUPPORTED YET.
 
 When a variable is to be authenticated using `EFI_VARIABLE_AUTHENTICATION_2` it
 must be packaged into an `EFI_VARIABLE_AUTHENTICATION_2` decriptor (define by
@@ -64,9 +81,9 @@ must be set to `EFI_CERT_TYPE_PKCS7_GUID`.  The variable name, guid,
 attributes, timestamp, and new value must be hashed with the SHA256 algorithm
 and then the hash must be signed with an RSA 2048-bit key.  A DER-encoded
 PKCS#7 v1.5 SignedData must be constructed according to UEFI 2.3.1 Errata C
-section 7.2.1[1] which contains the signed hash and information the crypto
-algorithms used.  It _will not_ contain the actual variable data.  This PKCS#7
-v1.5 SignedData must be assigned to the `AuthInfo.CertData` member of the
+section 7.2.1[1] which contains the signed hash and the crypto algorithms used.
+It _will not_ contain the actual variable data.  This PKCS#7 v1.5 SignedData
+must be assigned to the `AuthInfo.CertData` member of the
 `EFI_VARIABLE_AUTHENTICATION_2` descriptor.  Concatenate this discriptor with
 the new variable data and pass it as the `Data` parameter to `SetVariable()`.
 
