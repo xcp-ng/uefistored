@@ -46,7 +46,7 @@ void log_deinit(void);
         uefistored_fprintf(stdout, "INFO: " __VA_ARGS__);                      \
     } while (0)
 
-#if 1
+#if DEBUG
 #define DDEBUG(...)                                                            \
     do {                                                                       \
         if (_logfd > 0) {                                                      \
@@ -87,14 +87,18 @@ static inline void _dprint_data(const char *func, int lineno, const void *data, 
 
 #define dprint_data(data, datasz) _dprint_data(__func__, __LINE__, data, datasz)
 
-void dprint_variable_list(const variable_t *vars, size_t n);
+void dprint_variable(const variable_t *var);
+#define dprint_variable _dprint_variable
+void _dprint_variable_list(const variable_t *vars, size_t n);
+#define dprint_variable_list _dprint_variable_list
+void dprint_name(const UTF16 *name, size_t namesz);
 
 #else
-#error "No debug"
 #define DDEBUG(...) do { } while(0)
 #define DPRINTF(...) do { } while(0)
 #define dprint_data(...) do { } while(0)
 #define dprint_variable_list(...) do { } while(0)
+#define dprint_variable(...) do { } while(0)
 #endif
 
 
