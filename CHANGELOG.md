@@ -2,14 +2,22 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-- Add changelog
 - Support Secure Boot
-    - Support PK
     - Support KEK
     - Support db
     - Support dbx
 - Harden sandbox with seccomp and rlimits
 - Support variable write appends
+
+## [0.2.3] - 2020-10-29
+### Added
+- Support PK exchange
+- PK.auth is now opened from /usr/share/varstored/PK.auth
+- Unit tests for PK implementation
+- Test scripts for PK (valid and invalid certs)
+
+### Changed
+- Preserve backwards compatibility with varstored
 
 ## [0.2.2] - 2020-10-21
 ### Changed
@@ -48,6 +56,8 @@ All notable changes to this project will be documented in this file.
 - Support handling of guest UEFI requests
 - Support minimal sandboxing via chroot jail
 
+[0.2.3]: https://github.com/xcp-ng/uefistored/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/xcp-ng/uefistored/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/xcp-ng/uefistored/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/xcp-ng/uefistored/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/xcp-ng/uefistored/compare/v0.1...v0.1.1
