@@ -69,8 +69,6 @@ EFI_STATUS
 auth_lib_initialize(void)
 {
     EFI_STATUS status = EFI_SUCCESS;
-    void *data;
-    size_t data_size;
     uint8_t secure_boot = 0;
     uint8_t DeployedMode = 0;
     uint8_t AuditMode = 0;
@@ -100,21 +98,9 @@ auth_lib_initialize(void)
                 EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |
                 EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
-    if (status != EFI_SUCCESS) {
-        ERROR("Failed to set PK, status=%s (0x%02lx)\n", efi_status_str(status), status);
-    }
-
-    status = auth_internal_find_variable(L"PK",
-                                         &gEfiGlobalVariableGuid,
-                                         (void **)&data, &data_size);
-
     if (status != EFI_NOT_FOUND && status != EFI_SUCCESS) {
+        ERROR("Failed to set PK, status=%s (0x%02lx)\n", efi_status_str(status), status);
         return EFI_DEVICE_ERROR;
-    } else if (status == EFI_NOT_FOUND) {
-        setup_mode = 1;
-    } else {
-        // TODO: allow enabling secureboot
-        //secure_boot = 1;
     }
 
     status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &AuditMode,
