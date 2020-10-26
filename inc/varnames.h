@@ -28,8 +28,6 @@ extern UTF16 SECURE_BOOT_NAME[];
 extern UTF16 SECURE_BOOT_MODE_NAME[];
 
 extern UTF16 SETUP_MODE_NAME[];
-#define SETUP_MODE 1
-#define USER_MODE 0
 
 extern UTF16 DB_NAME[];
 extern UTF16 DBX_NAME[];
