@@ -87,7 +87,7 @@ static inline void _dprint_data(const char *func, int lineno, const void *data, 
 
 #define dprint_data(data, datasz) _dprint_data(__func__, __LINE__, data, datasz)
 
-void dprint_variable(const variable_t *var);
+void _dprint_variable(const variable_t *var);
 #define dprint_variable _dprint_variable
 void _dprint_variable_list(const variable_t *vars, size_t n);
 #define dprint_variable_list _dprint_variable_list
