@@ -238,7 +238,7 @@ EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid)
 }
 
 EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
-                const size_t datasz, const uint32_t attrs)
+                       size_t datasz, uint32_t attrs)
 {
     int i;
     int ret;
@@ -313,7 +313,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
 }
 
 EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid, const void *data,
-                const size_t datasz, const uint32_t attrs, EFI_TIME *timestamp)
+                                      size_t datasz, uint32_t attrs, EFI_TIME *timestamp)
 {
     EFI_STATUS status;
     variable_t *var;

@@ -13,9 +13,9 @@ size_t storage_count(void);
 void storage_deinit(void);
 EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs, void *data, size_t *data_size);
 EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *val,
-                const size_t len, const uint32_t attrs);
+                       size_t len, uint32_t attrs);
 EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid,
-        const void *val, const size_t len, const uint32_t attrs, EFI_TIME
+        const void *val, size_t len, uint32_t attrs, EFI_TIME
         *timestamp);
 void storage_destroy(void);
 variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid);
