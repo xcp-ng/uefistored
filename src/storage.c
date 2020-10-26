@@ -406,3 +406,16 @@ variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
 
     return &variables[i];
 }
+
+void storage_print_all(void)
+{
+    int i;
+    variable_t *var;
+
+    DDEBUG("Variables:\n");
+    for_each_variable(variables, var, i)
+    {
+        dprint_variable(var);
+    }
+    DDEBUG("\n");
+}
