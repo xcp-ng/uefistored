@@ -1025,15 +1025,14 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         (efi_auth->TimeStamp.TimeZone != 0) ||
         (efi_auth->TimeStamp.Daylight != 0) ||
         (efi_auth->TimeStamp.Pad2 != 0)) {
+        WARNING("Invalid TimeStamp in auth variable\n");
         return EFI_SECURITY_VIOLATION;
     }
 
     if ((OrgTimeStamp != NULL) && ((attrs & EFI_VARIABLE_APPEND_WRITE) == 0)) {
         if (auth_internal_compare_timestamp(&efi_auth->TimeStamp,
                                             OrgTimeStamp)) {
-            //
-            // TimeStamp check fail, suspicious replay attack, return EFI_SECURITY_VIOLATION.
-            //
+            WARNING("TimeStamp check fail, suspicious replay attack, return EFI_SECURITY_VIOLATION.");
             return EFI_SECURITY_VIOLATION;
         }
     }
@@ -1044,9 +1043,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     //
     if ((efi_auth->AuthInfo.Hdr.wCertificateType != WIN_CERT_TYPE_EFI_GUID) ||
         !compare_guid(&efi_auth->AuthInfo.CertType, &gEfiCertPkcs7Guid)) {
-        //
-        // Invalid AuthInfo type, return EFI_SECURITY_VIOLATION.
-        //
+        WARNING("Invalid AuthInfo type, return EFI_SECURITY_VIOLATION.\n");
         return EFI_SECURITY_VIOLATION;
     }
 
@@ -1650,7 +1647,6 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
             //status = delete_certs_from_db(name, guid, attrs);
         }
 
-        DDEBUG("status=0x%02lx\n", status);
         return status;
     }
 
