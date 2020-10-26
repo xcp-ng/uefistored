@@ -23,8 +23,9 @@ TEST_SRCS +=                            \
     src/test_common.c                   \
     src/test_xen_variable_server.c      \
     src/test_pk.c      \
-    src/test_storage.c                  \
     src/test_xapi.c
+
+    #src/test_storage.c                  \
 
 TEST_SRCS += munit/munit.c
 
@@ -90,3 +91,7 @@ print:
 .PHONY: fetch
 fetch:
 	git clone git@github.com:nemequ/munit.git
+
+.PHONY: run-test
+run-test:
+	$(MAKE) test && ./test --no-fork
