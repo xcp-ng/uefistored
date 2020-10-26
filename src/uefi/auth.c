@@ -1252,6 +1252,12 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                     cert_list->SignatureSize -
                                     (sizeof(EFI_SIGNATURE_DATA) - 1));
 
+        if (!TrustedCert) {
+            ERROR("No trusted cert found in signature data\n");
+            verify_status = false;
+            goto done;
+        }
+
         //
         // Verify Pkcs7 Signeddata via Pkcs7Verify library.
         //
