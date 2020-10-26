@@ -20,6 +20,11 @@ static variable_t variables[MAX_VAR_COUNT];
 static size_t total = 0;
 static uint64_t used = 0;
 
+bool static inline is_delete(uint32_t attrs, size_t datasz)
+{
+    return datasz == 0 || attrs == 0;
+}
+
 void storage_init(void)
 {
     storage_destroy();
@@ -323,9 +328,11 @@ EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid, c
 
     status = storage_set(name, guid, data, datasz, attrs);
 
-    if (status != EFI_SUCCESS)
+    /* If this variable was deleted, then we are done */
+    if (is_delete(attrs, datasz))
         return status;
 
+    /* Set the timestamp */
     status = storage_get_var_ptr(&var, name, guid);
 
     if (status != EFI_SUCCESS)
