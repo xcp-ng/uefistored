@@ -36,6 +36,28 @@ struct request {
     uint32_t attrs;
 };
 
+#if DEBUG
+static void debug_request(struct request *req)
+{
+    if (!req)
+        return;
+
+    DPRINTF("request: version=%u, command=0x%02x, name=", req->version, req->command);
+    dprint_name((UTF16*)req->name, req->namesz);
+    DPRINTF(", ");
+
+    if (req->command == COMMAND_SET_VARIABLE)
+        dprint_data(req->buffer, req->buffer_size);
+
+    DPRINTF(", guid=0x%02llx", *((unsigned long long*)&req->guid));
+
+    if (req->command == COMMAND_SET_VARIABLE)
+        DPRINTF(", attrs=0x%02x, ", req->attrs);
+}
+#else
+#define debug_request(...) do { } while ( 0 )
+#endif
+
 EFI_STATUS evaluate_attrs(uint32_t attrs)
 {
     /* No support for hardware error record */
@@ -154,6 +176,8 @@ static void handle_get_variable(void *comm_buf)
     variable_t *var;
 
     request = unserialize_get_request(comm_buf);
+
+    debug_request(request);
 
     ptr = comm_buf;
 
@@ -289,6 +313,8 @@ static void handle_set_variable(void *comm_buf)
 
     request = unserialize_set_request(comm_buf);
 
+    debug_request(request);
+
     if (!request) {
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         ERROR("Memory error\n");
@@ -399,6 +425,8 @@ static void handle_get_next_variable(void *comm_buf)
     struct request *request;
 
     request = unserialize_get_next_request(comm_buf);
+
+    debug_request(request);
 
     ptr = comm_buf;
 
