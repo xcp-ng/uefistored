@@ -439,104 +439,47 @@ bool NeedPhysicallyPresent(UTF16 *name, EFI_GUID *guid)
 /**
   Update platform mode.
 
-  @parm      Mode                    SETUP_MODE or USER_MODE.
+  @parm      mode                    SETUP_MODE or USER_MODE.
 
   @return EFI_INVALID_PARAMETER           Invalid parameter.
   @return EFI_SUCCESS                     Update platform mode successfully.
 
 **/
-EFI_STATUS UpdatePlatformMode(uint32_t Mode)
+EFI_STATUS update_platform_mode(uint32_t mode)
 {
     EFI_STATUS status;
-    void *data;
-    uint64_t data_size;
     uint8_t SecureBootMode;
-    uint8_t SecureBootEnable;
-    uint64_t Variabledata_size;
 
-    status = auth_internal_find_variable(L"SetupMode", &gEfiGlobalVariableGuid, &data, &data_size);
-    if (EFI_ERROR(status)) {
+    if (mode != USER_MODE && mode != SETUP_MODE) {
+        return EFI_NOT_FOUND;
+    }
+
+    setup_mode = (uint8_t)mode;
+
+    status = storage_set(L"SetupMode",  &gEfiGlobalVariableGuid,
+                         &setup_mode, sizeof(setup_mode),
+                         EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status) {
+        ERROR("Failed to set SetupMode\n");
         return status;
     }
 
-    //
-    // Update the value of SetupMode variable by a simple mem copy, this could avoid possible
-    // variable storage reclaim at runtime.
-    //
-    setup_mode = (uint8_t)Mode;
-    memcpy(data, &setup_mode, sizeof(uint8_t));
 
-    if (efi_at_runtime) {
-        //
-        // SecureBoot Variable indicates whether the platform firmware is operating
-        // in Secure boot mode (1) or not (0), so we should not change SecureBoot
-        // Variable in runtime.
-        //
-        return status;
-    }
-
-    //
-    // Check "SecureBoot" variable's existence.
-    // If it doesn't exist, firmware has no capability to perform driver signing verification,
-    // then set "SecureBoot" to 0.
-    //
-    status = auth_internal_find_variable(L"SecureBoot",
-                                         &gEfiGlobalVariableGuid, &data,
-                                         &data_size);
-    //
-    // If "SecureBoot" variable exists, then check "setup_mode" variable update.
-    // If "setup_mode" variable is USER_MODE, "SecureBoot" variable is set to 1.
-    // If "setup_mode" variable is SETUP_MODE, "SecureBoot" variable is set to 0.
-    //
-    if (EFI_ERROR(status)) {
-        SecureBootMode = SECURE_BOOT_MODE_DISABLE;
-    } else {
-        if (setup_mode == USER_MODE) {
-            SecureBootMode = SECURE_BOOT_MODE_ENABLE;
-        } else if (setup_mode == SETUP_MODE) {
-            SecureBootMode = SECURE_BOOT_MODE_DISABLE;
-        } else {
-            return EFI_NOT_FOUND;
-        }
-    }
+    SecureBootMode = (mode == USER_MODE) ? SECURE_BOOT_MODE_ENABLE
+                                         : SECURE_BOOT_MODE_DISABLE;
 
     status = storage_set(EFI_SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid,
                          &SecureBootMode, sizeof(uint8_t),
                          EFI_VARIABLE_RUNTIME_ACCESS |
                                  EFI_VARIABLE_BOOTSERVICE_ACCESS);
-    if (EFI_ERROR(status)) {
+
+    if (status) {
         return status;
     }
 
-    //
-    // Check "SecureBootEnable" variable's existence. It can enable/disable secure boot feature.
-    //
-    status = auth_internal_find_variable(EFI_SECURE_BOOT_ENABLE_NAME,
-                                         &gEfiSecureBootEnableDisableGuid,
-                                         &data, &data_size);
+    /* TODO: SecureBootEnable needs to be from XAPI */
 
-    if (SecureBootMode == SECURE_BOOT_MODE_ENABLE) {
-        //
-        // Create the "SecureBootEnable" variable as secure boot is enabled.
-        //
-        SecureBootEnable = SECURE_BOOT_ENABLE;
-        Variabledata_size = sizeof(SecureBootEnable);
-    } else {
-        //
-        // Delete the "SecureBootEnable" variable if this variable exist as "SecureBoot"
-        // variable is not in secure boot state.
-        //
-        if (EFI_ERROR(status)) {
-            return EFI_SUCCESS;
-        }
-        SecureBootEnable = SECURE_BOOT_DISABLE;
-        Variabledata_size = 0;
-    }
-
-    status = storage_set(
-            EFI_SECURE_BOOT_ENABLE_NAME, &gEfiSecureBootEnableDisableGuid,
-            &SecureBootEnable, Variabledata_size,
-            EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS);
     return status;
 }
 
@@ -1519,15 +1462,15 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
 
     if (!EFI_ERROR(status) && IsPk) {
         if (setup_mode == SETUP_MODE && !Del) {
-            //
-            // If enroll PK in setup mode, need change to user mode.
-            //
-            status = UpdatePlatformMode(USER_MODE);
+            /*
+             * If enroll PK in setup mode, need change to user mode.
+             */
+            status = update_platform_mode(USER_MODE);
         } else if (setup_mode == USER_MODE && Del) {
-            //
-            // If delete PK in user mode, need change to setup mode.
-            //
-            status = UpdatePlatformMode(SETUP_MODE);
+            /*
+             * If delete PK in user mode, need change to setup mode.
+             */
+            status = update_platform_mode(SETUP_MODE);
         }
     }
 
