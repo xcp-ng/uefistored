@@ -221,14 +221,22 @@ static MunitResult test_unauthorized_sig_fails(const MunitParameter params[], vo
 }
 
 MunitTest test_suite_tests[] = {
-    { (char*)"test_parsing_pkcs7", test_parsing_pkcs7, NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
-    { (char*)"test_parsing_pkcs7_top_cert", test_parsing_pkcs7_top_cert, NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
-    { (char*)"test_pk_new_cert_neq_dummy_cert", test_pk_new_cert_neq_dummy_cert, NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
-    { (char*)"test_pk_new_cert_eq_old_cert", test_pk_new_cert_eq_old_cert, NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
-    { (char*)"test_null_pk", test_null_pk, pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
-    { (char*)"test_new_pk", test_new_pk, pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
-    { (char*)"test_new_pk_to_old_fails", test_new_pk_to_old_fails, pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
-    { (char*)"test_unauthorized_sig_fails", test_unauthorized_sig_fails, pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_parsing_pkcs7", test_parsing_pkcs7,
+        NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_parsing_pkcs7_top_cert", test_parsing_pkcs7_top_cert,
+        NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_pk_new_cert_neq_dummy_cert", test_pk_new_cert_neq_dummy_cert,
+        NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_pk_new_cert_eq_old_cert", test_pk_new_cert_eq_old_cert,
+        NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_null_pk", test_null_pk,
+        pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_new_pk", test_new_pk,
+        pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_new_pk_to_old_fails", test_new_pk_to_old_fails,
+        pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { (char*)"test_unauthorized_sig_fails", test_unauthorized_sig_fails,
+        pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
     { 0 }
 };
 
