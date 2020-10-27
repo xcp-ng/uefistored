@@ -26,6 +26,7 @@
 #include <xen/memory.h>
 
 #include "common.h"
+#include "config.h"
 #include "storage.h"
 #include "uefi/authlib.h"
 #include "uefi/types.h"
@@ -948,8 +949,9 @@ int main(int argc, char **argv)
     if (ret < 0)
         goto err;
 
-    if ((status = auth_lib_initialize()) != EFI_SUCCESS)
-        DDEBUG("auth_lib_initialize() failed, status=%s (0x%lx)",
+    /* TODO: if this fails, should we die? (probably if SB is on) */
+    if ((status = auth_lib_initialize(PK_PATH)) != EFI_SUCCESS)
+        DDEBUG("auth_lib_initialization() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
 
     if (write_pid(xsh) < 0)

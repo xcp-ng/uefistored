@@ -788,7 +788,7 @@ void test_auth_DER_func(void)
 
 void test_auth_func(void)
 {
-    auth_lib_initialize();
+    auth_lib_initialize("data/certs/PK.auth");
     test_auth_DER_func();
     storage_deinit();
 }

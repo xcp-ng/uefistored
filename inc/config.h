@@ -16,4 +16,6 @@
 #error "Name and data max sizes are misconfigured!"
 #endif
 
+#define PK_PATH "/usr/share/varstored/PK.auth"
+
 #endif // __H_CONFIG_

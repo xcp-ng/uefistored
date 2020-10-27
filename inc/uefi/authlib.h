@@ -3,16 +3,14 @@
 
 #include "uefi/types.h"
 
-EFI_STATUS
-auth_lib_process_variable (
- UTF16         *VariableName,
- EFI_GUID       *VendorGuid,
- void           *Data,
- uint64_t          DataSize,
- uint32_t         Attributes
-  );
+EFI_STATUS auth_lib_process_variable (
+    UTF16 *VariableName,
+    EFI_GUID *VendorGuid,
+    void *Data,
+    uint64_t DataSize,
+    uint32_t Attributes
+);
 
-EFI_STATUS
-auth_lib_initialize (void);
+EFI_STATUS auth_lib_initialize (const char *fpath);
 
 #endif // __H_AUTHLIB_UEFI_

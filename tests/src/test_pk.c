@@ -112,7 +112,7 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
     EFI_STATUS status;
 
     storage_init();
-    auth_lib_initialize();
+    auth_lib_initialize("data/certs/PK.auth");
 
     status = auth_internal_find_variable(L"PK",
                                          &gEfiGlobalVariableGuid, (void*)&old_esl,
@@ -137,7 +137,7 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
 static void *pk_setup(const MunitParameter params[], void* user_data)
 {
     storage_init();
-    auth_lib_initialize();
+    auth_lib_initialize("data/certs/PK.auth");
     return NULL;
 }
 

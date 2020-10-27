@@ -22,8 +22,12 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
+#include <fcntl.h>
 #include <limits.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <openssl/sha.h>
 
@@ -38,9 +42,65 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "uefi/types.h"
 #include "uefi/utils.h"
 
-static uint8_t default_pk[] = {
-#include "default_pk.txt"
-};
+static int buf_from_fpath(const char *fpath, uint8_t **bytes)
+{
+    struct stat statbuf;
+    int fd, ret;
+
+    if (!bytes || !fpath)
+        return -1;
+
+    ret = stat(fpath, &statbuf);
+
+    if (ret < 0) {
+        ERROR("failed to stat %s\n", fpath);
+        return ret;
+    }
+
+    fd = open(fpath, O_RDONLY);
+
+    if (fd < 0) {
+        ERROR("failed to open %s\n", fpath);
+        return fd;
+    }
+
+    *bytes = malloc(statbuf.st_size);
+
+    if (!*bytes) {
+        ERROR("out of memory\n");
+        return -1;
+    }
+
+    return read(fd, *bytes, statbuf.st_size);
+}
+
+static EFI_STATUS initialize_pk(const char *pk_auth_file)
+{
+    uint8_t *pk;
+    int len;
+    EFI_STATUS status;
+
+    if ((len = buf_from_fpath(pk_auth_file, &pk)) < 0) {
+        ERROR("error opening file %s\n", pk_auth_file);
+        return EFI_DEVICE_ERROR;
+    }
+
+    status = auth_lib_process_variable(L"PK", &gEfiGlobalVariableGuid,
+                pk, len,
+                EFI_VARIABLE_NON_VOLATILE |
+                EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |
+                EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        ERROR("Failed to set PK, status=%s (0x%02lx)\n",
+                efi_status_str(status), status);
+        return EFI_DEVICE_ERROR;
+    }
+
+    free(pk);
+
+    return EFI_SUCCESS;
+}
 
 ///
 /// Global database array for scratch
@@ -66,7 +126,7 @@ SHA256_CTX *hash_ctx = NULL;
 
 **/
 EFI_STATUS
-auth_lib_initialize(void)
+auth_lib_initialize(const char *pk_auth_file)
 {
     EFI_STATUS status = EFI_SUCCESS;
     uint8_t secure_boot = 0;
@@ -92,15 +152,10 @@ auth_lib_initialize(void)
         return EFI_DEVICE_ERROR;
     }
 
-    status = auth_lib_process_variable(L"PK", &gEfiGlobalVariableGuid,
-                default_pk, sizeof(default_pk),
-                EFI_VARIABLE_NON_VOLATILE |
-                EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |
-                EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
+    status = initialize_pk(pk_auth_file);
 
-    if (status != EFI_NOT_FOUND && status != EFI_SUCCESS) {
-        ERROR("Failed to set PK, status=%s (0x%02lx)\n", efi_status_str(status), status);
-        return EFI_DEVICE_ERROR;
+    if (status != EFI_SUCCESS) {
+        return status;
     }
 
     status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &AuditMode,
