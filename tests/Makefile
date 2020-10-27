@@ -23,6 +23,7 @@ TEST_SRCS +=                            \
     src/test_common.c                   \
     src/test_xen_variable_server.c      \
     src/test_pk.c      \
+    src/test_kek.c      \
     src/test_xapi.c
 
     #src/test_storage.c                  \

@@ -5,6 +5,7 @@
 #include <fcntl.h>
 
 #include "storage.h"
+#include "test_common.h"
 #include "uefi/auth.h"
 #include "uefi/authlib.h"
 #include "uefi/guids.h"
@@ -24,31 +25,6 @@ static uint8_t DEFAULT_PK[] = {
                   EFI_VARIABLE_BOOTSERVICE_ACCESS | \
                   EFI_VARIABLE_NON_VOLATILE | \
                   EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
-
-int file_to_buf(const char *fpath, uint8_t *bytes, size_t n)
-{
-    struct stat statbuf;
-    int fd, ret;
-
-    ret = stat(fpath, &statbuf);
-
-    if (ret < 0)
-        return ret;
-
-    if (n < statbuf.st_size) {
-        fprintf(stderr, "%s:%d: buffer not big enough, %lu required\n", __func__, __LINE__, statbuf.st_size);
-        return -1;
-    }
-
-    fd = open(fpath, O_RDONLY);
-
-    if (fd < 0) {
-        fprintf(stderr, "%s:%d: failed to open %s\n", __func__, __LINE__, fpath);
-        return fd;
-    }
-
-    return read(fd, bytes, statbuf.st_size);
-}
 
 static inline EFI_STATUS util_set_pk(void *data, size_t n)
 {

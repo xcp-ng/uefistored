@@ -28,4 +28,6 @@ EFI_STATUS testutil_get_variable(UTF16 *variable, EFI_GUID *guid,
                                  uint32_t *attrs, size_t *size,
                                  void *data);
 
+int file_to_buf(const char *fpath, uint8_t *bytes, size_t n);
+
 #endif //  __H_COMMON_

@@ -1,5 +1,9 @@
 #include <wchar.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "test_common.h"
 
@@ -120,3 +124,29 @@ EFI_STATUS testutil_get_variable(UTF16 *variable, EFI_GUID *guid,
 
     return status;
 }
+
+int file_to_buf(const char *fpath, uint8_t *bytes, size_t n)
+{
+    struct stat statbuf;
+    int fd, ret;
+
+    ret = stat(fpath, &statbuf);
+
+    if (ret < 0)
+        return ret;
+
+    if (n < statbuf.st_size) {
+        fprintf(stderr, "%s:%d: buffer not big enough, %lu required\n", __func__, __LINE__, statbuf.st_size);
+        return -1;
+    }
+
+    fd = open(fpath, O_RDONLY);
+
+    if (fd < 0) {
+        fprintf(stderr, "%s:%d: failed to open %s\n", __func__, __LINE__, fpath);
+        return fd;
+    }
+
+    return read(fd, bytes, statbuf.st_size);
+}
+
