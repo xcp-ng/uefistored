@@ -220,7 +220,7 @@ static MunitResult test_unauthorized_sig_fails(const MunitParameter params[], vo
     return MUNIT_OK;
 }
 
-MunitTest test_suite_tests[] = {
+MunitTest pk_tests[] = {
     { (char*)"test_parsing_pkcs7", test_parsing_pkcs7,
         NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
     { (char*)"test_parsing_pkcs7_top_cert", test_parsing_pkcs7_top_cert,
@@ -238,12 +238,4 @@ MunitTest test_suite_tests[] = {
     { (char*)"test_unauthorized_sig_fails", test_unauthorized_sig_fails,
         pk_setup, pk_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
     { 0 }
-};
-
-const MunitSuite test_suite_pk = {
-  (char*) "pk/",
-  test_suite_tests,
-  NULL,
-  1,
-  MUNIT_SUITE_OPTION_NONE
 };
