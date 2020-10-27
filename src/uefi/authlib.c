@@ -216,23 +216,29 @@ auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
                                void *Data, uint64_t DataSize,
                                uint32_t Attributes)
 {
-  EFI_STATUS status = EFI_SUCCESS;
+  EFI_STATUS status;
 
   if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
-    status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, true);
-  } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
     DDEBUG("process_var_with_pk()\n");
-    // status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+    status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, true);
+  } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16(VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
+    DDEBUG("process_var_with_pk()\n");
+    status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, false);
   } else if (CompareGuid (VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
              ((strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
         DDEBUG("process_var_with_pk()\n");
         DDEBUG("ProcessVarWithKek()\n");
-        //status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
-        if (EFI_ERROR (status)) {
-            // status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
+
+#if 0
+        status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+        if (status != EFI_SUCCESS) {
+            status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
         }
+#else
+        status = EFI_DEVICE_ERROR;
+#endif
   } else {
     DDEBUG("process_variable\n");
     status = process_variable(VariableName, VendorGuid, Data, DataSize, Attributes);
