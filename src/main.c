@@ -27,19 +27,15 @@
 
 #include "common.h"
 #include "config.h"
+#include "log.h"
 #include "storage.h"
 #include "uefi/authlib.h"
 #include "uefi/types.h"
-#include "log.h"
 #include "xapi.h"
 #include "xen_variable_server.h"
 
 #define mb() asm volatile ("" : : : "memory")
 
-#define MAX_RESUME_FILE_SIZE (16 * PAGE_SIZE)
-
-#define IOREQ_SERVER_TYPE 0
-#define IOREQ_SERVER_FRAME_NR 2
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
 extern FILE *input_snapshot_fd;
