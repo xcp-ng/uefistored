@@ -2,8 +2,9 @@
 
 GUEST=$1
 
-setup_file() {
-    scp ${file} root@$GUEST:/home/test/
+die() {
+    echo "$@" >&2
+    exit 1
 }
 
 do_ssh() {
@@ -16,6 +17,7 @@ test_setting_pk() {
     expected=$2
 
     do_ssh chattr -i /sys/firmware/efi/efivars/PK-*
+    do_ssh mkdir -p $(dirname ${auth_file})
     scp ${auth_file} root@${GUEST}:${auth_file}
     do_ssh efi-updatevar -f ${auth_file} PK
 
