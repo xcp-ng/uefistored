@@ -15,3 +15,8 @@ libs/kissdb
 scripts/raw.dat
 tests/fuzz/bin/
 tests/munit
+scripts/certs/*.esl
+scripts/certs/*.auth
+scripts/certs/*.crt
+scripts/certs/*.der
+scripts/certs/*.key
