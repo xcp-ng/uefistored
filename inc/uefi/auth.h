@@ -9,9 +9,6 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid,
                             void *data, uint64_t data_size,
                             uint32_t attrs);
 
-EFI_STATUS
-CleanCertsFromDb(void);
-
 EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid,
                                            void **data, uint64_t *data_size);
 

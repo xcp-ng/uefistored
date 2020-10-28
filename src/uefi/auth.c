@@ -474,10 +474,6 @@ EFI_STATUS update_platform_mode(uint32_t mode)
                          EFI_VARIABLE_RUNTIME_ACCESS |
                                  EFI_VARIABLE_BOOTSERVICE_ACCESS);
 
-    if (status) {
-        return status;
-    }
-
     /* TODO: SecureBootEnable needs to be from XAPI */
 
     return status;
@@ -495,7 +491,7 @@ EFI_STATUS update_platform_mode(uint32_t mode)
   @return EFI_SUCCESS                     Passed signature list format check successfully.
 
 **/
-EFI_STATUS CheckSignatureListFormat(UTF16 *name, EFI_GUID *guid, void *data,
+EFI_STATUS check_signature_list_format(UTF16 *name, EFI_GUID *guid, void *data,
                                     uint64_t data_size)
 {
     EFI_SIGNATURE_LIST *SigList;
@@ -935,8 +931,8 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     /*
      * Verify Pkcs7 SignedData.
      */
-    ret = pkcs7_verify(pkcs7, pkcs7_get_top_cert(pkcs7),
-                               new_data, new_data_size);
+    ret = pkcs7_verify(pkcs7, pkcs7_get_top_cert(pkcs7), new_data,
+                       new_data_size);
 
     PKCS7_free(pkcs7);
 
@@ -958,11 +954,11 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
   @parm  data_size                    Size of data found. If size is less than the
                                           data, this value contains the required size.
   @parm  attrs                  Attribute value of the variable.
-  @parm  AuthVarType                 Verify against PK, KEK database, private database or certificate in data payload.
-  @parm  OrgTimeStamp                Pointer to original time stamp,
+  @parm  auth_var_type                 Verify against PK, KEK database, private database or certificate in data payload.
+  @parm  org_time_stamp                Pointer to original time stamp,
                                           original variable is not found if NULL.
-  @parm  VarPayloadPtr              Pointer to variable payload address.
-  @parm  VarPayloadSize             Pointer to variable payload size.
+  @parm  var_payload_ptr              Pointer to variable payload address.
+  @parm  var_payload_size             Pointer to variable payload size.
 
   @return EFI_INVALID_PARAMETER           Invalid parameter.
   @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
@@ -975,14 +971,14 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 EFI_STATUS
 VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                        uint64_t data_size, uint32_t attrs,
-                       AUTHVAR_TYPE AuthVarType, EFI_TIME *OrgTimeStamp,
-                       uint8_t **VarPayloadPtr, uint64_t *VarPayloadSize)
+                       auth_var_t auth_var_type, EFI_TIME *org_time_stamp,
+                       uint8_t **var_payload_ptr, uint64_t *var_payload_size)
 {
     EFI_VARIABLE_AUTHENTICATION_2 *efi_auth = NULL;
     uint8_t *sig_data;
     uint32_t sig_data_size;
-    uint8_t *PayloadPtr;
-    uint64_t PayloadSize;
+    uint8_t *payload_ptr;
+    uint64_t payload_size;
     bool verify_status = false;
     EFI_STATUS status;
     EFI_SIGNATURE_LIST *cert_list;
@@ -995,14 +991,13 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     uint8_t *Buffer;
     uint64_t Length;
     X509 *top_cert = NULL;
-    X509 *TrustedCert;
-    STACK_OF(X509) *SignerCerts = NULL;
-    uint64_t CertStackSize;
+    X509 *trusted_cert;
+    STACK_OF(X509) *signer_certs = NULL;
     uint8_t digest[SHA256_DIGEST_SIZE];
 
     //
     // 1. top_cert is the top-level issuer certificate in signature Signer Cert Chain
-    // 2. TrustedCert is the certificate which firmware trusts. It could be saved in protected
+    // 2. trusted_cert is the certificate which firmware trusts. It could be saved in protected
     //     storage or PK payload on PK init
     //
 
@@ -1029,9 +1024,9 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         return EFI_SECURITY_VIOLATION;
     }
 
-    if ((OrgTimeStamp != NULL) && ((attrs & EFI_VARIABLE_APPEND_WRITE) == 0)) {
+    if ((org_time_stamp != NULL) && ((attrs & EFI_VARIABLE_APPEND_WRITE) == 0)) {
         if (auth_internal_compare_timestamp(&efi_auth->TimeStamp,
-                                            OrgTimeStamp)) {
+                                            org_time_stamp)) {
             WARNING("TimeStamp check fail, suspicious replay attack, return EFI_SECURITY_VIOLATION.");
             return EFI_SECURITY_VIOLATION;
         }
@@ -1055,12 +1050,12 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     sig_data_size = efi_auth->AuthInfo.Hdr.dwLength -
                   (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
 
-    uint8_t *WrapData;
-    uint32_t WrapDataSize;
+    uint8_t *wrap_data;
+    uint32_t wrap_data_size;
 
-    WrapData = wrap_with_content_info(sig_data, sig_data_size, &WrapDataSize);
+    wrap_data = wrap_with_content_info(sig_data, sig_data_size, &wrap_data_size);
 
-    if (!WrapData) {
+    if (!wrap_data) {
         ERROR("failed to wrap with ContentInfo\n");
         return EFI_DEVICE_ERROR;
     }
@@ -1080,9 +1075,9 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     //    This field has the fixed offset (+13) and be calculated based on two bytes of length encoding.
     //
     if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) {
-        if (WrapDataSize >= (32 + sizeof(mSha256OidValue))) {
-            if (((*(WrapData + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
-                (memcmp(WrapData + 32, &mSha256OidValue,
+        if (wrap_data_size >= (32 + sizeof(mSha256OidValue))) {
+            if (((*(wrap_data + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
+                (memcmp(wrap_data + 32, &mSha256OidValue,
                         sizeof(mSha256OidValue)) != 0)) {
                 return EFI_SECURITY_VIOLATION;
             }
@@ -1092,8 +1087,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     //
     // Find out the new data payload which follows Pkcs7 Signeddata directly.
     //
-    PayloadPtr = sig_data + sig_data_size;
-    PayloadSize =
+    payload_ptr = sig_data + sig_data_size;
+    payload_size =
             data_size - OFFSET_OF_AUTHINFO2_CERT_DATA - (uint64_t)sig_data_size;
 
     /*
@@ -1102,7 +1097,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
      * EFI_VARIABLE_AUTHENTICATION_2 descriptor followed by the variable's new value
      * i.e. (name, guid, attrs, TimeStamp, data).
      */
-    new_data_size = PayloadSize + sizeof(EFI_TIME) + sizeof(uint32_t) +
+    new_data_size = payload_size + sizeof(EFI_TIME) + sizeof(uint32_t) +
                    sizeof(EFI_GUID) + strsize16(name) - sizeof(UTF16);
     new_data = malloc(new_data_size);
 
@@ -1127,12 +1122,12 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     memcpy(Buffer, &efi_auth->TimeStamp, Length);
     Buffer += Length;
 
-    memcpy(Buffer, PayloadPtr, PayloadSize);
+    memcpy(Buffer, payload_ptr, payload_size);
 
-    if (AuthVarType == AuthVarTypePk) {
+    if (auth_var_type == AUTH_VAR_TYPE_PK) {
         verify_status = verify_pk(efi_auth, sig_data, sig_data_size,
                                   new_data, new_data_size);
-    } else if (AuthVarType == AuthVarTypeKek) {
+    } else if (auth_var_type == AUTH_VAR_TYPE_KEK) {
         //
         // Get KEK database from variable.
         //
@@ -1164,20 +1159,15 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                     /*
                      * Iterate each Signature data Node within this cert_list for a verify
                      */
-                    TrustedCert = X509_from_buf(cert->SignatureData,
+                    trusted_cert = X509_from_buf(cert->SignatureData,
                                                 cert_list->SignatureSize -
                                                 (sizeof(EFI_SIGNATURE_DATA) - 1));
-
-                    /*
-                    TrustedCertSize = cert_list->SignatureSize -
-                                      (sizeof(EFI_SIGNATURE_DATA) - 1);
-                                      */
 
                     //
                     // Verify Pkcs7 Signeddata via Pkcs7Verify library.
                     //
                     verify_status =
-                            Pkcs7Verify(sig_data, sig_data_size, TrustedCert,
+                            Pkcs7Verify(sig_data, sig_data_size, trusted_cert,
                                         new_data, new_data_size);
                     if (verify_status) {
                         goto done;
@@ -1186,31 +1176,29 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                                   cert_list->SignatureSize);
                 }
             }
+
             kek_data_size -= cert_list->SignatureListSize;
             cert_list = (EFI_SIGNATURE_LIST *)((uint8_t *)cert_list +
                                               cert_list->SignatureListSize);
         }
-    } else if (AuthVarType == AuthVarTypePriv) {
-        (void)CertStackSize;
-        (void)digest;
-
+    } else if (auth_var_type == AUTH_VAR_TYPE_PRIV) {
         PKCS7 *pkcs7;
 
-        status = pkcs7_get_signers(WrapData, WrapDataSize, &pkcs7, &SignerCerts);
+        status = pkcs7_get_signers(wrap_data, wrap_data_size, &pkcs7, &signer_certs);
 
         if (status != EFI_SUCCESS) {
             verify_status = false;
             goto done;
         }
 
-        if (sk_X509_num(SignerCerts) == 0) {
+        if (sk_X509_num(signer_certs) == 0) {
             verify_status = false;
             goto done;
         }
 
-        top_cert = sk_X509_value(SignerCerts, sk_X509_num(SignerCerts) - 1);
+        top_cert = sk_X509_value(signer_certs, sk_X509_num(signer_certs) - 1);
 
-        status = sha256_priv_sig(SignerCerts, top_cert, digest);
+        status = sha256_priv_sig(signer_certs, top_cert, digest);
         if (status != EFI_SUCCESS) {
             goto done;
         }
@@ -1238,21 +1226,17 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         if (!verify_status) {
             goto done;
         }
-    } else if (AuthVarType == AuthVarTypePayload) {
-        cert_list = (EFI_SIGNATURE_LIST *)PayloadPtr;
+    } else if (auth_var_type == AUTH_VAR_TYPE_PAYLOAD) {
+        cert_list = (EFI_SIGNATURE_LIST *)payload_ptr;
         cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert_list +
                                       sizeof(EFI_SIGNATURE_LIST) +
                                       cert_list->SignatureHeaderSize);
-        /*
-         * TrustedCert = (X509*)cert->SignatureData;
-         * TrustedCertSize =
-         *        cert_list->SignatureSize - (sizeof(EFI_SIGNATURE_DATA) - 1);
-        */
-        TrustedCert = X509_from_buf(cert->SignatureData,
+
+        trusted_cert = X509_from_buf(cert->SignatureData,
                                     cert_list->SignatureSize -
                                     (sizeof(EFI_SIGNATURE_DATA) - 1));
 
-        if (!TrustedCert) {
+        if (!trusted_cert) {
             ERROR("No trusted cert found in signature data\n");
             verify_status = false;
             goto done;
@@ -1261,7 +1245,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         //
         // Verify Pkcs7 Signeddata via Pkcs7Verify library.
         //
-        verify_status = Pkcs7Verify(sig_data, sig_data_size, TrustedCert,
+        verify_status = Pkcs7Verify(sig_data, sig_data_size, trusted_cert,
                                    new_data, new_data_size);
     } else {
         free(new_data);
@@ -1271,21 +1255,21 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
 done:
     free(new_data);
 
-    if (AuthVarType == AuthVarTypePk || AuthVarType == AuthVarTypePriv) {
-        sk_X509_free(SignerCerts);
+    if (auth_var_type == AUTH_VAR_TYPE_PK || auth_var_type == AUTH_VAR_TYPE_PRIV) {
+        sk_X509_free(signer_certs);
     }
 
     if (!verify_status) {
         return EFI_SECURITY_VIOLATION;
     }
 
-    status = CheckSignatureListFormat(name, guid, PayloadPtr, PayloadSize);
-    if (EFI_ERROR(status)) {
+    status = check_signature_list_format(name, guid, payload_ptr, payload_size);
+    if (status != EFI_SUCCESS) {
         return status;
     }
 
-    *VarPayloadPtr = PayloadPtr;
-    *VarPayloadSize = PayloadSize;
+    *var_payload_ptr = payload_ptr;
+    *var_payload_size = payload_size;
 
     return EFI_SUCCESS;
 }
@@ -1305,8 +1289,8 @@ done:
   @parm  data_size                    Size of data found. If size is less than the
                                           data, this value contains the required size.
   @parm  attrs                  Attribute value of the variable.
-  @parm  AuthVarType                 Verify against PK, KEK database, private database or certificate in data payload.
-  @parm  VarDel                      Delete the variable or not.
+  @parm  auth_var_type                 Verify against PK, KEK database, private database or certificate in data payload.
+  @parm  var_del                      Delete the variable or not.
 
   @return EFI_INVALID_PARAMETER           Invalid parameter.
   @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
@@ -1319,14 +1303,14 @@ done:
 EFI_STATUS
 verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
                                      uint64_t data_size, uint32_t attrs,
-                                     AUTHVAR_TYPE AuthVarType, bool *VarDel)
+                                     auth_var_t auth_var_type, bool *var_del)
 {
     EFI_STATUS status;
     EFI_STATUS FindStatus;
-    uint8_t *PayloadPtr;
-    uint64_t PayloadSize;
+    uint8_t *payload_ptr;
+    uint64_t payload_size;
     EFI_VARIABLE_AUTHENTICATION_2 *CertData;
-    bool IsDel;
+    bool is_del;
     EFI_TIME *TimeStamp = NULL;
     variable_t *var = NULL;
 
@@ -1339,20 +1323,20 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     status = VerifyTimeBasedPayload(
-            name, guid, data, data_size, attrs, AuthVarType,
+            name, guid, data, data_size, attrs, auth_var_type,
             TimeStamp,
-            &PayloadPtr, &PayloadSize);
+            &payload_ptr, &payload_size);
 
     if (EFI_ERROR(status)) {
         DDEBUG("error=%s (0x%02lx)\n", efi_status_str(status), status); 
         return status;
     }
 
-    if (!EFI_ERROR(FindStatus) && (PayloadSize == 0) &&
+    if (!EFI_ERROR(FindStatus) && (payload_size == 0) &&
         ((attrs & EFI_VARIABLE_APPEND_WRITE) == 0)) {
-        IsDel = true;
+        is_del = true;
     } else {
-        IsDel = false;
+        is_del = false;
     }
 
     CertData = (EFI_VARIABLE_AUTHENTICATION_2 *)data;
@@ -1361,21 +1345,21 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     // Final step: Update/Append Variable if it pass Pkcs7Verify
     //
     status = auth_internal_update_variable_with_timestamp(
-            name, guid, PayloadPtr, PayloadSize, attrs, &CertData->TimeStamp);
+            name, guid, payload_ptr, payload_size, attrs, &CertData->TimeStamp);
 
     //
     // Delete signer's certificates when delete the common authenticated variable.
     //
-    if (IsDel && AuthVarType == AuthVarTypePriv && !EFI_ERROR(status)) {
+    if (is_del && auth_var_type == AUTH_VAR_TYPE_PRIV && !EFI_ERROR(status)) {
 
         //status = delete_certs_from_db(name, guid, attrs);
     }
 
-    if (VarDel != NULL) {
-        if (IsDel && !EFI_ERROR(status)) {
-            *VarDel = true;
+    if (var_del != NULL) {
+        if (is_del && !EFI_ERROR(status)) {
+            *var_del = true;
         } else {
-            *VarDel = false;
+            *var_del = false;
         }
     }
 
@@ -1412,7 +1396,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
     EFI_STATUS status;
     bool Del;
     uint8_t *Payload;
-    uint64_t PayloadSize;
+    uint64_t payload_size;
 
     if ((attrs & EFI_VARIABLE_NON_VOLATILE) == 0 ||
         (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
@@ -1430,20 +1414,20 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
 
     if (setup_mode == SETUP_MODE && !IsPk) {
         Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
-        PayloadSize = data_size - AUTHINFO2_SIZE(data);
+        payload_size = data_size - AUTHINFO2_SIZE(data);
 
-        if (PayloadSize == 0) {
+        if (payload_size == 0) {
             Del = true;
         }
 
-        status = CheckSignatureListFormat(name, guid, Payload, PayloadSize);
+        status = check_signature_list_format(name, guid, Payload, payload_size);
 
         if (EFI_ERROR(status)) {
             return status;
         }
 
         status = auth_internal_update_variable_with_timestamp(
-                name, guid, Payload, PayloadSize, attrs,
+                name, guid, Payload, payload_size, attrs,
                 &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
 
         if (EFI_ERROR(status)) {
@@ -1454,13 +1438,13 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
          * Verify against X509 Cert in PK database.
          */
         status = verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AuthVarTypePk, &Del);
+                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PK, &Del);
     } else {
         /*
          * Verify against the certificate in data payload.
          */
         status = verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AuthVarTypePayload, &Del);
+                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PAYLOAD, &Del);
     }
 
     if (!EFI_ERROR(status) && IsPk) {
@@ -1508,7 +1492,7 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
 {
     EFI_STATUS status;
     uint8_t *Payload;
-    uint64_t PayloadSize;
+    uint64_t payload_size;
 
     if ((attrs & EFI_VARIABLE_NON_VOLATILE) == 0 ||
         (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
@@ -1526,21 +1510,21 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
         // Time-based, verify against X509 Cert KEK.
         //
         return verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AuthVarTypeKek, NULL);
+                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_KEK, NULL);
     } else {
         //
         // If in setup mode or custom secure boot mode, no authentication needed.
         //
         Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
-        PayloadSize = data_size - AUTHINFO2_SIZE(data);
+        payload_size = data_size - AUTHINFO2_SIZE(data);
 
-        status = CheckSignatureListFormat(name, guid, Payload, PayloadSize);
+        status = check_signature_list_format(name, guid, Payload, payload_size);
         if (EFI_ERROR(status)) {
             return status;
         }
 
         status = auth_internal_update_variable_with_timestamp(
-                name, guid, Payload, PayloadSize, attrs,
+                name, guid, Payload, payload_size, attrs,
                 &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
         if (EFI_ERROR(status)) {
             return status;
@@ -1566,7 +1550,7 @@ bool is_delete_auth_variable(uint32_t Orgattrs, void *data, uint64_t data_size,
                              uint32_t attrs)
 {
     bool Del;
-    uint64_t PayloadSize;
+    uint64_t payload_size;
 
     Del = false;
 
@@ -1580,13 +1564,13 @@ bool is_delete_auth_variable(uint32_t Orgattrs, void *data, uint64_t data_size,
         ((attrs & (EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS |
                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) != 0)) {
         if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) != 0) {
-            PayloadSize = data_size - AUTHINFO2_SIZE(data);
-            if (PayloadSize == 0) {
+            payload_size = data_size - AUTHINFO2_SIZE(data);
+            if (payload_size == 0) {
                 Del = true;
             }
         } else {
-            PayloadSize = data_size - AUTHINFO_SIZE;
-            if (PayloadSize == 0) {
+            payload_size = data_size - AUTHINFO_SIZE;
+            if (payload_size == 0) {
                 Del = true;
             }
         }
@@ -1667,7 +1651,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
          * Process Time-based Authenticated variable.
          */
         return verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AuthVarTypePriv, NULL);
+                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PRIV, NULL);
     }
 
     if ((org_variable_info.Data != NULL) &&
@@ -1684,103 +1668,4 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
      * Not authenticated variable, just update variable as usual.
      */
     return storage_set(name, guid, data, data_size, attrs);
-}
-
-/**
-  Clean up signer's certificates for common authenticated variable
-  by corresponding name and guid from "certdb".
-  System may break down during Timebased Variable update & certdb update,
-  make them inconsistent,  this function is called in AuthVariable Init
-  to ensure consistency.
-
-  @return  EFI_NOT_FOUND         Fail to find variable "certdb".
-  @return  EFI_OUT_OF_RESOURCES  The operation is failed due to lack of resources.
-  @return  EFI_SUCCESS           The operation is completed successfully.
-
-**/
-EFI_STATUS
-CleanCertsFromDb(void)
-{
-    uint32_t Offset;
-    AUTH_CERT_DB_DATA *Ptr;
-    uint32_t NameSize;
-    uint32_t NodeSize;
-    UTF16 *name;
-    EFI_STATUS status;
-    bool CertCleaned;
-    uint8_t *data;
-    uint64_t data_size;
-    EFI_GUID AuthVarGuid;
-    AUTH_VARIABLE_INFO AuthVariableInfo;
-
-    status = EFI_SUCCESS;
-
-    //
-    // Get corresponding certificates by guid and name.
-    //
-    do {
-        CertCleaned = false;
-
-        //
-        // Get latest variable "certdb"
-        //
-        status = auth_internal_find_variable(EFI_CERT_DB_NAME, &gEfiCertDbGuid,
-                                             (void **)&data, &data_size);
-        if (EFI_ERROR(status)) {
-            return status;
-        }
-
-        if ((data_size == 0) || (data == NULL)) {
-            return EFI_NOT_FOUND;
-        }
-
-        Offset = sizeof(uint32_t);
-
-        while (Offset < (uint32_t)data_size) {
-            Ptr = (AUTH_CERT_DB_DATA *)(data + Offset);
-            NodeSize = ReadUnaligned32(&Ptr->CertNodeSize);
-            NameSize = ReadUnaligned32(&Ptr->NameSize);
-
-            //
-            // Get VarName tailed with '\0'
-            //
-            name = malloc((NameSize + 1) * sizeof(UTF16));
-            if (name == NULL) {
-                return EFI_OUT_OF_RESOURCES;
-            }
-            memcpy(name, (uint8_t *)Ptr + sizeof(AUTH_CERT_DB_DATA),
-                   NameSize * sizeof(UTF16));
-            //
-            // Keep VarGuid  aligned
-            //
-            memcpy(&AuthVarGuid, &Ptr->VendorGuid, sizeof(EFI_GUID));
-
-            //
-            // Find corresponding time auth variable
-            //
-            memset(&AuthVariableInfo, 0, sizeof(AuthVariableInfo));
-
-            variable_t var;
-
-            status = storage_get_var(&var, name, &AuthVarGuid);
-
-            if (EFI_ERROR(status) ||
-                (var.attrs &
-                 EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
-                //status = delete_certs_from_db(name, &AuthVarGuid, var.attrs);
-                CertCleaned = true;
-
-                DDEBUG("Recovery!! Cert for Auth Variable is removed for consistency\n");
-                free(name);
-                variable_destroy_noalloc(&var);
-                break;
-            }
-
-            variable_destroy_noalloc(&var);
-            free(name);
-            Offset = Offset + NodeSize;
-        }
-    } while (CertCleaned);
-
-    return status;
 }

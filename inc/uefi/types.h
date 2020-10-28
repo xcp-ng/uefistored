@@ -293,13 +293,13 @@ typedef struct {
 } AUTH_VARIABLE_INFO;
 
 typedef enum {
-    AuthVarTypePk,
-    AuthVarTypeKek,
-    AuthVarTypePriv,
-    AuthVarTypePayload
-} AUTHVAR_TYPE;
+    AUTH_VAR_TYPE_PK,
+    AUTH_VAR_TYPE_KEK,
+    AUTH_VAR_TYPE_PRIV,
+    AUTH_VAR_TYPE_PAYLOAD,
+} AUTH_VAR_TYPE;
 
-typedef AUTHVAR_TYPE auth_var_t;
+typedef AUTH_VAR_TYPE auth_var_t;
 
 ///
 ///  "certdb" variable stores the signer's certificates for non PK/KEK/DB/DBX
