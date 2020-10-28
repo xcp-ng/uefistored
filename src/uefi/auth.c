@@ -896,6 +896,48 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     return EFI_SUCCESS;
 }
 
+/**
+ * Verify that the PKCS7 SignedData signature is from the
+ * X509 certificate in the payload.
+ *
+ * @return true if payload is signed by payload's X509, otherwise false.
+ */
+static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
+                           uint8_t *payload_ptr,
+                           uint8_t *new_data, uint64_t new_data_size)
+{
+    X509 *trusted_cert;
+    EFI_SIGNATURE_LIST *cert_list;
+    EFI_SIGNATURE_DATA *cert;
+    PKCS7 *pkcs7;
+
+    DDEBUG("verifying payload\n");
+
+    if (!efi_auth || !payload_ptr) {
+        ERROR("verify_payload() passed null ptr\n");
+        return false;
+    }
+
+    cert_list = (EFI_SIGNATURE_LIST *)payload_ptr;
+    cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert_list +
+                                  sizeof(EFI_SIGNATURE_LIST) +
+                                  cert_list->SignatureHeaderSize);
+
+    trusted_cert = X509_from_buf(cert->SignatureData,
+                                cert_list->SignatureSize -
+                                (sizeof(EFI_SIGNATURE_DATA) - 1));
+
+    if (!trusted_cert)
+        return false;
+
+    pkcs7 = pkcs7_from_auth(efi_auth);
+
+    if (!pkcs7)
+        return false;
+
+    return pkcs7_verify(pkcs7, trusted_cert, new_data, new_data_size);
+}
+
 static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                uint8_t *sig_data, uint32_t sig_data_size,
                uint8_t *new_data, uint64_t new_data_size)
@@ -1127,6 +1169,8 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     if (auth_var_type == AUTH_VAR_TYPE_PK) {
         verify_status = verify_pk(efi_auth, sig_data, sig_data_size,
                                   new_data, new_data_size);
+    } else if (auth_var_type == AUTH_VAR_TYPE_PAYLOAD) {
+        verify_status = verify_payload(efi_auth, payload_ptr, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_KEK) {
         //
         // Get KEK database from variable.
@@ -1226,27 +1270,6 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         if (!verify_status) {
             goto done;
         }
-    } else if (auth_var_type == AUTH_VAR_TYPE_PAYLOAD) {
-        cert_list = (EFI_SIGNATURE_LIST *)payload_ptr;
-        cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert_list +
-                                      sizeof(EFI_SIGNATURE_LIST) +
-                                      cert_list->SignatureHeaderSize);
-
-        trusted_cert = X509_from_buf(cert->SignatureData,
-                                    cert_list->SignatureSize -
-                                    (sizeof(EFI_SIGNATURE_DATA) - 1));
-
-        if (!trusted_cert) {
-            ERROR("No trusted cert found in signature data\n");
-            verify_status = false;
-            goto done;
-        }
-
-        //
-        // Verify Pkcs7 Signeddata via Pkcs7Verify library.
-        //
-        verify_status = Pkcs7Verify(sig_data, sig_data_size, trusted_cert,
-                                   new_data, new_data_size);
     } else {
         free(new_data);
         return EFI_SECURITY_VIOLATION;
