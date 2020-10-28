@@ -939,8 +939,8 @@ static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 }
 
 static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
-               uint8_t *sig_data, uint32_t sig_data_size,
-               uint8_t *new_data, uint64_t new_data_size)
+                      uint8_t *sig_data, uint32_t sig_data_size,
+                      uint8_t *new_data, uint64_t new_data_size)
 {
     bool ret;
     uint8_t *top_cert_der;
@@ -967,6 +967,8 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     if (status != EFI_SUCCESS)
         return false;
 
+    /* The new PK must be signed with the same certificate as the old PK,
+     * no chaining allowed so just use the top cert */
     if (!cert_equals_esl(top_cert_der, top_cert_der_size, old_esl))
         return false;
 
@@ -1085,7 +1087,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     //
-    // Find out Pkcs7 Signeddata which follows the EFI_VARIABLE_AUTHENTICATION_2 descriptor.
+    // Find out Pkcs7 SignedData which follows the EFI_VARIABLE_AUTHENTICATION_2 descriptor.
     // AuthInfo.Hdr.dwLength is the length of the entire certificate, including the length of the header.
     //
     sig_data = efi_auth->AuthInfo.CertData;
@@ -1103,7 +1105,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     //
-    // Signeddata.digestAlgorithms shall contain the digest algorithm used when preparing the
+    // SignedData.digestAlgorithms shall contain the digest algorithm used when preparing the
     // signature. Only a digest algorithm of SHA-256 is accepted.
     //
     //    According to PKCS#7 Definition:
@@ -1127,7 +1129,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     //
-    // Find out the new data payload which follows Pkcs7 Signeddata directly.
+    // Find out the new data payload which follows Pkcs7 SignedData directly.
     //
     payload_ptr = sig_data + sig_data_size;
     payload_size =
@@ -1184,7 +1186,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
         }
 
         //
-        // Ready to verify Pkcs7 Signeddata. Go through KEK Signature database to find out X.509 cert_list.
+        // Ready to verify Pkcs7 SignedData. Go through KEK Signature database to find out X.509 cert_list.
         //
         kek_data_size = (uint32_t)data_size;
         cert_list = (EFI_SIGNATURE_LIST *)data;
@@ -1208,7 +1210,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
                                                 (sizeof(EFI_SIGNATURE_DATA) - 1));
 
                     //
-                    // Verify Pkcs7 Signeddata via Pkcs7Verify library.
+                    // Verify Pkcs7 SignedData via Pkcs7Verify library.
                     //
                     verify_status =
                             Pkcs7Verify(sig_data, sig_data_size, trusted_cert,
@@ -1379,7 +1381,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     }
 
     if (var_del != NULL) {
-        if (is_del && !EFI_ERROR(status)) {
+        if (is_del && (status == EFI_SUCCESS)) {
             *var_del = true;
         } else {
             *var_del = false;
@@ -1418,7 +1420,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
 {
     EFI_STATUS status;
     bool Del;
-    uint8_t *Payload;
+    uint8_t *payload;
     uint64_t payload_size;
 
     if ((attrs & EFI_VARIABLE_NON_VOLATILE) == 0 ||
@@ -1436,41 +1438,40 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
     Del = false;
 
     if (setup_mode == SETUP_MODE && !IsPk) {
-        Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
-        payload_size = data_size - AUTHINFO2_SIZE(data);
+        if (IsPk) {
+            status = verify_time_based_payload_and_update(
+                    name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PAYLOAD, &Del);
+        } else {
+            payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
+            payload_size = data_size - AUTHINFO2_SIZE(data);
 
-        if (payload_size == 0) {
-            Del = true;
+            if (payload_size == 0) {
+                Del = true;
+            }
+
+            status = check_signature_list_format(name, guid, payload, payload_size);
+
+            if (status) {
+                return status;
+            }
+
+            status = auth_internal_update_variable_with_timestamp(
+                    name, guid, payload, payload_size, attrs,
+                    &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
+
+            if (status) {
+                return status;
+            }
         }
-
-        status = check_signature_list_format(name, guid, Payload, payload_size);
-
-        if (EFI_ERROR(status)) {
-            return status;
-        }
-
-        status = auth_internal_update_variable_with_timestamp(
-                name, guid, Payload, payload_size, attrs,
-                &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
-
-        if (EFI_ERROR(status)) {
-            return status;
-        }
-    } else if (setup_mode == USER_MODE) {
+    } else {
         /*
          * Verify against X509 Cert in PK database.
          */
         status = verify_time_based_payload_and_update(
                 name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PK, &Del);
-    } else {
-        /*
-         * Verify against the certificate in data payload.
-         */
-        status = verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PAYLOAD, &Del);
     }
 
-    if (!EFI_ERROR(status) && IsPk) {
+    if (status == EFI_SUCCESS && IsPk) {
         if (setup_mode == SETUP_MODE && !Del) {
             /*
              * If enroll PK in setup mode, need change to user mode.
@@ -1514,7 +1515,7 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
                              uint64_t data_size, uint32_t attrs)
 {
     EFI_STATUS status;
-    uint8_t *Payload;
+    uint8_t *payload;
     uint64_t payload_size;
 
     if ((attrs & EFI_VARIABLE_NON_VOLATILE) == 0 ||
@@ -1538,18 +1539,18 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
         //
         // If in setup mode or custom secure boot mode, no authentication needed.
         //
-        Payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
+        payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         payload_size = data_size - AUTHINFO2_SIZE(data);
 
-        status = check_signature_list_format(name, guid, Payload, payload_size);
-        if (EFI_ERROR(status)) {
+        status = check_signature_list_format(name, guid, payload, payload_size);
+        if (status != EFI_SUCCESS) {
             return status;
         }
 
         status = auth_internal_update_variable_with_timestamp(
-                name, guid, Payload, payload_size, attrs,
+                name, guid, payload, payload_size, attrs,
                 &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
-        if (EFI_ERROR(status)) {
+        if (status != EFI_SUCCESS) {
             return status;
         }
     }
