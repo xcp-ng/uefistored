@@ -11,6 +11,7 @@ EFI_STATUS auth_lib_process_variable (
     uint32_t Attributes
 );
 
-EFI_STATUS auth_lib_initialize (const char *fpath);
+EFI_STATUS auth_lib_initialize(void);
+int auth_lib_load(const char *pk_auth_file);
 
 #endif // __H_AUTHLIB_UEFI_

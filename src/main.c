@@ -922,6 +922,12 @@ int main(int argc, char **argv)
         goto err;
     }
 
+    storage_init();
+
+    if (auth_lib_load(PK_PATH) < 0) {
+        goto err;
+    }
+
     if (root_path) {
         ret = chroot(root_path);
 
@@ -930,8 +936,6 @@ int main(int argc, char **argv)
             goto err;
         }
     }
-
-    storage_init();
 
     ret = xapi_connect();
 
@@ -946,7 +950,7 @@ int main(int argc, char **argv)
         goto err;
 
     /* TODO: if this fails, should we die? (probably if SB is on) */
-    if ((status = auth_lib_initialize(PK_PATH)) != EFI_SUCCESS)
+    if ((status = auth_lib_initialize()) != EFI_SUCCESS)
         DDEBUG("auth_lib_initialization() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
 

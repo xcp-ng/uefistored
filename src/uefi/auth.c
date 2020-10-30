@@ -1437,7 +1437,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
      */
     Del = false;
 
-    if (setup_mode == SETUP_MODE && !IsPk) {
+    if (setup_mode == SETUP_MODE) {
         if (IsPk) {
             status = verify_time_based_payload_and_update(
                     name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PAYLOAD, &Del);

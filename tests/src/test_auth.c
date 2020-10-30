@@ -240,7 +240,8 @@ static void test_auth_variable_DER_conf(void)
 
 void test_auth(void)
 {
-    auth_lib_initialize("data/certs/PK.auth");
+    auth_lib_load("data/certs/PK.auth");
+    auth_lib_initialize();
     test_auth_variable_DER_conf();
     storage_deinit();
 }

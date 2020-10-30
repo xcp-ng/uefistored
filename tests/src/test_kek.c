@@ -48,7 +48,8 @@ static MunitResult test_valid_first_kek(const MunitParameter params[], void *tes
 static void *kek_setup(const MunitParameter params[], void* user_data)
 {
     storage_init();
-    auth_lib_initialize("data/certs/PK.auth");
+    auth_lib_load("data/certs/PK.auth");
+    auth_lib_initialize();
     return NULL;
 }
 
