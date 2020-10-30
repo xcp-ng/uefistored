@@ -324,10 +324,10 @@ int serialize_var(uint8_t **p, const variable_t *var)
     if (!var->name || !var->data)
         return -1;
 
-    serialize_uint64(p, var->namesz - 2);
+    serialize_uint64(p, variable_serialized_namesz(var));
 
     memcpy(*p, var->name, var->namesz);
-    *p += var->namesz - 2;
+    *p += variable_serialized_namesz(var);
 
     serialize_uint64(p, var->datasz);
 

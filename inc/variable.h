@@ -75,5 +75,7 @@ static inline bool variable_is_valid(const variable_t *var) {
 variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
                           variable_t variables[MAX_VAR_COUNT], size_t n);
 
+/* Get the namesz with no end of string char '\0' */
+#define variable_serialized_namesz(var) ((var)->namesz - sizeof(UTF16))
 
 #endif // __H_VARIABLE_

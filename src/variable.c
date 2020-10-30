@@ -259,7 +259,7 @@ uint64_t variable_size(const variable_t *var)
     sum = sizeof(var->namesz);
 
     /* Name Value */
-    sum += var->namesz;
+    sum += variable_serialized_namesz(var);
 
     /* Data Length */
     sum += sizeof(var->datasz);
