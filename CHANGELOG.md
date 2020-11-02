@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.2.4] - 2020-11-2
+### Changed
+- Log to daemon.log instead of /var/log/uefistored/
+
 ## [0.2.3] - 2020-10-29
 ### Added
 - Support PK exchange
