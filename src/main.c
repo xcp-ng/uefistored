@@ -38,10 +38,6 @@
 
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
-extern FILE *input_snapshot_fd;
-extern FILE *output_snapshot_fd;
-extern FILE *test_log;
-
 static bool resume;
 
 extern char *xapi_resume_path;
@@ -250,15 +246,18 @@ int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
     }
 
     if (ioreq->state != STATE_IOREQ_READY) {
-        ERROR("IO request not ready, state=0x%02x\n", ioreq->state);
+        /*
+         * This often happens shortly after initializing the ioreq server.
+         * Just return -1 and let the caller try again.
+         */
         return -1;
     }
 
     if (ioreq->dir == IOREQ_READ) {
-        DDEBUG("IOREQ is read, happily ignore.\n");
+        DDEBUG("ioreq is read, happily ignore.\n");
         return 0;
     } else if (ioreq->dir != IOREQ_WRITE) {
-        ERROR("IOREQ is not write nor read, error!\n");
+        ERROR("ioreq is not a write or a read!\n");
         return -1;
     }
 
@@ -416,7 +415,7 @@ int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage,
 
 static void signal_handler(int sig)
 {
-    DDEBUG("uefistored received signal: %s\n", strsignal(sig));
+    INFO("uefistored received signal: %s\n", strsignal(sig));
 
     if (xapi_write_save_file() < 0)
         ERROR("Writing save file failed\n");
@@ -455,7 +454,6 @@ static void signal_handler(int sig)
         free(pidfile);
 
     xapi_cleanup();
-    log_deinit();
 
     signal(sig, SIG_DFL);
     raise(sig);
@@ -728,8 +726,6 @@ int main(int argc, char **argv)
             exit(1);
         }
     }
-
-    log_init(domid);
 
     printargs(argc, argv);
 

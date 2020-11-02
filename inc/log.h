@@ -6,19 +6,6 @@
 #include "common.h"
 #include "variable.h"
 
-extern int _logfd;
-extern char strbuf[512];
-
-/**
- * This function initializes the logging framework.
- */
-void log_init(unsigned int domid);
-
-/**
- * This function deinitializes the logging framework.
- */
-void log_deinit(void);
-
 #define uefistored_fprintf(stream, ...)                                        \
     do {                                                                       \
         fprintf(stream, __VA_ARGS__);                                          \
@@ -27,51 +14,34 @@ void log_deinit(void);
 
 #define ERROR(...)                                                             \
     do {                                                                       \
-        if (_logfd > 0)                                                        \
-            dprintf(_logfd, "ERROR: " __VA_ARGS__);                            \
-        uefistored_fprintf(stderr, "ERROR: " __VA_ARGS__);                     \
+        uefistored_fprintf(stderr, "uefistored:ERROR: " __VA_ARGS__);                     \
     } while (0)
 
 #define WARNING(...)                                                           \
     do {                                                                       \
-        if (_logfd > 0)                                                        \
-            dprintf(_logfd, "WARNING: " __VA_ARGS__);                          \
-        uefistored_fprintf(stderr, "WARNING: " __VA_ARGS__);                   \
+        uefistored_fprintf(stderr, "uefistored:WARNING: " __VA_ARGS__);                   \
     } while (0)
 
 #define INFO(...)                                                              \
     do {                                                                       \
-        if (_logfd > 0)                                                        \
-            dprintf(_logfd, "INFO: " __VA_ARGS__);                             \
-        uefistored_fprintf(stdout, "INFO: " __VA_ARGS__);                      \
+        uefistored_fprintf(stdout, "uefistored:INFO: " __VA_ARGS__);                      \
     } while (0)
 
 #if DEBUG
 #define DDEBUG(...)                                                            \
     do {                                                                       \
-        if (_logfd > 0) {                                                      \
-            if (dprintf(_logfd, "DEBUG:%s:%d:", __func__, __LINE__) < 0)       \
-                uefistored_fprintf(stderr, "failed to write to log file: %s\n", strerror(errno));   \
-            if (dprintf(_logfd, __VA_ARGS__) < 0)                              \
-                uefistored_fprintf(stderr, "failed to write to log file: %s\n", strerror(errno));   \
-        }                                                                      \
-                                                                               \
-        uefistored_fprintf(stdout, "DEBUG:%s:%d: ", __func__, __LINE__);       \
+        uefistored_fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);       \
         uefistored_fprintf(stdout, __VA_ARGS__);                               \
     } while (0)
 
 #define DPRINTF(...)                                                           \
-    do {                                                                       \
-        if (_logfd > 0)                                                        \
-            dprintf(_logfd, __VA_ARGS__);                                      \
-        uefistored_fprintf(stdout, __VA_ARGS__);                               \
-    } while (0)
+        uefistored_fprintf(stdout, __VA_ARGS__)                                \
 
 static inline void _dprint_data(const char *func, int lineno, const void *data, size_t datasz)
 {
     const uint8_t *p = data;
     size_t i;
-
+g
     if (!data)
         return;
 
