@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.2.5] - 2020-11-9
+### Changed
+- Push all auth vars through auth service pipeline (not based only on attrs)
+
 ## [0.2.4] - 2020-11-2
 ### Changed
 - Log to daemon.log instead of /var/log/uefistored/
@@ -61,6 +65,8 @@ All notable changes to this project will be documented in this file.
 - Support handling of guest UEFI requests
 - Support minimal sandboxing via chroot jail
 
+[0.2.5]: https://github.com/xcp-ng/uefistored/compare/v0.2.4...v0.2.5
+[0.2.4]: https://github.com/xcp-ng/uefistored/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/xcp-ng/uefistored/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/xcp-ng/uefistored/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/xcp-ng/uefistored/compare/v0.2.0...v0.2.1
