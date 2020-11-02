@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
     - Support dbx
 - Harden sandbox with seccomp and rlimits
 - Support variable write appends
+- Document key exchanges and the key creation tools
 
 ## [0.2.3] - 2020-10-29
 ### Added
