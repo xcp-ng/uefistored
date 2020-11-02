@@ -1,0 +1,10 @@
+#!/bin/sh
+
+remote="$1"
+url="$2"
+
+set -e
+
+scripts/lint_changelog.sh
+
+exit 0
