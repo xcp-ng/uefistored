@@ -106,7 +106,18 @@ sleep 1
 
 ./create-pk-auth.sh ${outdir}/${new_PK_key} ${outdir}/${new_PK_crt} ${outdir}/${new_PK_crt} ${outdir}/8-newest-${new_PK_auth}
 
+sleep 1
+
+mkdir -p ${outdir}/signed-by-new-PK/
+mkdir -p ${outdir}/signed-by-original-PK/
+
+./create-kek.sh ${outdir}/new_PK.key ${outdir}/new_PK.crt
+mv KEK.auth ${outdir}/signed-by-new-PK/
+
+./create-kek.sh ${outdir}/new_PK.key ${outdir}/new_PK.crt --null
+mv null.auth ${outdir}/signed-by-new-PK/
+
+./create-kek.sh ${outdir}/PK.key ${outdir}/PK.crt
+mv KEK.auth ${outdir}/signed-by-original-PK/
 
 echo "Test script generated here: ${outdir}/test-generated-auths.sh"
-ls ${outdir}/* | cpio -o > pk_test_certs.cpio
-echo "Saved in archive pk_test_certs.cpio"
