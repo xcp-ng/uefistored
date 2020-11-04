@@ -41,7 +41,7 @@ static inline void _dprint_data(const char *func, int lineno, const void *data, 
 {
     const uint8_t *p = data;
     size_t i;
-g
+
     if (!data)
         return;
 
