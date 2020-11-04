@@ -14,6 +14,7 @@
 #include "uefi/image_authentication.h"
 
 #include "munit.h"
+#include "test_suites.h"
 
 #define BUF_SIZE 4096
 static uint8_t DEFAULT_PK[BUF_SIZE];
@@ -33,8 +34,8 @@ static MunitResult test_parsing_pkcs7(const MunitParameter params[], void *testd
 {
     PKCS7 *pkcs7;
 
-    if (file_to_buf("data/certs/null.auth", DEFAULT_PK, BUF_SIZE) < 0) {
-        fprintf(stderr, "failed to open data/null.auth\n");
+    if (file_to_buf("data/certs/nullPK.auth", DEFAULT_PK, BUF_SIZE) < 0) {
+        fprintf(stderr, "failed to open data/certs/nullPK.auth\n");
         return MUNIT_ERROR;
     }
 
@@ -137,8 +138,8 @@ static MunitResult test_null_pk(const MunitParameter params[], void *testdata)
     int ret;
     EFI_STATUS status;
 
-    if ((ret = file_to_buf("data/certs/null.auth", DEFAULT_PK, BUF_SIZE)) < 0) {
-        fprintf(stderr, "failed to open data/null.auth: %d\n", ret);
+    if ((ret = file_to_buf("data/certs/nullPK.auth", DEFAULT_PK, BUF_SIZE)) < 0) {
+        fprintf(stderr, "failed to open data/nullPK.auth: %d\n", ret);
         return MUNIT_ERROR;
     }
 
@@ -154,8 +155,8 @@ static MunitResult test_new_pk(const MunitParameter params[], void *testdata)
     int ret;
     EFI_STATUS status;
 
-    if ((ret = file_to_buf("data/certs/new_PK.auth", DEFAULT_PK, BUF_SIZE)) < 0) {
-        fprintf(stderr, "failed to open data/new_PK.auth: %d\n", ret);
+    if ((ret = file_to_buf("data/certs/newPK.auth", DEFAULT_PK, BUF_SIZE)) < 0) {
+        fprintf(stderr, "failed to open data/newPK.auth: %d\n", ret);
         return MUNIT_ERROR;
     }
 
@@ -170,14 +171,14 @@ static MunitResult test_new_pk_to_old_fails(const MunitParameter params[], void 
 {
     int ret;
     uint8_t PK[BUF_SIZE];
-    uint8_t new_PK[BUF_SIZE];
+    uint8_t newPK[BUF_SIZE];
 
-    if ((ret = file_to_buf("data/certs/new_PK.auth", new_PK, BUF_SIZE)) < 0) {
-        fprintf(stderr, "failed to open data/new_PK.auth: %d\n", ret);
+    if ((ret = file_to_buf("data/certs/newPK.auth", newPK, BUF_SIZE)) < 0) {
+        fprintf(stderr, "failed to open data/newPK.auth: %d\n", ret);
         return MUNIT_ERROR;
     }
 
-    munit_assert_uint64(util_set_pk(new_PK, ret), ==, EFI_SUCCESS);
+    munit_assert_uint64(util_set_pk(newPK, ret), ==, EFI_SUCCESS);
 
     if ((ret = file_to_buf("data/certs/PK.auth", PK, BUF_SIZE)) < 0) {
         fprintf(stderr, "failed to open data/PK.auth: %d\n", ret);
@@ -192,14 +193,14 @@ static MunitResult test_new_pk_to_old_fails(const MunitParameter params[], void 
 static MunitResult test_unauthorized_sig_fails(const MunitParameter params[], void *testdata)
 {
     int ret;
-    uint8_t unauthorized_PK[BUF_SIZE];
+    uint8_t badPK[BUF_SIZE];
 
-    if ((ret = file_to_buf("data/certs/unauthorized_PK.auth", unauthorized_PK, BUF_SIZE)) < 0) {
-        fprintf(stderr, "failed to open data/unauthorized_PK.auth: %d\n", ret);
+    if ((ret = file_to_buf("data/certs/badPK.auth", badPK, BUF_SIZE)) < 0) {
+        fprintf(stderr, "failed to open data/certs/badPK.auth: %d\n", ret);
         return MUNIT_ERROR;
     }
 
-    munit_assert_uint64(util_set_pk(unauthorized_PK, ret), ==, EFI_SECURITY_VIOLATION);
+    munit_assert_uint64(util_set_pk(badPK, ret), ==, EFI_SECURITY_VIOLATION);
 
     return MUNIT_OK;
 }
