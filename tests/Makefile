@@ -24,6 +24,7 @@ TEST_SRCS +=                            \
     src/test_xen_variable_server.c      \
     src/test_pk.c      \
     src/test_kek.c      \
+    src/test_db.c      \
     src/test_xapi.c
 
     #src/test_storage.c                  \
@@ -52,7 +53,7 @@ test: main.c $(OBJS) $(TEST_OBJS) keys/.done $(HDRS)
 run-test: test
     $<
 
-test-nosan: src/main.c $(TEST_OBJS) $(OBJS) keys $(HDRS)
+test-nosan: main.c $(TEST_OBJS) $(OBJS) keys $(HDRS)
 	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS)
 
 run-test-nosan: test-nosan

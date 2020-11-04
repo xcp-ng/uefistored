@@ -661,7 +661,7 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
         goto err;
     }
 
-    if (BIO_write(bio, new_data, (int)new_data_size) <= 0) {
+    if (BIO_write(bio, new_data, (int)new_data_size) != new_data_size) {
         goto err;
     }
 
@@ -670,7 +670,7 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
      * still trusted intermediate certificate. Also disable time checks.
     */
     X509_STORE_set_flags(store,
-                         X509_V_FLAG_PARTIAL_CHAIN);
+                         X509_V_FLAG_PARTIAL_CHAIN | OPENSSL_NO_CHECK_TIME);
 
     /*
      * OpenSSL PKCS7 Verification by default checks for SMIME (email signing) and
@@ -684,6 +684,13 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
      */
     status = (bool)PKCS7_verify(pkcs7, NULL, store, bio, NULL,
                                 PKCS7_BINARY);
+
+    if (!status) {
+        ERR_print_errors_fp(stderr);
+        ERR_load_crypto_strings();
+        ERROR("PKCS7_verify() failed, err= %s (%lu)\n", ERR_error_string(ERR_get_error(), NULL), ERR_get_error());
+        ERR_free_strings();
+    }
 
 err:
     //

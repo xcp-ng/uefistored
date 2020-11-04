@@ -231,12 +231,12 @@ auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
               (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
         DDEBUG("process_var_with_pk()\n");
-        DDEBUG("ProcessVarWithKek()\n");
+        DDEBUG("process_var_with_kek()\n");
 
-#if 0
-        status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, FALSE);
+#if 1
+        status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, false);
         if (status != EFI_SUCCESS) {
-            status = ProcessVarWithKek (VariableName, VendorGuid, Data, DataSize, Attributes);
+            status = process_var_with_kek (VariableName, VendorGuid, Data, DataSize, Attributes);
         }
 #else
         status = EFI_DEVICE_ERROR;

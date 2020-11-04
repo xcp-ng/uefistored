@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "munit/munit.h"
 #include "test_suites.h"
@@ -21,6 +22,13 @@ MunitSuite other_suites[] = {
         1,
         MUNIT_SUITE_OPTION_NONE
     },
+    {
+        (char*) "db/",
+        db_tests,
+        NULL,
+        1,
+        MUNIT_SUITE_OPTION_NONE
+    },
     { NULL, NULL, NULL, 0, MUNIT_SUITE_OPTION_NONE },
 };
 
@@ -34,5 +42,8 @@ MunitSuite all_suites = {
 
 int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)])
 {
-    return munit_suite_main(&all_suites, NULL, argc, argv);
+    /* Require no fork */
+    char *newargs[] = { argv[0],  "--no-fork" };
+
+    return munit_suite_main(&all_suites, NULL, 2, newargs);
 }

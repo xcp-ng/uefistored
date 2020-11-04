@@ -33,19 +33,15 @@ extern bool efi_at_runtime;
 extern SHA256_CTX *hash_ctx;
 extern uint8_t setup_mode;
 
-//
-// Public Exponent of RSA Key.
-//
-const uint8_t mRsaE[] = { 0x01, 0x00, 0x01 };
-
+/* Public Exponent of RSA Key. */
 const uint8_t mSha256OidValue[] = { 0x60, 0x86, 0x48, 0x01, 0x65,
                                     0x03, 0x04, 0x02, 0x01 };
 
-//
-// Requirement for different signature type which have been defined in UEFI spec.
-// These data are used to perform SignatureList format check while setting PK/KEK variable.
-//
-EFI_SIGNATURE_ITEM mSupportSigItem[] = {
+/*
+ * Requirement for different signature type which have been defined in UEFI spec.
+ * These data are used to perform SignatureList format check while setting PK/KEK variable.
+ */
+EFI_SIGNATURE_ITEM supported_sigs[] = {
     //{SigType,                       SigHeaderSize,   sig_data_size  }
     { EFI_CERT_SHA256_GUID, 0, 32 },
     { EFI_CERT_RSA2048_GUID, 0, 256 },
@@ -211,7 +207,7 @@ FilterSignatureList(void *data, uint64_t data_size, void *new_data,
     EFI_SIGNATURE_LIST *NewCertList;
     EFI_SIGNATURE_DATA *NewCert;
     uint64_t NewCertCount;
-    uint64_t Index;
+    uint64_t i;
     uint64_t Index2;
     uint64_t Size;
     uint8_t *Tail;
@@ -246,7 +242,7 @@ FilterSignatureList(void *data, uint64_t data_size, void *new_data,
                 NewCertList->SignatureSize;
 
         CopiedCount = 0;
-        for (Index = 0; Index < NewCertCount; Index++) {
+        for (i = 0; i < NewCertCount; i++) {
             IsNewCert = true;
 
             Size = data_size;
@@ -496,7 +492,7 @@ EFI_STATUS check_signature_list_format(UTF16 *name, EFI_GUID *guid, void *data,
 {
     EFI_SIGNATURE_LIST *SigList;
     uint64_t sig_data_size;
-    uint32_t Index;
+    uint32_t i;
     uint32_t SigCount;
     bool IsPk;
     RSA *RsaContext;
@@ -533,30 +529,30 @@ EFI_STATUS check_signature_list_format(UTF16 *name, EFI_GUID *guid, void *data,
     // If any signature is incorrectly formed, the whole check will fail.
     //
     while ((sig_data_size > 0) && (sig_data_size >= SigList->SignatureListSize)) {
-        for (Index = 0;
-             Index < (sizeof(mSupportSigItem) / sizeof(EFI_SIGNATURE_ITEM));
-             Index++) {
+        for (i = 0;
+             i < (sizeof(supported_sigs) / sizeof(EFI_SIGNATURE_ITEM));
+             i++) {
             if (compare_guid(&SigList->SignatureType,
-                             &mSupportSigItem[Index].SigType)) {
+                             &supported_sigs[i].SigType)) {
                 //
                 // The value of SignatureSize should always be 16 (size of SignatureOwner
                 // component) add the data length according to signature type.
                 //
-                if (mSupportSigItem[Index].SigDataSize != ((uint32_t)~0) &&
+                if (supported_sigs[i].SigDataSize != ((uint32_t)~0) &&
                     (SigList->SignatureSize - sizeof(EFI_GUID)) !=
-                            mSupportSigItem[Index].SigDataSize) {
+                            supported_sigs[i].SigDataSize) {
                     return EFI_INVALID_PARAMETER;
                 }
-                if (mSupportSigItem[Index].SigHeaderSize != ((uint32_t)~0) &&
+                if (supported_sigs[i].SigHeaderSize != ((uint32_t)~0) &&
                     SigList->SignatureHeaderSize !=
-                            mSupportSigItem[Index].SigHeaderSize) {
+                            supported_sigs[i].SigHeaderSize) {
                     return EFI_INVALID_PARAMETER;
                 }
                 break;
             }
         }
 
-        if (Index == (sizeof(mSupportSigItem) / sizeof(EFI_SIGNATURE_ITEM))) {
+        if (i == (sizeof(supported_sigs) / sizeof(EFI_SIGNATURE_ITEM))) {
             //
             // Undefined signature type.
             //
@@ -896,6 +892,13 @@ CalculatePrivAuthVarSignChainSHA256Digest(uint8_t *SignerCert,
     return EFI_SUCCESS;
 }
 
+X509 *X509_from_sig_data(EFI_SIGNATURE_DATA *sig, uint64_t sig_size)
+{
+    return X509_from_buf(sig->SignatureData,
+                         sig_size -
+                         (sizeof(EFI_SIGNATURE_DATA) - 1));
+}
+
 /**
  * Verify that the PKCS7 SignedData signature is from the
  * X509 certificate in the payload.
@@ -983,6 +986,88 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     return ret;
 }
 
+static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
+                      uint8_t *new_data, uint64_t new_data_size)
+{
+    EFI_SIGNATURE_LIST *cert_list;
+    EFI_SIGNATURE_DATA *cert;
+    EFI_STATUS status;
+    PKCS7 *pkcs7;
+    X509 *trusted_cert;
+    uint64_t i;
+    void *kek;
+    uint64_t kek_size;
+    uint64_t cert_count;
+    bool verify_status;
+
+    /*
+     * Get KEK database from variable.
+     */
+    status = auth_internal_find_variable(EFI_KEY_EXCHANGE_KEY_NAME,
+                                         &gEfiGlobalVariableGuid, &kek,
+                                         &kek_size);
+
+    if (status != EFI_SUCCESS) {
+        return false;
+    }
+
+    pkcs7 = pkcs7_from_auth(efi_auth);
+
+    if (!pkcs7) {
+        return false;
+    }
+
+    cert_list = (EFI_SIGNATURE_LIST *)kek;
+    while ((kek_size > 0) &&
+           (kek_size >= cert_list->SignatureListSize)) {
+
+        if (compare_guid(&cert_list->SignatureType, &gEfiCertX509Guid)) {
+            cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert_list +
+                                          sizeof(EFI_SIGNATURE_LIST) +
+                                          cert_list->SignatureHeaderSize);
+
+            cert_count = (cert_list->SignatureListSize -
+                         sizeof(EFI_SIGNATURE_LIST) -
+                         cert_list->SignatureHeaderSize) /
+                        cert_list->SignatureSize;
+
+            for (i=0; i<cert_count; i++) {
+                /*
+                 * Iterate each Signature data Node within this cert_list for a verify
+                 */
+                trusted_cert = X509_from_sig_data(cert, cert_list->SignatureSize);
+
+                if (!trusted_cert) {
+                    DDEBUG("no trusted cert found\n");
+                    continue;
+                }
+
+                /*
+                 * Verify Pkcs7 SignedData via Pkcs7Verify library.
+                 *
+                 * verify_status = Pkcs7Verify(sig_data, sig_data_size,
+                 *  trusted_cert, new_data, new_data_size);
+                 */
+                verify_status = pkcs7_verify(pkcs7, trusted_cert,
+                                             new_data, new_data_size);
+
+                if (verify_status) {
+                    return verify_status;
+                }
+
+                cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert +
+                                              cert_list->SignatureSize);
+            }
+        }
+
+        kek_size -= cert_list->SignatureListSize;
+        cert_list = (EFI_SIGNATURE_LIST *)((uint8_t *)cert_list +
+                                          cert_list->SignatureListSize);
+    }
+
+    return verify_status;
+}
+
 /**
   Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
 
@@ -1025,17 +1110,11 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     uint64_t payload_size;
     bool verify_status = false;
     EFI_STATUS status;
-    EFI_SIGNATURE_LIST *cert_list;
-    EFI_SIGNATURE_DATA *cert;
-    uint64_t Index;
-    uint64_t CertCount;
-    uint32_t kek_data_size;
     uint8_t *new_data = NULL;
     uint64_t new_data_size;
     uint8_t *Buffer;
     uint64_t Length;
     X509 *top_cert = NULL;
-    X509 *trusted_cert;
     STACK_OF(X509) *signer_certs = NULL;
     uint8_t digest[SHA256_DIGEST_SIZE];
 
@@ -1174,59 +1253,7 @@ VerifyTimeBasedPayload(UTF16 *name, EFI_GUID *guid, void *data,
     } else if (auth_var_type == AUTH_VAR_TYPE_PAYLOAD) {
         verify_status = verify_payload(efi_auth, payload_ptr, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_KEK) {
-        //
-        // Get KEK database from variable.
-        //
-        status = auth_internal_find_variable(EFI_KEY_EXCHANGE_KEY_NAME,
-                                             &gEfiGlobalVariableGuid, &data,
-                                             &data_size);
-        if (EFI_ERROR(status)) {
-            free(new_data);
-            return status;
-        }
-
-        //
-        // Ready to verify Pkcs7 SignedData. Go through KEK Signature database to find out X.509 cert_list.
-        //
-        kek_data_size = (uint32_t)data_size;
-        cert_list = (EFI_SIGNATURE_LIST *)data;
-        while ((kek_data_size > 0) &&
-               (kek_data_size >= cert_list->SignatureListSize)) {
-            if (compare_guid(&cert_list->SignatureType, &gEfiCertX509Guid)) {
-                cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert_list +
-                                              sizeof(EFI_SIGNATURE_LIST) +
-                                              cert_list->SignatureHeaderSize);
-                CertCount = (cert_list->SignatureListSize -
-                             sizeof(EFI_SIGNATURE_LIST) -
-                             cert_list->SignatureHeaderSize) /
-                            cert_list->SignatureSize;
-                for (Index = 0; Index < CertCount; Index++) {
-
-                    /*
-                     * Iterate each Signature data Node within this cert_list for a verify
-                     */
-                    trusted_cert = X509_from_buf(cert->SignatureData,
-                                                cert_list->SignatureSize -
-                                                (sizeof(EFI_SIGNATURE_DATA) - 1));
-
-                    //
-                    // Verify Pkcs7 SignedData via Pkcs7Verify library.
-                    //
-                    verify_status =
-                            Pkcs7Verify(sig_data, sig_data_size, trusted_cert,
-                                        new_data, new_data_size);
-                    if (verify_status) {
-                        goto done;
-                    }
-                    cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert +
-                                                  cert_list->SignatureSize);
-                }
-            }
-
-            kek_data_size -= cert_list->SignatureListSize;
-            cert_list = (EFI_SIGNATURE_LIST *)((uint8_t *)cert_list +
-                                              cert_list->SignatureListSize);
-        }
+        verify_status = verify_kek(efi_auth, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PRIV) {
         PKCS7 *pkcs7;
 
@@ -1511,7 +1538,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
   @return EFI_SUCCESS                     Variable pass validation successfully.
 
 **/
-EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
+EFI_STATUS process_var_with_kek(UTF16 *name, EFI_GUID *guid, void *data,
                              uint64_t data_size, uint32_t attrs)
 {
     EFI_STATUS status;
@@ -1520,25 +1547,25 @@ EFI_STATUS ProcessVarWithKek(UTF16 *name, EFI_GUID *guid, void *data,
 
     if ((attrs & EFI_VARIABLE_NON_VOLATILE) == 0 ||
         (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
-        //
-        // DB, DBX and DBT should set EFI_VARIABLE_NON_VOLATILE attribute and should be a time-based
-        // authenticated variable.
-        //
+        /*
+         * DB, DBX and DBT should set EFI_VARIABLE_NON_VOLATILE attribute and should be a time-based
+         * authenticated variable.
+         */
         return EFI_INVALID_PARAMETER;
     }
 
     status = EFI_SUCCESS;
 
     if (setup_mode == USER_MODE) {
-        //
-        // Time-based, verify against X509 Cert KEK.
-        //
+        /*
+         * Time-based, verify against X509 Cert KEK.
+         */
         return verify_time_based_payload_and_update(
                 name, guid, data, data_size, attrs, AUTH_VAR_TYPE_KEK, NULL);
     } else {
-        //
-        // If in setup mode or custom secure boot mode, no authentication needed.
-        //
+        /*
+         * If in setup mode, no authentication needed.
+         */
         payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         payload_size = data_size - AUTHINFO2_SIZE(data);
 
