@@ -71,18 +71,16 @@ setup() {
 
 setup
 
-test_set_pk test-certs/2-null.auth success
-test_set_pk test-certs/3-PK.auth success
-test_set_pk test-certs/4-new_PK.auth success
-test_set_pk test-certs/5-PK.auth failure
-test_set_pk test-certs/6-null.auth failure
-test_set_pk test-certs/7-invalid_PK.auth failure
-test_set_pk test-certs/8-newest-new_PK.auth success
-test_set_pk test-certs/9-oldest-new_PK.auth failure
+test_set_pk test-certs/nullPK.auth success
+test_set_pk test-certs/PK.auth success
+test_set_pk test-certs/newPK.auth success
+test_set_pk test-certs/PK.auth failure
+test_set_pk test-certs/nullPK.auth failure
+test_set_pk test-certs/badPK.auth failure
 
-test_set_kek test-certs/signed-by-new-PK/KEK.auth success
-test_set_kek test-certs/signed-by-new-PK/null.auth success
-test_set_kek test-certs/signed-by-original-PK/KEK.auth failure
-test_set_kek test-certs/signed-by-new-PK/KEK.auth success
+test_set_kek test-certs/KEK-signed-by-newPK.auth success
+test_set_kek test-certs/nullKEK-signed-by-newPK.auth success
+test_set_kek test-certs/KEK-signed-by-PK.auth failure
+test_set_kek test-certs/KEK-signed-by-newPK.auth success
 
 echo "All tests passed!"
