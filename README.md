@@ -91,4 +91,9 @@ the new variable data and pass it as the `Data` parameter to `SetVariable()`.
 [1] https://uefi.org/sites/default/files/resources/UEFI_2_3_1_C.pdf
 
 
+# Reporting bugs
 
+Bugs may be reported on [](https://github.com/xcp-ng/uefistored/issues).
+Please include the output from `cat /var/log/daemon.log | grep uefistored`
+(if on XCP-ng) or from  uefistored stdout/stderr.  Screens from the guest
+bootloader are also helpful if relevant.
