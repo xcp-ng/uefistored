@@ -21,6 +21,7 @@
 #include "varnames.h"
 #include "xen_variable_server.h"
 #include "uefi/authlib.h"
+#include "uefi/utils.h"
 #include "xapi.h"
 
 bool efi_at_runtime = false;
@@ -35,6 +36,22 @@ struct request {
     EFI_GUID guid;
     uint32_t attrs;
 };
+
+static bool is_secure_boot_variable(UTF16 *name, EFI_GUID *guid)
+{
+    if (!name || !guid)
+        return false;
+
+    if (CompareGuid(guid, &gEfiGlobalVariableGuid)) {
+        return !strcmp16(name, L"PK") || !strcmp16(name, L"KEK");
+    }
+
+    if (CompareGuid(guid, &gEfiImageSecurityDatabaseGuid)) {
+        return !strcmp16(name, L"db") || !strcmp16(name, L"dbx") || !strcmp16(name, L"dbt");
+    }
+
+    return false;
+}
 
 #if DEBUG
 static void debug_request(struct request *req)
@@ -352,13 +369,12 @@ static void handle_set_variable(void *comm_buf)
         goto done;
     }
 
-    if (request->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
+    if (request->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS ||
+            is_secure_boot_variable((UTF16*)request->name, &request->guid)) {
         status = auth_lib_process_variable((UTF16*)request->name, &request->guid,
                                                 request->buffer, request->buffer_size,
                                                 request->attrs);
 
-        if (status == EFI_SUCCESS) {
-        }
     } else {
         status = storage_set((UTF16*)request->name, &request->guid,
                              request->buffer, request->buffer_size,
