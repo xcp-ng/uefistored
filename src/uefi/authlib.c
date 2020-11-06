@@ -1,27 +1,18 @@
-/** @file
-  Implement authentication services for the authenticated variables.
-
-  Caution: This module requires additional review when modified.
-  This driver will have external input - variable data. It may be input in SMM mode.
-  This external input must be validated carefully to avoid security issue like
-  buffer overflow, integer overflow.
-  Variable attribute should also be checked to avoid authentication bypass.
-     The whole SMM authentication variable design relies on the integrity of flash part and SMM.
-  which is assumed to be protected by platform.  All variable code and metadata in flash/SMM Memory
-  may not be modified without authorization. If platform fails to protect these resources,
-  the authentication service provided in this driver will be broken, and the behavior is undefined.
-
-Copyright (c) 2015 - 2016, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
-
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-**/
-
+/**
+ * Implement authentication services for the authenticated variables.
+ *
+ * Inspired by and modified from edk2, with the license:
+ *
+ * Copyright (c) 2015 - 2016, Intel Corporation. All rights reserved.<BR>
+ * This program and the accompanying materials
+ * are licensed and made available under the terms and conditions of the BSD License
+ * which accompanies this distribution.  The full text of the license may be found at
+ * http://opensource.org/licenses/bsd-license.php
+ * 
+ * THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+ * 
+ */
 #include <fcntl.h>
 #include <limits.h>
 #include <stdint.h>
@@ -54,8 +45,12 @@ static struct auth_data pk_auth_data;
  */
 uint32_t setup_mode;
 
-static EFI_GUID SignatureSupport[] = { EFI_CERT_SHA1_GUID, EFI_CERT_SHA256_GUID,
-                                EFI_CERT_RSA2048_GUID, EFI_CERT_X509_GUID };
+static EFI_GUID signature_support[] = {
+    EFI_CERT_SHA1_GUID,
+    EFI_CERT_SHA256_GUID,
+    EFI_CERT_RSA2048_GUID,
+    EFI_CERT_X509_GUID
+};
 
 /*
  * Hash context pointer
@@ -112,15 +107,10 @@ int auth_lib_load(const char *pk_auth_file)
 }
 
 /**
-  Initialization for authenticated varibale services.
-  If this initialization returns error status, other APIs will not work
-  and expect to be not called then.
-
-  @retval EFI_SUCCESS               Function successfully executed.
-  @retval EFI_OUT_OF_RESOURCES      Fail to allocate enough resource.
-  @retval EFI_UNSUPPORTED           Unsupported to process authenticated variable.
-
-**/
+ * Initialization for authenticated variable services.
+ * 
+ * @return EFI_SUCCESS if initialize is successful, otherwise an EFI errno
+ */
 EFI_STATUS
 auth_lib_initialize(void)
 {
@@ -132,7 +122,7 @@ auth_lib_initialize(void)
     setup_mode = SETUP_MODE;
 
     status = storage_set(EFI_SIGNATURE_SUPPORT_NAME, &gEfiGlobalVariableGuid,
-                         SignatureSupport, sizeof(SignatureSupport),
+                         signature_support, sizeof(signature_support),
                          EFI_VARIABLE_BOOTSERVICE_ACCESS |
                                  EFI_VARIABLE_RUNTIME_ACCESS);
 
@@ -194,56 +184,38 @@ auth_lib_initialize(void)
 }
 
 /**
-  Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set.
-
-  @param[in] VariableName           Name of the variable.
-  @param[in] VendorGuid             Variable vendor GUID.
-  @param[in] Data                   Data pointer.
-  @param[in] DataSize               Size of Data.
-  @param[in] Attributes             Attribute value of the variable.
-
-  @retval EFI_SUCCESS               The firmware has successfully stored the variable and its data as
-                                    defined by the Attributes.
-  @retval EFI_INVALID_PARAMETER     Invalid parameter.
-  @retval EFI_WRITE_PROTECTED       Variable is write-protected.
-  @retval EFI_OUT_OF_RESOURCES      There is not enough resource.
-  @retval EFI_SECURITY_VIOLATION    The variable is with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACESS
-                                    set, but the AuthInfo does NOT pass the validation
-                                    check carried out by the firmware.
-  @retval EFI_UNSUPPORTED           Unsupported to process authenticated variable.
-
-**/
+ * Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set.
+ *
+ * @parm variable_name           Name of the variable.
+ * @parm vendor_guid             Variable vendor GUID.
+ * @parm data                   data pointer.
+ * @parm data_size               Size of data.
+ * @parm attributes             Attribute value of the variable.
+ *
+ * @return EFI_SUCCESS if variable is successfully stored, otherwise an EFI error code
+ */
 EFI_STATUS
-auth_lib_process_variable(UTF16 *VariableName, EFI_GUID *VendorGuid,
-                               void *Data, uint64_t DataSize,
-                               uint32_t Attributes)
+auth_lib_process_variable(UTF16 *variable_name, EFI_GUID *vendor_guid,
+                               void *data, uint64_t data_size,
+                               uint32_t attributes)
 {
   EFI_STATUS status;
 
-  if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16 (VariableName, EFI_PLATFORM_KEY_NAME) == 0)){
-    DDEBUG("process_var_with_pk()\n");
-    status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, true);
-  } else if (CompareGuid (VendorGuid, &gEfiGlobalVariableGuid) && (strcmp16(VariableName, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
-    DDEBUG("process_var_with_pk()\n");
-    status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, false);
-  } else if (CompareGuid (VendorGuid, &gEfiImageSecurityDatabaseGuid) &&
-             ((strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
-              (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
-              (strcmp16 (VariableName, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
-        DDEBUG("process_var_with_pk()\n");
-        DDEBUG("process_var_with_kek()\n");
+  if (compare_guid(vendor_guid, &gEfiGlobalVariableGuid) && (strcmp16(variable_name, EFI_PLATFORM_KEY_NAME) == 0)){
+    status = process_var_with_pk(variable_name, vendor_guid, data, data_size, attributes, true);
+  } else if (compare_guid(vendor_guid, &gEfiGlobalVariableGuid) && (strcmp16(variable_name, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
+    status = process_var_with_pk(variable_name, vendor_guid, data, data_size, attributes, false);
+  } else if (compare_guid(vendor_guid, &gEfiImageSecurityDatabaseGuid) &&
+             ((strcmp16(variable_name, EFI_IMAGE_SECURITY_DATABASE)  == 0) ||
+              (strcmp16(variable_name, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
+              (strcmp16(variable_name, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
 
-#if 1
-        status = process_var_with_pk(VariableName, VendorGuid, Data, DataSize, Attributes, false);
+        status = process_var_with_pk(variable_name, vendor_guid, data, data_size, attributes, false);
         if (status != EFI_SUCCESS) {
-            status = process_var_with_kek (VariableName, VendorGuid, Data, DataSize, Attributes);
+            status = process_var_with_kek(variable_name, vendor_guid, data, data_size, attributes);
         }
-#else
-        status = EFI_DEVICE_ERROR;
-#endif
   } else {
-    DDEBUG("process_variable\n");
-    status = process_variable(VariableName, VendorGuid, Data, DataSize, Attributes);
+    status = process_variable(variable_name, vendor_guid, data, data_size, attributes);
   }
 
   return status;

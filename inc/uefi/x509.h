@@ -20,7 +20,7 @@ bool X509GetTBSCert (
   const uint8_t  *Cert,
   uint64_t        CertSize,
  uint8_t        **TBSCert,
- uint64_t        *TBSCertSize
+ uint64_t        *tbs_cert_size
   );
 
 #endif // __H_X509__

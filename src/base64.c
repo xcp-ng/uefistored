@@ -46,7 +46,7 @@ int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded,
 char *bytes_to_base64(uint8_t *buffer, size_t length)
 {
     BIO *bio = NULL, *b64 = NULL;
-    BUF_MEM *bufferPtr = NULL;
+    BUF_MEM *buffer_ptr = NULL;
     char *b64text = NULL;
 
     if (length <= 0)
@@ -71,19 +71,19 @@ char *bytes_to_base64(uint8_t *buffer, size_t length)
     if (BIO_flush(bio) != 1)
         goto cleanup;
 
-    BIO_get_mem_ptr(bio, &bufferPtr);
+    BIO_get_mem_ptr(bio, &buffer_ptr);
 
-    b64text = (char *)malloc((bufferPtr->length + 1) * sizeof(char));
+    b64text = (char *)malloc((buffer_ptr->length + 1) * sizeof(char));
     if (b64text == NULL)
         goto cleanup;
 
-    memcpy(b64text, bufferPtr->data, bufferPtr->length);
-    b64text[bufferPtr->length] = '\0';
+    memcpy(b64text, buffer_ptr->data, buffer_ptr->length);
+    b64text[buffer_ptr->length] = '\0';
     BIO_set_close(bio, BIO_NOCLOSE);
 
 cleanup:
     BIO_free_all(bio);
-    BUF_MEM_free(bufferPtr);
+    BUF_MEM_free(buffer_ptr);
 
     return b64text;
 }

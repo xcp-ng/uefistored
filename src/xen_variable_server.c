@@ -42,11 +42,11 @@ static bool is_secure_boot_variable(UTF16 *name, EFI_GUID *guid)
     if (!name || !guid)
         return false;
 
-    if (CompareGuid(guid, &gEfiGlobalVariableGuid)) {
+    if (compare_guid(guid, &gEfiGlobalVariableGuid)) {
         return !strcmp16(name, L"PK") || !strcmp16(name, L"KEK");
     }
 
-    if (CompareGuid(guid, &gEfiImageSecurityDatabaseGuid)) {
+    if (compare_guid(guid, &gEfiImageSecurityDatabaseGuid)) {
         return !strcmp16(name, L"db") || !strcmp16(name, L"dbx") || !strcmp16(name, L"dbt");
     }
 

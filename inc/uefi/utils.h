@@ -3,9 +3,17 @@
 
 #include "uefi/types.h"
 
-static inline bool CompareGuid(EFI_GUID *a, EFI_GUID *b)
+/**
+ * Compare two guids.
+ *
+ * @parm guid1 A guid to compare
+ * @parm guid2 A guid to compare
+ *
+ * @return true if two guids are equal, otherwise false.
+ */
+bool static inline compare_guid(EFI_GUID *guid1, EFI_GUID *guid2)
 {
-    return memcmp(a, b, sizeof(EFI_GUID)) == 0;
+    return memcmp(guid1, guid2, sizeof(EFI_GUID)) == 0;
 }
 
 static inline void WriteUnaligned32(uint32_t *dest, uint32_t val)
