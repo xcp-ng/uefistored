@@ -1,26 +1,27 @@
 include Common.mk
 
-LIB_DEPS :=	\
-	xenstore \
-	xenctrl \
-	xenforeignmemory \
-	xendevicemodel \
-	xenevtchn \
-	xentoolcore
+LIB_DEPS :=				\
+	xenstore			\
+	xenctrl				\
+	xenforeignmemory	\
+	xendevicemodel		\
+	xenevtchn			\
+	xentoolcore			\
+	seccomp				\
+	ssl				    \
+	crypto				\
+	xml2
 
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-
 OBJS := $(patsubst %.c,%.o,$(SRCS))
-
-INC := -Iinc/ -Ilibs/
-
-CFLAGS += -g -Wall -Werror -lssl -lcrypto -lxml2 -I/usr/include/libxml2 -fshort-wchar -rdynamic
+INC := -Iinc/ -Ilibs/ -I/usr/include/libxml2
+CFLAGS += -g -Wall -Werror -fshort-wchar -rdynamic
 
 all:        ## Build uefistored (same as uefistored target)
 all: uefistored
 
 
-uefistored:  ## Build uefistored
+uefistored: ## Build uefistored
 uefistored: src/main.c $(OBJS)
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
@@ -51,7 +52,9 @@ test-nosan: ## Run uefistored unit tests without address sanitizers
 	cd tests && ./$@
 
 .PHONY: install
-install: uefistored   ## Install uefistored
+install: uefistored
+
+install:    ## Install uefistored
 	mkdir -p $(DESTDIR)/usr/sbin/
 	cp $< $(DESTDIR)/usr/sbin/$<
 

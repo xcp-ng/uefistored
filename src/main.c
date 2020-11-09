@@ -33,6 +33,7 @@
 #include "uefi/types.h"
 #include "xapi.h"
 #include "xen_variable_server.h"
+#include "depriv.h"
 
 #define mb() asm volatile ("" : : : "memory")
 
@@ -52,6 +53,9 @@ static ioservid_t ioservid;
 static xenevtchn_handle *xce;
 static xc_interface *xc_handle;
 struct xs_handle *xsh;
+static bool depriv;
+static uid_t uid;
+static gid_t gid;
 
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = { 0 };
 char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = { 0 };
@@ -630,6 +634,7 @@ int main(int argc, char **argv)
     int i;
     char c;
     EFI_STATUS status;
+    char *end;
 
     const struct option options[] = {
         { "domain", required_argument, 0, 'd' },
@@ -689,15 +694,23 @@ int main(int argc, char **argv)
             break;
 
         case 'p':
-            UNIMPLEMENTED("depriv");
+            depriv = true;
             break;
 
         case 'u':
-            UNIMPLEMENTED("uid");
+            uid = (uid_t)strtol(optarg, &end, 0);
+            if (*end != '\0') {
+                fprintf(stderr, "invalid uid '%s'\n", optarg);
+                exit(1);
+            }
             break;
 
         case 'g':
-            UNIMPLEMENTED("gid");
+            gid = (gid_t)strtol(optarg, &end, 0);
+            if (*end != '\0') {
+                fprintf(stderr, "invalid uid '%s'\n", optarg);
+                exit(1);
+            }
             break;
 
         case 'c':
@@ -709,8 +722,11 @@ int main(int argc, char **argv)
             break;
 
         case 'b':
-            /* We currently only support the xapi backend */
-            UNIMPLEMENTED("backend");
+            /* We currently only support the xapidb backend */
+            if (strcmp(optarg, "xapidb") != 0) {
+                fprintf(stderr, "Invalid backend '%s'\n", optarg);
+                fprintf(stderr, USAGE);
+            }
             break;
 
         case 'a': {
@@ -721,7 +737,7 @@ int main(int argc, char **argv)
         case 'h':
         case '?':
         default:
-            printf(USAGE);
+            fprintf(stderr, USAGE);
             exit(1);
         }
     }
@@ -923,13 +939,8 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    if (root_path) {
-        ret = chroot(root_path);
-
-        if (ret < 0) {
-            ERROR("chroot to dir %s failed!\n", root_path);
-            goto err;
-        }
+    if (!drop_privileges(root_path, depriv, gid, uid)) {
+        goto err;
     }
 
     ret = xapi_connect();
