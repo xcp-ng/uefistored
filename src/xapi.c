@@ -30,12 +30,13 @@
 #define XAPI_CONNECT_SLEEP 3
 
 #define MAX_RESPONSE_SIZE 4096
+#define MAX_REQUEST_SIZE 4096
 #define MAX_RESUME_FILE_SIZE (8 * PAGE_SIZE)
 
+#define BIG_MESSAGE_SIZE (64 * PAGE_SIZE)
 #define VM_UUID_MAX 36
-
 #define SOCKET_MAX 108
-
+#define SESSION_ID_SIZE 512
 #define OFFSET_SZ 4
 
 static char *vm_uuid;
@@ -66,6 +67,20 @@ static char *xapi_resume_path;
     "<param><value><string>DUMMYVM</string></value></param>"                   \
     "<param><value><string>%s</string></value></param>"                        \
     "</params>"                                                                \
+    "</methodCall>"
+
+#define MESSAGE_CREATE                                          \
+    "<?xml version='1.0'?>"                                     \
+    "<methodCall>"                                              \
+      "<methodName>message.create</methodName>"                 \
+      "<params>"                                                \
+        "<param><value><string>%s</string></value></param>"     \
+        "<param><value><string>%s</string></value></param>"     \
+        "<param><value><int>%d</int></value></param>"           \
+        "<param><value><string>%s</string></value></param>"     \
+        "<param><value><string>%s</string></value></param>"     \
+        "<param><value><string>%s</string></value></param>"     \
+      "</params>"                                               \
     "</methodCall>"
 
 int xapi_parse_arg(char *arg)
@@ -366,15 +381,7 @@ static char *variable_list_base64(void)
 
 static int create_header(size_t body_len, char *message, size_t message_size)
 {
-    int ret;
-
-    ret = snprintf(message, message_size, HTTP_HEADER, body_len);
-
-    if (ret < 0) {
-        return ret;
-    }
-
-    return ret;
+    return snprintf(message, message_size, HTTP_HEADER, body_len);
 }
 
 static int build_set_efi_vars_message(char *buffer, size_t n)
@@ -425,7 +432,7 @@ end:
     return ret;
 }
 
-static int send_request(char *message, char *buf, size_t bufsz)
+static int send_request(char *message, char *response, size_t responsesz)
 {
     int ret, fd;
     int pos;
@@ -462,8 +469,8 @@ static int send_request(char *message, char *buf, size_t bufsz)
 
     pos = 0;
 
-    while (pos < bufsz) {
-        ret = read(fd, buf + pos, bufsz - pos);
+    while (pos < responsesz) {
+        ret = read(fd, response + pos, responsesz - pos);
 
         if (ret <= 0)
             break;
@@ -481,12 +488,12 @@ static int send_request(char *message, char *buf, size_t bufsz)
         return ret;
     }
 
-    if (pos > bufsz)
+    if (pos > responsesz)
         return -1;
 
-    buf[pos] = '\0';
+    response[pos] = '\0';
 
-    return http_status(buf);
+    return http_status(response);
 }
 
 /**
@@ -801,6 +808,26 @@ int session_login(char *session_id, size_t n)
     return 0;
 }
 
+int session_login_retry(char *out, size_t n)
+{
+    int retries = 5;
+    int ret;
+    char session_id[SESSION_ID_SIZE];
+
+    if (!out)
+        return -1;
+
+    ret = session_login(session_id, SESSION_ID_SIZE);
+
+    while (ret < 0 && retries > 0) {
+        usleep(100000);
+        ret = session_login(session_id, SESSION_ID_SIZE);
+        retries--;
+    }
+
+    return ret;
+}
+
 /**
  * This function sends a session.logout request to XAPI.
  *
@@ -973,27 +1000,19 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 int xapi_variables_request(variable_t *vars, size_t n)
 
 {
-    int retries = 5;
     int ret;
-    char session_id[512];
+    char session_id[SESSION_ID_SIZE];
     uint8_t plaintext[BIG_MESSAGE_SIZE];
     char b64[BIG_MESSAGE_SIZE];
 
-    ret = session_login(session_id, 512);
+    if (session_login_retry(session_id, SESSION_ID_SIZE) < 0)
+        ERROR("failed to login session\n");
+        return 0;
 
-    while (ret < 0 && retries > 0) {
-        usleep(100000);
-        ret = session_login(session_id, 512);
-        retries--;
+    if (xapi_vm_get_by_uuid(session_id) < 0) {
+        ERROR("failed to get VM by uuid\n");
+        return 0;
     }
-
-    if (ret < 0)
-        return 0;
-
-    ret = xapi_vm_get_by_uuid(session_id);
-
-    if (ret < 0)
-        return 0;
 
     ret = xapi_get_nvram(session_id, b64, BIG_MESSAGE_SIZE);
 
@@ -1007,9 +1026,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
     if (ret < 0)
         return 0;
 
-    ret = from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
-
-    return ret;
+    return from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
 }
 
 /**
@@ -1101,4 +1118,27 @@ void xapi_cleanup(void)
         free(xapi_save_path);
     if (vm_uuid)
         free(vm_uuid);
+}
+
+int xapi_sb_notify(void)
+{
+    char session_id[SESSION_ID_SIZE];
+    char response[BIG_MESSAGE_SIZE] = { 0 };
+    char request[MAX_REQUEST_SIZE] = {0};
+    int request_size;
+
+    if (session_login_retry(session_id, SESSION_ID_SIZE) < 0)
+        return -1;
+
+    if (xapi_vm_get_by_uuid(session_id) < 0)
+        return -1;
+
+    request_size = snprintf(request, MAX_REQUEST_SIZE, MESSAGE_CREATE,
+            session_id, "VM_SECURE_BOOT_FAILED", 5,
+            "VM", vm_uuid, "The VM failed to pass Secure Boot verification");
+
+    if (request_size < 0)
+        return request_size;
+
+    return send_request(request, response, request_size) == 200 ? 0 : -1;
 }

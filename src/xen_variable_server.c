@@ -488,6 +488,7 @@ err:
 void xen_variable_server_handle_request(void *comm_buf)
 {
     const uint8_t *inptr = comm_buf;
+    uint8_t *outptr = comm_buf;
     uint32_t command;
 
     if (!comm_buf) {
@@ -516,7 +517,14 @@ void xen_variable_server_handle_request(void *comm_buf)
         handle_query_variable_info(comm_buf);
         break;
     case COMMAND_NOTIFY_SB_FAILURE:
-        /* fall through */
+        if (xapi_sb_notify() < 0) {
+            DDEBUG("xapi_sb_notify() error\n");
+            serialize_result(&outptr, EFI_DEVICE_ERROR);
+        } else {
+            DDEBUG("xapi_sb_notify() success\n");
+            serialize_result(&outptr, EFI_SUCCESS);
+        }
+        break;
     default:
         ERROR("cmd: unknown, 0x%x\n", command);
         break;
