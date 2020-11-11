@@ -62,6 +62,9 @@ char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = { 0 };
 
 static char *root_path = NULL;
 
+bool secure_boot_enabled;
+bool enforcement_level;
+
 #define UNUSED(var) ((void)var);
 
 #define USAGE                                                                  \
@@ -362,26 +365,25 @@ int setup_portio(xendevicemodel_handle *dmod, xenforeignmemory_handle *fmem,
     return 0;
 }
 
-char *uefistored_xs_read_string(struct xs_handle *xsh, const char *xs_path,
-                                int domid, unsigned int *len)
-{
-    char stringbuf[0x80];
-
-    snprintf(stringbuf, sizeof(stringbuf), xs_path, domid);
-    return xs_read(xsh, XBT_NULL, stringbuf, len);
-}
-
 bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
                              int domid)
 {
+    char buf[128];
     char *data;
     unsigned int len;
+    bool ret;
 
-    data = uefistored_xs_read_string(xsh, xs_path, domid, &len);
+    snprintf(buf, sizeof(buf), xs_path, domid);
+    data = xs_read(xsh, XBT_NULL, buf, &len);
+
     if (!data)
         return false;
 
-    return strncmp(data, "true", len) == 0;
+    ret = !strncmp(data, "true", len);
+
+    free(data);
+
+    return ret;
 }
 
 void handle_bufioreq(buf_ioreq_t *buf_ioreq)
@@ -625,8 +627,6 @@ int main(int argc, char **argv)
     xc_dominfo_t domain_info;
     shared_iopage_t *shared_iopage;
     buffered_iopage_t *buffered_iopage;
-    bool secureboot_enabled;
-    bool enforcement_level;
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     int ret;
@@ -918,9 +918,9 @@ int main(int argc, char **argv)
     }
 
     /* Check secure boot is enabled */
-    secureboot_enabled = uefistored_xs_read_bool(
+    secure_boot_enabled = uefistored_xs_read_bool(
             xsh, "/local/domain/%u/platform/secureboot", domid);
-    INFO("Secure boot enabled: %s\n", secureboot_enabled ? "true" : "false");
+    INFO("Secure boot enabled: %s\n", secure_boot_enabled ? "true" : "false");
 
     /* Check enforcment level */
     enforcement_level = uefistored_xs_read_bool(
