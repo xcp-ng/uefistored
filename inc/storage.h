@@ -20,7 +20,7 @@ EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid,
 void storage_destroy(void);
 variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid);
 EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid);
-int storage_exists(const UTF16 *name, const EFI_GUID *guid);
+bool storage_exists(const UTF16 *name, const EFI_GUID *guid);
 uint64_t storage_used(void);
 EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid);
 EFI_STATUS storage_get_var_ptr(variable_t **var, const UTF16 *name, const EFI_GUID *guid);

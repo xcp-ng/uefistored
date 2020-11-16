@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/types.h>
@@ -56,16 +57,9 @@ void storage_destroy(void)
     memset(variables, 0, sizeof(variables));
 }
 
-int storage_exists(const UTF16 *name, const EFI_GUID *guid)
+bool storage_exists(const UTF16 *name, const EFI_GUID *guid)
 {
-    variable_t *var = NULL;
-
-    var = find_variable(name, guid, variables, MAX_VAR_COUNT);
-
-    if (!var)
-        return VAR_NOT_FOUND;
-
-    return 0;
+    return !!find_variable(name, guid, variables, MAX_VAR_COUNT);
 }
 
 variable_t *storage_find_variable(const UTF16 *name, const EFI_GUID *guid)
@@ -414,12 +408,49 @@ variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
     return &variables[i];
 }
 
+static void log_data(uint8_t *data, uint64_t data_len)
+{
+    uint64_t i;
+
+    if (!data)
+        return;
+
+    fprintf(stderr, "[");
+    for (i=0; i<data_len; i++) {
+        fprintf(stderr, "0x%02x", data[i]);
+
+        if (i != data_len - 1) {
+            fprintf(stderr, ", ");
+        }
+    }
+    fprintf(stderr, "]");
+}
+
+void storage_print_all_data_only(void)
+{
+    int i,j;
+    variable_t *var;
+
+    fprintf(stderr, "All UEFI variables (data only)\n");
+
+    for_each_variable(variables, var, i)
+    {
+        for (j=0; j<var->namesz/2; j++) {
+            if (isprint(var->name[j]))
+                fprintf(stderr, "%c", (char)var->name[j]);
+        }
+        fprintf(stderr, ", data(%lu)=", var->datasz);
+        log_data(var->data, var->datasz);
+        fprintf(stderr, "\n");
+    }
+}
+
 void storage_print_all(void)
 {
     int i;
     variable_t *var;
 
-    DDEBUG("Variables:\n");
+    DDEBUG("All UEFI Variables:\n");
     for_each_variable(variables, var, i)
     {
         dprint_variable(var);
