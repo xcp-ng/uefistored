@@ -210,7 +210,7 @@ void *map_guest_memory(xen_pfn_t start)
 void handle_ioreq(struct ioreq *ioreq)
 
 {
-    void *p;
+    void *shmem;
 
     /* The port number is the ioreq address. */
     uint64_t port_addr = ioreq->addr;
@@ -251,14 +251,14 @@ void handle_ioreq(struct ioreq *ioreq)
         return;
     }
 
-    p = map_guest_memory(gfn);
-    if (p) {
+    shmem = map_guest_memory(gfn);
+    if (shmem) {
         /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
          * let's process it. */
-        xen_variable_server_handle_request(p);
+        xen_variable_server_handle_request(shmem);
 
         /* Free up mappable space */
-        xenforeignmemory_unmap(_fmem, p, 16);
+        xenforeignmemory_unmap(_fmem, shmem, SHMEM_PAGES);
     } else {
         ERROR("failed to map guest memory!\n");
     }
