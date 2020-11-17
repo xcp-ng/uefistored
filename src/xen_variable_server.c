@@ -295,16 +295,31 @@ static struct request *unserialize_set_request(void *comm_buf)
     return request;
 }
 
+#define strcmp16_len(a, a_n, b) \
+    (a_n == sizeof(b) && !strcmp16(a, b))
+
 /**
  * Returns true if variable is read-only, otherwise false.
  */
-static bool is_ro(UTF16 *variable)
+static bool is_ro(UTF16 *name, uint64_t namesz, EFI_GUID *guid)
 {
-    if (!variable)
+    if (!name || !guid)
         return false;
 
-    return strcmp16(variable, SECURE_BOOT_NAME) == 0;
+    /* All of the read-only variables are global */
+    if (!compare_guid(guid, &gEfiGlobalVariableGuid))
+        return false;
+
+    if (strcmp16_len(name, namesz, L"SecureBoot") ||
+        strcmp16_len(name, namesz, L"SetupMode") ||
+        strcmp16_len(name, namesz, L"AuditMode") ||
+        strcmp16_len(name, namesz, L"DeployedMode") ||
+        strcmp16_len(name, namesz, L"SignatureSupport"))
+       return true;
+
+    return false;
 }
+
 
 static void handle_set_variable(void *comm_buf)
 {
@@ -341,7 +356,7 @@ static void handle_set_variable(void *comm_buf)
         goto done;
     }
 
-    if (is_ro((UTF16*)request->name)) {
+    if (is_ro((UTF16*)request->name, request->namesz, &request->guid)) {
         serialize_result(&ptr, EFI_WRITE_PROTECTED);
         goto done;
     }
