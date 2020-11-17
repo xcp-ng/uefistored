@@ -37,22 +37,6 @@ struct request {
     uint32_t attrs;
 };
 
-static bool is_secure_boot_variable(UTF16 *name, EFI_GUID *guid)
-{
-    if (!name || !guid)
-        return false;
-
-    if (compare_guid(guid, &gEfiGlobalVariableGuid)) {
-        return !strcmp16(name, L"PK") || !strcmp16(name, L"KEK");
-    }
-
-    if (compare_guid(guid, &gEfiImageSecurityDatabaseGuid)) {
-        return !strcmp16(name, L"db") || !strcmp16(name, L"dbx") || !strcmp16(name, L"dbt");
-    }
-
-    return false;
-}
-
 #if DEBUG
 static void debug_request(struct request *req)
 {
