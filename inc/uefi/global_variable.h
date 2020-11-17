@@ -19,32 +19,6 @@
 
 #include "uefi/types.h"
 
-#define EFI_GLOBAL_VARIABLE \
-  { \
-    0x8BE4DF61, 0x93CA, 0x11d2, {0xAA, 0x0D, 0x00, 0xE0, 0x98, 0x03, 0x2B, 0x8C } \
-  }
-
-extern EFI_GUID gEfiGlobalVariableGuid;
-
-//
-// Follow UEFI 2.4 spec:
-// To prevent name collisions with possible future globally defined variables,
-// other internal firmware data variables that are not defined here must be
-// saved with a unique VendorGuid other than EFI_GLOBAL_VARIABLE or
-// any other GUID defined by the UEFI Specification. Implementations must
-// only permit the creation of variables with a UEFI Specification-defined
-// VendorGuid when these variables are documented in the UEFI Specification.
-//
-// Note: except the globally defined variables defined below, the spec also defines
-// L"Boot####"      - A boot load option.
-// L"Driver####"    - A driver load option.
-// L"SysPrep####"   - A System Prep application load option.
-// L"Key####"       - Describes hot key relationship with a Boot#### load option.
-// The attribute for them is NV+BS+RT, #### is a printed hex value, and no 0x or h
-// is included in the hex value. They can not be expressed as a #define like other globally
-// defined variables, it is because we can not list the Boot0000, Boot0001, etc one by one.
-//
-
 ///
 /// The language codes that the firmware supports. This value is deprecated.
 /// Its attribute is BS+RT.

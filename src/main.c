@@ -31,6 +31,7 @@
 #include "storage.h"
 #include "uefi/authlib.h"
 #include "uefi/types.h"
+#include "uefi/guids.h"
 #include "xapi.h"
 #include "xen_variable_server.h"
 #include "depriv.h"
@@ -46,24 +47,26 @@ extern char *xapi_resume_path;
 static evtchn_port_t bufioreq_local_port;
 static evtchn_port_t bufioreq_remote_port;
 static xendevicemodel_handle *dmod;
-static int domid;
 static xenforeignmemory_handle *fmem;
 static xenforeignmemory_resource_handle *fmem_resource;
 static ioservid_t ioservid;
 static xenevtchn_handle *xce;
 static xc_interface *xc_handle;
 struct xs_handle *xsh;
+
+/* Options/args */
+static int domid;
 static bool depriv;
 static uid_t uid;
 static gid_t gid;
+static char *root_path = NULL;
+static char *pidfile;
+
+extern bool secure_boot_enabled;
+bool enforcement_level;
 
 char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = { 0 };
 char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = { 0 };
-
-static char *root_path = NULL;
-
-bool secure_boot_enabled;
-bool enforcement_level;
 
 #define UNUSED(var) ((void)var);
 
@@ -83,7 +86,24 @@ bool enforcement_level;
 
 #define UNIMPLEMENTED(opt) INFO(opt " option not implemented!\n")
 
-static char *pidfile;
+#define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)   \
+    {                                                   \
+        .path = "/usr/share/varstored/" fname,          \
+        .var = {                                        \
+            .name = _name,                            \
+            .namesz = sizeof(_name),                  \
+            .guid = _guid,                              \
+            .attrs = _attrs,                            \
+        },                                              \
+    }
+
+#define AT_ATTRS \
+    EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS | \
+    EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS
+
+struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+};
 
 static int write_pidfile(void)
 {
@@ -935,18 +955,11 @@ int main(int argc, char **argv)
 
     storage_init();
 
-    if (auth_lib_load(PK_PATH) < 0) {
+    if (auth_lib_load(auth_files, ARRAY_SIZE(auth_files)) < 0) {
         goto err;
     }
 
     if (!drop_privileges(root_path, depriv, gid, uid)) {
-        goto err;
-    }
-
-    ret = xapi_connect();
-
-    if (ret < 0) {
-        ERROR("failed to connect XAPI database\n");
         goto err;
     }
 
@@ -956,9 +969,12 @@ int main(int argc, char **argv)
         goto err;
 
     /* TODO: if this fails, should we die? (probably if SB is on) */
-    if ((status = auth_lib_initialize()) != EFI_SUCCESS)
-        DDEBUG("auth_lib_initialization() failed, status=%s (0x%lx)",
+    if ((status = auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files))) != EFI_SUCCESS) {
+        ERROR("auth_lib_initialization() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
+
+        assert(status == EFI_SUCCESS);
+    }
 
     if (write_pid(xsh) < 0)
         goto err;

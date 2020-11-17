@@ -34,8 +34,11 @@
 #include "uefi/x509.h"
 #include "variable.h"
 
+extern EFI_GUID gEfiGlobalVariableGuid;
+extern EFI_GUID gEfiSecureBootEnableDisableGuid;
+
 bool auth_enforce = true;
-bool secure_boot_enable;
+bool secure_boot_enabled;
 
 extern bool efi_at_runtime;
 
@@ -429,7 +432,8 @@ bool NeedPhysicallyPresent(UTF16 *name, EFI_GUID *guid)
 EFI_STATUS update_platform_mode(uint32_t mode)
 {
     EFI_STATUS status;
-    uint8_t SecureBootMode;
+    uint8_t deployed_mode;
+    uint8_t secure_boot_mode;
 
     if (mode != USER_MODE && mode != SETUP_MODE) {
         return EFI_NOT_FOUND;
@@ -437,25 +441,25 @@ EFI_STATUS update_platform_mode(uint32_t mode)
 
     setup_mode = (uint8_t)mode;
 
-    status = storage_set(L"SetupMode",  &gEfiGlobalVariableGuid,
-                         &setup_mode, sizeof(setup_mode),
-                         EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
+    storage_set(L"SetupMode",  &gEfiGlobalVariableGuid,
+                &setup_mode, sizeof(setup_mode),
+                EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
-    if (status) {
-        ERROR("Failed to set SetupMode\n");
-        return status;
-    }
-
-
-    SecureBootMode = (mode == USER_MODE) ? SECURE_BOOT_MODE_ENABLE
-                                         : SECURE_BOOT_MODE_DISABLE;
+    secure_boot_mode = secure_boot_enabled;
 
     status = storage_set(EFI_SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid,
-                         &SecureBootMode, sizeof(uint8_t),
+                         &secure_boot_mode, sizeof(uint8_t),
                          EFI_VARIABLE_RUNTIME_ACCESS |
                                  EFI_VARIABLE_BOOTSERVICE_ACCESS);
 
-    /* TODO: SecureBootEnable needs to be from XAPI */
+    if (mode == SETUP_MODE)
+        deployed_mode = 1;
+    else
+        deployed_mode = 0;
+
+    status = storage_set(L"DeployedMode", &gEfiGlobalVariableGuid, &deployed_mode,
+                         sizeof(deployed_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
 
     return status;
 }

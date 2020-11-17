@@ -13,6 +13,7 @@
  * WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
  * 
  */
+#include <assert.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdint.h>
@@ -33,17 +34,10 @@
 #include "uefi/types.h"
 #include "uefi/utils.h"
 
-struct auth_data {
-    int len;
-    uint8_t *data;
-};
+extern EFI_GUID gEfiGlobalVariableGuid;
+extern bool secure_boot_enabled;
 
-static struct auth_data pk_auth_data;
-
-/*
- * Global database array for scratch
- */
-uint32_t setup_mode;
+uint8_t setup_mode;
 
 static EFI_GUID signature_support[] = {
     EFI_CERT_SHA1_GUID,
@@ -57,53 +51,85 @@ static EFI_GUID signature_support[] = {
  */
 SHA256_CTX *hash_ctx = NULL;
 
-static int load_auth(const char *fpath, struct auth_data *auth)
+static int load_auth(struct auth_data *auth)
 {
     struct stat statbuf;
     int fd, ret;
 
-    if (!fpath || !auth)
+    if (!auth || !auth->path)
         return -1;
 
-    ret = stat(fpath, &statbuf);
+    ret = stat(auth->path, &statbuf);
 
     if (ret < 0) {
-        ERROR("failed to stat %s\n", fpath);
+        ERROR("failed to stat %s\n", auth->path);
         return ret;
     }
 
-    fd = open(fpath, O_RDONLY);
+    fd = open(auth->path, O_RDONLY);
 
     if (fd < 0) {
-        ERROR("failed to open %s\n", fpath);
+        ERROR("failed to open %s\n", auth->path);
         return fd;
     }
 
-    auth->data = malloc(statbuf.st_size);
+    auth->var.datasz = statbuf.st_size;
 
-    if (!auth->data) {
-        ERROR("out of memory\n");
-        return -1;
+    if (read(fd, auth->var.data, auth->var.datasz) < 0) {
+        ERROR("failed to read %s\n", auth->path);
+        ret = -1;
     }
-
-    auth->len = read(fd, auth->data, statbuf.st_size);
 
     close(fd);
 
-    return auth->len;
+    return ret;
 }
 
-int auth_lib_load(const char *pk_auth_file)
+int auth_lib_load(struct auth_data *auths, size_t n)
 {
-    if (!pk_auth_file)
+    int ret;
+    size_t i;
+
+    if (!auths)
         return -1;
 
-    if (load_auth(pk_auth_file, &pk_auth_data) < 0) {
-        ERROR("error opening file %s\n", pk_auth_file);
-        return -1;
+    ret = 0;
+    for (i=0; i<n; i++) {
+        if (load_auth(&auths[i]) < 0) {
+            ret = -1;
+            ERROR("error opening file %s\n", auths[i].path);
+        } else {
+            INFO("successfully loaded %s\n", auths[i].path);
+        }
     }
 
-    return 0;
+    return ret;
+}
+
+EFI_STATUS load_auth_files(struct auth_data *auths, size_t n)
+{
+    size_t i;
+    EFI_STATUS status;
+    variable_t *var;
+
+    for (i=0; i<n; i++) {
+        var = &auths[i].var;
+
+        if (!storage_exists(var->name, &var->guid)) {
+            status = auth_lib_process_variable(
+                        var->name, &var->guid,
+                        var->data, var->datasz,
+                        var->attrs);
+
+            if (status != EFI_SUCCESS) {
+                DDEBUG("Failed to set SB variable from %s, status=%s (0x%02lx)\n",
+                        auths[i].path,
+                        efi_status_str(status), status);
+            }
+        }
+    }
+
+    return EFI_SUCCESS;
 }
 
 /**
@@ -112,73 +138,63 @@ int auth_lib_load(const char *pk_auth_file)
  * @return EFI_SUCCESS if initialize is successful, otherwise an EFI errno
  */
 EFI_STATUS
-auth_lib_initialize(void)
+auth_lib_initialize(struct auth_data *auths, size_t n)
 {
     EFI_STATUS status = EFI_SUCCESS;
+    setup_mode = USER_MODE;
     uint8_t secure_boot = 0;
-    uint8_t DeployedMode = 0;
-    uint8_t AuditMode = 0;
+    uint8_t deployed_mode = 1;
+    uint8_t audit_mode = 0;
 
-    setup_mode = SETUP_MODE;
+    hash_ctx = malloc(sizeof(SHA256_CTX));
 
-    status = storage_set(EFI_SIGNATURE_SUPPORT_NAME, &gEfiGlobalVariableGuid,
-                         signature_support, sizeof(signature_support),
-                         EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                                 EFI_VARIABLE_RUNTIME_ACCESS);
-
-    if (status != EFI_SUCCESS) {
-        return EFI_DEVICE_ERROR;
+    if (!storage_exists(L"PK", &gEfiGlobalVariableGuid))  {
+        setup_mode = SETUP_MODE;
+        deployed_mode = 0;
+    } else {
+        secure_boot = secure_boot_enabled;
     }
 
     status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &setup_mode,
                          sizeof(setup_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
-    if (status != EFI_SUCCESS) {
-        return EFI_DEVICE_ERROR;
-    }
+    if (status != EFI_SUCCESS)
+        return status;
 
-    status = auth_lib_process_variable(L"PK", &gEfiGlobalVariableGuid,
-                pk_auth_data.data, pk_auth_data.len,
-                EFI_VARIABLE_NON_VOLATILE |
-                EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |
-                EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
+    status = storage_set(L"SignatureSupport", &gEfiGlobalVariableGuid,
+                         signature_support, sizeof(signature_support),
+                         EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                                 EFI_VARIABLE_RUNTIME_ACCESS);
 
-    if (status != EFI_SUCCESS) {
-        ERROR("Failed to set PK, status=%s (0x%02lx)\n",
-                efi_status_str(status), status);
-        return EFI_DEVICE_ERROR;
-    }
-
-    status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &AuditMode,
-                         sizeof(AuditMode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                         EFI_VARIABLE_RUNTIME_ACCESS);
-
-    if (status != EFI_SUCCESS) {
-        return EFI_DEVICE_ERROR;
-    }
-
-    status = storage_set(L"DeployedMode", &gEfiGlobalVariableGuid, &DeployedMode,
-                         sizeof(DeployedMode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                         EFI_VARIABLE_RUNTIME_ACCESS);
-
-    if (status != EFI_SUCCESS) {
-        return EFI_DEVICE_ERROR;
-    }
+    if (status != EFI_SUCCESS)
+        return status;
 
     status = storage_set(L"SecureBoot", &gEfiGlobalVariableGuid, &secure_boot,
                          sizeof(secure_boot), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
-    if (status != EFI_SUCCESS) {
-        return EFI_DEVICE_ERROR;
-    }
+    if (status != EFI_SUCCESS)
+        return status;
 
-    hash_ctx = malloc(sizeof(SHA256_CTX));
+    status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &audit_mode,
+                         sizeof(audit_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
 
-    if (!hash_ctx) {
-        return EFI_DEVICE_ERROR;
-    }
+    if (status != EFI_SUCCESS)
+        return status;
+
+    status = storage_set(L"DeployedMode", &gEfiGlobalVariableGuid, &deployed_mode,
+                         sizeof(deployed_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
+                         EFI_VARIABLE_RUNTIME_ACCESS);
+
+    if (status != EFI_SUCCESS)
+        return status;
+
+    status = load_auth_files(auths, n);
+
+    if (status != EFI_SUCCESS)
+        return status;
 
     return status;
 }

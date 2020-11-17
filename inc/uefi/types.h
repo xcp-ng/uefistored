@@ -21,10 +21,6 @@ typedef int64_t INTN;
 
 typedef bool BOOLEAN;
 typedef void VOID;
-#define CONST const
-
-#define IN
-#define OUT
 
 #define OFFSET_OF(TYPE, Field) ((uint64_t) & (((TYPE *)0)->Field))
 
