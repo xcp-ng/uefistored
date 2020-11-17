@@ -16,6 +16,22 @@
 #include "munit.h"
 #include "test_suites.h"
 
+#define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)   \
+    {                                                   \
+        .path = "data/certs/" fname,          \
+        .var = {                                        \
+            .name = L"name",                            \
+            .namesz = sizeof(L"name"),                  \
+            .guid = _guid,                              \
+            .attrs = _attrs,                            \
+        },                                              \
+    }
+
+
+struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+};
+
 #define BUF_SIZE 4096
 static uint8_t DEFAULT_PK[BUF_SIZE];
 
@@ -93,7 +109,15 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
     storage_init();
 
     auth_lib_load("data/certs/PK.auth");
-    auth_lib_initialize();
+
+    if (auth_lib_load(auth_files, ARRAY_SIZE(auth_files)) < 0) {
+        return MUNIT_ERROR;
+    }
+
+    if (auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files)) != EFI_SUCCESS) {
+
+        return MUNIT_ERROR;
+    }
 
     status = auth_internal_find_variable(L"PK",
                                          &gEfiGlobalVariableGuid, (void*)&old_esl,
