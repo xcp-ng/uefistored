@@ -618,8 +618,10 @@ void handler_loop(xenevtchn_handle *xce, buffered_iopage_t *buffered_iopage,
                 evtchn_port_t remote_port = remote_vcpu_ports[i];
                 if (remote_port == port) {
                     ret = handle_shared_iopage(xce, shared_iopage, port, i);
-                    if (ret < 0)
+                    if (ret < 0) {
+                        ERROR("handle_shared_iopage() = %d\n", ret);
                         continue;
+                    }
                 }
             }
         }
