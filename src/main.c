@@ -189,7 +189,7 @@ static unsigned long io_port_addr;
 
 
 /**
- * map_guest_memory - Map in a page from the guest address space
+ * map_guest_memory - Map in pages from the guest address space
  *
  * Map the GFNs from start to (start + SHMEM_PAGES) from guest space to uefistored
  * as shared memory.
