@@ -406,19 +406,6 @@ bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
     return ret;
 }
 
-void handle_bufioreq(buf_ioreq_t *buf_ioreq)
-{
-    if (!buf_ioreq) {
-        ERROR("buf_ioreq is null\n");
-        return;
-    }
-
-    if (buf_ioreq->type > 8) {
-        ERROR("UNKNOWN buf_ioreq type %02x)\n", buf_ioreq->type);
-        return;
-    }
-}
-
 int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage,
                          evtchn_port_t port, size_t vcpu)
 {
@@ -622,12 +609,9 @@ void handler_loop(xenevtchn_handle *xce, buffered_iopage_t *buffered_iopage,
 
         if (port == bufioreq_local_port) {
             int i;
-            buf_ioreq_t *p;
 
             for (i = 0; i < IOREQ_BUFFER_SLOT_NUM; i++) {
-                p = &buffered_iopage->buf_ioreq[i];
                 poll_buffered_iopage(buffered_iopage);
-                handle_bufioreq(p);
             }
         } else {
             for (i = 0; i < vcpu_count; i++) {
