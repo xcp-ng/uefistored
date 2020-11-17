@@ -254,7 +254,6 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
     if (!data)
         return -1;
 
-
     memcpy(data, *ptr, datasz);
     *ptr += datasz;
 
