@@ -978,7 +978,8 @@ verify_time_based_payload(UTF16 *name, EFI_GUID *guid, void *data,
         (efi_auth->TimeStamp.TimeZone != 0) ||
         (efi_auth->TimeStamp.Daylight != 0) ||
         (efi_auth->TimeStamp.Pad2 != 0)) {
-        WARNING("Invalid TimeStamp in auth variable\n");
+        WARNING("Invalid TimeStamp in auth variable: \n");
+        fprintf16(stderr, name);
         return EFI_SECURITY_VIOLATION;
     }
 
