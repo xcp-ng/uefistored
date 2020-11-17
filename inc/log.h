@@ -30,8 +30,9 @@
 #if DEBUG
 #define DDEBUG(...)                                                            \
     do {                                                                       \
-        uefistored_fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);       \
-        uefistored_fprintf(stdout, __VA_ARGS__);                               \
+        fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);       \
+        fprintf(stdout, __VA_ARGS__);                                          \
+        fflush(stdout);                                                        \
     } while (0)
 
 #define DPRINTF(...)                                                           \
