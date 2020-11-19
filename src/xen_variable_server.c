@@ -54,6 +54,8 @@ static void debug_request(struct request *req)
 
     if (req->command == COMMAND_SET_VARIABLE)
         DPRINTF(", attrs=0x%02x, ", req->attrs);
+
+    DPRINTF("\n");
 }
 #else
 #define debug_request(...) do { } while ( 0 )
@@ -153,10 +155,8 @@ static int serialize_get_error(variable_t *var, struct request *request, void *c
      */
     if (!var) {
         serialize_result(&ptr, EFI_NOT_FOUND);
-        DDEBUG("EFI_NOT_FOUND due to no not found\n");
         ret = -1;
     } else if (efi_at_runtime && !(var->attrs & EFI_VARIABLE_RUNTIME_ACCESS)) {
-        DDEBUG("EFI_NOT_FOUND due to no runtime access\n");
         serialize_result(&ptr, EFI_NOT_FOUND);
         ret = -1;
     } else if (request->buffer_size < var->datasz) {
@@ -500,8 +500,6 @@ void xen_variable_server_handle_request(void *comm_buf)
 
     command = unserialize_uint32(&inptr);
 
-    DDEBUG("command: 0x%02x\n", command);
-
     switch (command) {
     case COMMAND_GET_VARIABLE:
         handle_get_variable(comm_buf);
@@ -529,7 +527,7 @@ void xen_variable_server_handle_request(void *comm_buf)
         break;
     }
 
-#ifdef DEBUG
+#if 0
     const uint8_t *dbg_ptr = comm_buf;
     DDEBUG("result: 0x%02lx\n", unserialize_result(&dbg_ptr));
 #endif
