@@ -9,11 +9,12 @@ struct auth_data {
 };
 
 EFI_STATUS auth_lib_process_variable (
-    UTF16 *VariableName,
-    EFI_GUID *VendorGuid,
-    void *Data,
-    uint64_t DataSize,
-    uint32_t Attributes
+    UTF16 *name,
+    size_t namesz,
+    EFI_GUID *guid,
+    void *data,
+    uint64_t datasz,
+    uint32_t attrs
 );
 
 EFI_STATUS auth_lib_initialize(struct auth_data *auths, size_t n);

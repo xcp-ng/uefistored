@@ -57,17 +57,17 @@ void storage_destroy(void)
     memset(variables, 0, sizeof(variables));
 }
 
-bool storage_exists(const UTF16 *name, const EFI_GUID *guid)
+bool storage_exists(const UTF16 *name, size_t namesz, const EFI_GUID *guid)
 {
-    return !!find_variable(name, guid, variables, MAX_VAR_COUNT);
+    return !!find_variable(name, namesz, guid, variables, MAX_VAR_COUNT);
 }
 
-variable_t *storage_find_variable(const UTF16 *name, const EFI_GUID *guid)
+variable_t *storage_find_variable(const UTF16 *name, size_t namesz, const EFI_GUID *guid)
 {
-    return find_variable(name, guid, variables, MAX_VAR_COUNT);
+    return find_variable(name, namesz, guid, variables, MAX_VAR_COUNT);
 }
 
-EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
+EFI_STATUS storage_get(const UTF16 *name, size_t namesz, const EFI_GUID *guid, uint32_t *attrs,
                        void *data, size_t *data_size)
 {
     variable_t *var;
@@ -76,7 +76,7 @@ EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
         return EFI_DEVICE_ERROR;
     }
 
-    var = find_variable(name, guid, variables, MAX_VAR_COUNT);
+    var = find_variable(name, namesz, guid, variables, MAX_VAR_COUNT);
 
     if (!var) {
         return EFI_NOT_FOUND;
@@ -103,13 +103,13 @@ EFI_STATUS storage_get(const UTF16 *name, const EFI_GUID *guid, uint32_t *attrs,
     return EFI_SUCCESS;
 }
 
-EFI_STATUS storage_get_var_ptr(variable_t **var, const UTF16 *name, const EFI_GUID *guid)
+EFI_STATUS storage_get_var_ptr(variable_t **var, const UTF16 *name, size_t namesz, const EFI_GUID *guid)
 {
     if (!var || !name || !guid) {
         return EFI_DEVICE_ERROR;
     }
 
-    *var = find_variable(name, guid, variables, MAX_VAR_COUNT);
+    *var = find_variable(name, namesz, guid, variables, MAX_VAR_COUNT);
 
     if (!*var) {
         return EFI_NOT_FOUND;
@@ -118,7 +118,7 @@ EFI_STATUS storage_get_var_ptr(variable_t **var, const UTF16 *name, const EFI_GU
     return EFI_SUCCESS;
 }
 
-EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *guid)
+EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, size_t namesz, const EFI_GUID *guid)
 {
     EFI_STATUS status = EFI_SUCCESS;
     int ret;
@@ -127,7 +127,7 @@ EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *g
     if (!var || !name || !guid)
         return EFI_INVALID_PARAMETER;
 
-    ret = variable_set_name(var, name);
+    ret = variable_set_name(var, name, namesz);
 
     if (ret < 0) {
         status = EFI_DEVICE_ERROR;
@@ -154,7 +154,7 @@ EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, const EFI_GUID *g
         goto err2;
     }
 
-    status = storage_get(var->name, &var->guid, &var->attrs, var->data, &var->datasz);
+    status = storage_get(var->name, var->namesz, &var->guid, &var->attrs, var->data, &var->datasz);
 
     if (status != EFI_SUCCESS)
         goto err2;
@@ -207,23 +207,20 @@ err:
     return EFI_DEVICE_ERROR;
 }
 
-EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid)
+EFI_STATUS storage_remove(const UTF16 *name, size_t namesz, const EFI_GUID *guid)
 {
     int i;
-    size_t namesz;
     variable_t *var;
 
     if (!name || !guid)
         return EFI_DEVICE_ERROR;
-
-    namesz = strsize16(name);
 
     for_each_variable(variables, var, i)
     {
         if (var->namesz != namesz)
             continue;
 
-        if (strcmp16(var->name, name) == 0 &&
+        if (memcmp(var->name, name, var->namesz) == 0 &&
                 memcmp(&var->guid, guid, sizeof(var->guid)) == 0) {
             variable_destroy_noalloc(var);
             used -= (var->datasz + namesz);
@@ -236,18 +233,15 @@ EFI_STATUS storage_remove(const UTF16 *name, const EFI_GUID *guid)
     return EFI_NOT_FOUND;
 }
 
-EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data,
+EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid, const void *data,
                        size_t datasz, uint32_t attrs)
 {
     int i;
     int ret;
-    size_t namesz;
     variable_t *var;
 
     if (!name || !guid)
         return EFI_DEVICE_ERROR;
-
-    namesz = strsize16(name);
 
     if (namesz > MAX_VARIABLE_NAME_SIZE ||
         datasz > MAX_VARIABLE_DATA_SIZE ||
@@ -256,7 +250,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
 
     /* As specified by the UEFI spec */
     if (datasz == 0 || attrs == 0)
-        return storage_remove(name, guid);
+        return storage_remove(name, namesz, guid);
 
     /* Caller passed in a null pointer as data */
     if (!data)
@@ -268,13 +262,13 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
         if (var->namesz != namesz)
             continue;
 
-        if (strcmp16(var->name, name) == 0 && memcmp(&var->guid, guid, sizeof(EFI_GUID)) == 0) {
+        if (memcmp(var->name, name, var->namesz) == 0 && memcmp(&var->guid, guid, sizeof(EFI_GUID)) == 0) {
 
             /* If the attrs are different, then return EFI_UNSUPPORTED */
             if (var->attrs != attrs)
                 return EFI_INVALID_PARAMETER;
 
-            ret = variable_set_name(var, name);
+            ret = variable_set_name(var, name, namesz);
 
             if (ret == -2)
                 return EFI_OUT_OF_RESOURCES;
@@ -297,7 +291,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
     for_each_variable(variables, var, i)
     {
         if (var->name[0] == 0) {
-            ret = variable_create_noalloc(var, name, data, datasz, guid, attrs, NULL);
+            ret = variable_create_noalloc(var, name, namesz, data, datasz, guid, attrs, NULL);
 
             if (ret < 0)
                 return EFI_DEVICE_ERROR;
@@ -311,7 +305,7 @@ EFI_STATUS storage_set(const UTF16 *name, const EFI_GUID *guid, const void *data
     return EFI_DEVICE_ERROR;
 }
 
-EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid, const void *data,
+EFI_STATUS storage_set_with_timestamp(const UTF16 *name, size_t namesz, const EFI_GUID *guid, const void *data,
                                       size_t datasz, uint32_t attrs, EFI_TIME *timestamp)
 {
     EFI_STATUS status;
@@ -320,14 +314,14 @@ EFI_STATUS storage_set_with_timestamp(const UTF16 *name, const EFI_GUID *guid, c
     if (!name || !data || !guid || !timestamp)
         return EFI_DEVICE_ERROR;
 
-    status = storage_set(name, guid, data, datasz, attrs);
+    status = storage_set(name, namesz, guid, data, datasz, attrs);
 
     /* If this variable was deleted, then we are done */
     if (is_delete(attrs, datasz))
         return status;
 
     /* Set the timestamp */
-    status = storage_get_var_ptr(&var, name, guid);
+    status = storage_get_var_ptr(&var, name, namesz, guid);
 
     if (status != EFI_SUCCESS)
         return status;
@@ -363,15 +357,12 @@ static variable_t *storage_get_first(void)
     return &variables[i];
 }
 
-variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
+variable_t *storage_next_variable(UTF16 *name, size_t namesz, EFI_GUID *guid)
 {
     size_t i;
-    size_t prev_namesz;
     const variable_t *var;
 
-    prev_namesz = strsize16(name);
-
-    if (name[0] == 0) {
+    if (name[0] == 0 || namesz == 0) {
         return storage_get_first();
     }
 
@@ -381,10 +372,10 @@ variable_t *storage_next_variable(UTF16 *name, EFI_GUID *guid)
     for (i=0; i<MAX_VAR_COUNT; i++) {
         var = &variables[i];
 
-        if (var->namesz != prev_namesz)
+        if (var->namesz != namesz)
             continue;
 
-        if (strcmp16(var->name, name) == 0 &&
+        if (memcmp(var->name, name, var->namesz) == 0 &&
                 memcmp(guid, &var->guid, sizeof(EFI_GUID)) == 0) {
             break;
         }

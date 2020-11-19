@@ -1095,8 +1095,9 @@ int xapi_init(bool resume)
 
     for (i = 0; i < len; i++) {
         var = &variables[i];
-        ret = storage_set(var->name, &var->guid,
-                             var->data, var->datasz, var->attrs);
+
+        ret = storage_set(var->name, var->namesz, &var->guid,
+                          var->data, var->datasz, var->attrs);
 
         /*
          * If we fail to set a variable from XAPI then we can't trust our 

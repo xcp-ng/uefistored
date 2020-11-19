@@ -23,6 +23,7 @@
 
 #include <openssl/sha.h>
 
+#include "common.h"
 #include "log.h"
 #include "storage.h"
 #include "uefi/auth.h"
@@ -115,9 +116,9 @@ EFI_STATUS load_auth_files(struct auth_data *auths, size_t n)
     for (i=0; i<n; i++) {
         var = &auths[i].var;
 
-        if (!storage_exists(var->name, &var->guid)) {
+        if (!storage_exists(var->name, var->namesz, &var->guid)) {
             status = auth_lib_process_variable(
-                        var->name, &var->guid,
+                        var->name, var->namesz, &var->guid,
                         var->data, var->datasz,
                         var->attrs);
 
@@ -148,21 +149,21 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
 
     hash_ctx = malloc(sizeof(SHA256_CTX));
 
-    if (!storage_exists(L"PK", &gEfiGlobalVariableGuid))  {
+    if (!storage_exists(L"PK", sizeof_wchar(L"PK"), &gEfiGlobalVariableGuid))  {
         setup_mode = SETUP_MODE;
         deployed_mode = 0;
     } else {
         secure_boot = secure_boot_enabled;
     }
 
-    status = storage_set(L"SetupMode", &gEfiGlobalVariableGuid, &setup_mode,
+    status = storage_set(L"SetupMode", sizeof_wchar(L"SetupMode"), &gEfiGlobalVariableGuid, &setup_mode,
                          sizeof(setup_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS)
         return status;
 
-    status = storage_set(L"SignatureSupport", &gEfiGlobalVariableGuid,
+    status = storage_set(L"SignatureSupport", sizeof_wchar(L"SignatureSupport"), &gEfiGlobalVariableGuid,
                          signature_support, sizeof(signature_support),
                          EFI_VARIABLE_BOOTSERVICE_ACCESS |
                                  EFI_VARIABLE_RUNTIME_ACCESS);
@@ -170,21 +171,24 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
     if (status != EFI_SUCCESS)
         return status;
 
-    status = storage_set(L"SecureBoot", &gEfiGlobalVariableGuid, &secure_boot,
+    status = storage_set(L"SecureBoot", sizeof_wchar(L"SecureBoot"),
+                         &gEfiGlobalVariableGuid, &secure_boot,
                          sizeof(secure_boot), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS)
         return status;
 
-    status = storage_set(L"AuditMode", &gEfiGlobalVariableGuid, &audit_mode,
+    status = storage_set(L"AuditMode", sizeof_wchar(L"AuditMode"),
+                         &gEfiGlobalVariableGuid, &audit_mode,
                          sizeof(audit_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS)
         return status;
 
-    status = storage_set(L"DeployedMode", &gEfiGlobalVariableGuid, &deployed_mode,
+    status = storage_set(L"DeployedMode", sizeof_wchar(L"DeployedMode"),
+                         &gEfiGlobalVariableGuid, &deployed_mode,
                          sizeof(deployed_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
@@ -211,7 +215,7 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
  * @return EFI_SUCCESS if variable is successfully stored, otherwise an EFI error code
  */
 EFI_STATUS
-auth_lib_process_variable(UTF16 *variable_name, EFI_GUID *vendor_guid,
+auth_lib_process_variable(UTF16 *variable_name, size_t namesz, EFI_GUID *vendor_guid,
                                void *data, uint64_t data_size,
                                uint32_t attributes)
 {

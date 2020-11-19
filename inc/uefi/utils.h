@@ -7,7 +7,7 @@
 extern EFI_GUID gEfiGlobalVariableGuid;
 extern EFI_GUID gEfiImageSecurityDatabaseGuid;
 
-bool is_secure_boot_variable(UTF16 *name, EFI_GUID *guid);
+bool is_secure_boot_variable(UTF16 *name, size_t namesz, EFI_GUID *guid);
 
 /**
  * Compare two guids.

@@ -22,6 +22,7 @@
 #include <openssl/pkcs7.h>
 #include <openssl/err.h>
 
+#include "common.h"
 #include "log.h"
 #include "storage.h"
 #include "uefi/auth_var_format.h"
@@ -336,13 +337,13 @@ FilterSignatureList(void *data, uint64_t data_size, void *new_data,
   @return EFI_NOT_FOUND             Variable not found
 
 **/
-EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
+EFI_STATUS auth_internal_find_variable(UTF16 *name, size_t namesz, EFI_GUID *guid, void **data,
                                        uint64_t *data_size)
 {
     variable_t *var;
     EFI_STATUS status;
 
-    status = storage_get_var_ptr(&var, name, guid);
+    status = storage_get_var_ptr(&var, name, namesz, guid);
 
     if (status == EFI_SUCCESS) {
         *data_size = var->datasz;
@@ -351,6 +352,10 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
 
     return status;
 }
+
+#define is_var(var, str) \
+    (((var)->namesz == sizeof_wchar(str)) && \
+        (memcmp((var)->name, str, (var)->namesz) == 0))
 
 /**
   Update the variable region with Variable information.
@@ -369,24 +374,24 @@ EFI_STATUS auth_internal_find_variable(UTF16 *name, EFI_GUID *guid, void **data,
 
 **/
 EFI_STATUS auth_internal_update_variable_with_timestamp(
-        UTF16 *name, EFI_GUID *guid, void *data, uint64_t data_size,
+        UTF16 *name, size_t namesz, EFI_GUID *guid, void *data, uint64_t data_size,
         uint32_t attrs, EFI_TIME *timestamp)
 {
     variable_t *var;
     EFI_STATUS find_status;
 
-    find_status = storage_get_var_ptr(&var, name, guid);
+    find_status = storage_get_var_ptr(&var, name, namesz, guid);
 
     /*
      * EFI_VARIABLE_APPEND_WRITE attribute only effects for existing variable
      */
-    if (!EFI_ERROR(find_status) && ((var->attrs & EFI_VARIABLE_APPEND_WRITE) != 0)) {
-        if ((compare_guid(&var->guid, &gEfiImageSecurityDatabaseGuid) &&
-             ((strcmp16(var->name, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
-              (strcmp16(var->name, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
-              (strcmp16(var->name, EFI_IMAGE_SECURITY_DATABASE2) == 0))) ||
+    if ((find_status == EFI_SUCCESS) && ((var->attrs & EFI_VARIABLE_APPEND_WRITE) != 0)) {
+        if (((compare_guid(&var->guid, &gEfiImageSecurityDatabaseGuid) &&
+             (is_var(var, EFI_IMAGE_SECURITY_DATABASE) ||
+              is_var(var, EFI_IMAGE_SECURITY_DATABASE1) ||
+              is_var(var, EFI_IMAGE_SECURITY_DATABASE2))) ||
             (compare_guid(&var->guid, &gEfiGlobalVariableGuid) &&
-             (strcmp16(var->name, EFI_KEY_EXCHANGE_KEY_NAME) == 0))) {
+             is_var(var, EFI_KEY_EXCHANGE_KEY_NAME)))) {
 
             /*
              * For variables with formatted as EFI_SIGNATURE_LIST, the driver
@@ -397,7 +402,7 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
         }
     }
 
-    return storage_set_with_timestamp(name, guid, data, data_size, attrs, timestamp);
+    return storage_set_with_timestamp(name, namesz, guid, data, data_size, attrs, timestamp);
 }
 
 /**
@@ -441,13 +446,13 @@ EFI_STATUS update_platform_mode(uint32_t mode)
 
     setup_mode = (uint8_t)mode;
 
-    storage_set(L"SetupMode",  &gEfiGlobalVariableGuid,
+    storage_set(L"SetupMode", sizeof_wchar(L"SetupMode"), &gEfiGlobalVariableGuid,
                 &setup_mode, sizeof(setup_mode),
                 EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
     secure_boot_mode = secure_boot_enabled;
 
-    status = storage_set(EFI_SECURE_BOOT_MODE_NAME, &gEfiGlobalVariableGuid,
+    status = storage_set(EFI_SECURE_BOOT_MODE_NAME, sizeof_wchar(EFI_SECURE_BOOT_MODE_NAME), &gEfiGlobalVariableGuid,
                          &secure_boot_mode, sizeof(uint8_t),
                          EFI_VARIABLE_RUNTIME_ACCESS |
                                  EFI_VARIABLE_BOOTSERVICE_ACCESS);
@@ -457,7 +462,7 @@ EFI_STATUS update_platform_mode(uint32_t mode)
     else
         deployed_mode = 0;
 
-    status = storage_set(L"DeployedMode", &gEfiGlobalVariableGuid, &deployed_mode,
+    status = storage_set(L"DeployedMode", sizeof_wchar(L"DeployedMode"), &gEfiGlobalVariableGuid, &deployed_mode,
                          sizeof(deployed_mode), EFI_VARIABLE_BOOTSERVICE_ACCESS |
                          EFI_VARIABLE_RUNTIME_ACCESS);
 
@@ -798,7 +803,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     if (!top_cert_der)
         return false;
 
-    status = auth_internal_find_variable(L"PK",
+    status = auth_internal_find_variable(L"PK", sizeof_wchar(L"PK"),
                                          &gEfiGlobalVariableGuid, (void*)&old_esl,
                                          &old_esl_size);
 
@@ -839,6 +844,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
      * Get KEK database from variable.
      */
     status = auth_internal_find_variable(EFI_KEY_EXCHANGE_KEY_NAME,
+                                         sizeof_wchar(EFI_KEY_EXCHANGE_KEY_NAME),
                                          &gEfiGlobalVariableGuid, &kek,
                                          &kek_size);
 
@@ -933,7 +939,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
 **/
 EFI_STATUS
-verify_time_based_payload(UTF16 *name, EFI_GUID *guid, void *data,
+verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid, void *data,
                        uint64_t data_size, uint32_t attrs,
                        auth_var_t auth_var_type, EFI_TIME *org_time_stamp,
                        uint8_t **var_payload_ptr, uint64_t *var_payload_size)
@@ -1111,7 +1117,7 @@ verify_time_based_payload(UTF16 *name, EFI_GUID *guid, void *data,
 
         variable_t *var;
 
-        status = storage_get_var_ptr(&var, name, guid);
+        status = storage_get_var_ptr(&var, name, namesz, guid);
 
         if (status == EFI_SUCCESS) {
             /*
@@ -1186,7 +1192,7 @@ done:
 
 **/
 EFI_STATUS
-verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
+verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid, void *data,
                                      uint64_t data_size, uint32_t attrs,
                                      auth_var_t auth_var_type, bool *var_del)
 {
@@ -1201,14 +1207,14 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
 
     memset(&var, 0, sizeof(var));
 
-    find_status = storage_get_var_ptr(&var, name, guid);
+    find_status = storage_get_var_ptr(&var, name, namesz, guid);
 
     if (find_status == EFI_SUCCESS) {
         time_stamp = &var->timestamp;
     }
 
     status = verify_time_based_payload(
-             name, guid, data, data_size, attrs, auth_var_type,
+             name, namesz, guid, data, data_size, attrs, auth_var_type,
              time_stamp,
              &payload_ptr, &payload_size);
 
@@ -1230,7 +1236,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
     // Final step: Update/Append Variable if it pass Pkcs7Verify
     //
     status = auth_internal_update_variable_with_timestamp(
-            name, guid, payload_ptr, payload_size, attrs, &cert_data->TimeStamp);
+            name, namesz, guid, payload_ptr, payload_size, attrs, &cert_data->TimeStamp);
 
     //
     // Delete signer's certificates when delete the common authenticated variable.
@@ -1268,7 +1274,7 @@ verify_time_based_payload_and_update(UTF16 *name, EFI_GUID *guid, void *data,
   @return EFI_SUCCESS             Variable passed validation successfully.
 
 **/
-EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
+EFI_STATUS process_var_with_pk(UTF16 *name, size_t namesz, EFI_GUID *guid, void *data,
                             uint64_t data_size, uint32_t attrs, bool is_pk)
 {
     EFI_STATUS status;
@@ -1293,7 +1299,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
     if (setup_mode == SETUP_MODE) {
         if (is_pk) {
             status = verify_time_based_payload_and_update(
-                    name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PAYLOAD, &Del);
+                    name, namesz, guid, data, data_size, attrs, AUTH_VAR_TYPE_PAYLOAD, &Del);
         } else {
             payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
             payload_size = data_size - AUTHINFO2_SIZE(data);
@@ -1309,7 +1315,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
             }
 
             status = auth_internal_update_variable_with_timestamp(
-                    name, guid, payload, payload_size, attrs,
+                    name, namesz, guid, payload, payload_size, attrs,
                     &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
 
             if (status) {
@@ -1321,7 +1327,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
          * Verify against X509 Cert in PK database.
          */
         status = verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PK, &Del);
+                name, namesz, guid, data, data_size, attrs, AUTH_VAR_TYPE_PK, &Del);
     }
 
     if (status == EFI_SUCCESS && is_pk) {
@@ -1364,7 +1370,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, EFI_GUID *guid, void *data,
   @return EFI_SUCCESS            Variable pass validation successfully.
 
 **/
-EFI_STATUS process_var_with_kek(UTF16 *name, EFI_GUID *guid, void *data,
+EFI_STATUS process_var_with_kek(UTF16 *name, size_t namesz, EFI_GUID *guid, void *data,
                              uint64_t data_size, uint32_t attrs)
 {
     EFI_STATUS status;
@@ -1387,7 +1393,7 @@ EFI_STATUS process_var_with_kek(UTF16 *name, EFI_GUID *guid, void *data,
          * Time-based, verify against X509 Cert KEK.
          */
         return verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_KEK, NULL);
+                name, namesz, guid, data, data_size, attrs, AUTH_VAR_TYPE_KEK, NULL);
     } else {
         /*
          * If in setup mode, no authentication needed.
@@ -1401,7 +1407,7 @@ EFI_STATUS process_var_with_kek(UTF16 *name, EFI_GUID *guid, void *data,
         }
 
         status = auth_internal_update_variable_with_timestamp(
-                name, guid, payload, payload_size, attrs,
+                name, namesz, guid, payload, payload_size, attrs,
                 &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
         if (status != EFI_SUCCESS) {
             return status;
@@ -1480,7 +1486,7 @@ bool is_delete_auth_variable(uint32_t Orgattrs, void *data, uint64_t data_size,
   @return EFI_SUCCESS Variable is not write-protected or pass validation successfully.
 
 **/
-EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
+EFI_STATUS process_variable(UTF16 *name, size_t namesz, EFI_GUID *guid, void *data,
                             uint64_t data_size, uint32_t attrs)
 {
     variable_t *var;
@@ -1492,7 +1498,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
     memset(&org_variable_info, 0, sizeof(org_variable_info));
 
     /* Find the variable in our db */
-    status = storage_get_var_ptr(&var, name, guid);
+    status = storage_get_var_ptr(&var, name, namesz, guid);
 
 
     /* If it was found and the caller is request its deletion, then delete it */
@@ -1503,7 +1509,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
          * Allow the delete operation of common authenticated variable(AT or AW)
          * at user physical presence.
          */
-        status = storage_set(name, guid, NULL, 0, 0);
+        status = storage_set(name, namesz, guid, NULL, 0, 0);
 
         if (status != EFI_SUCCESS) {
             return status;
@@ -1528,7 +1534,7 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
          * Process Time-based Authenticated variable.
          */
         return verify_time_based_payload_and_update(
-                name, guid, data, data_size, attrs, AUTH_VAR_TYPE_PRIV, NULL);
+                name, namesz, guid, data, data_size, attrs, AUTH_VAR_TYPE_PRIV, NULL);
     }
 
     if ((org_variable_info.Data != NULL) &&
@@ -1544,5 +1550,5 @@ EFI_STATUS process_variable(UTF16 *name, EFI_GUID *guid, void *data,
     /*
      * Not authenticated variable, just update variable as usual.
      */
-    return storage_set(name, guid, data, data_size, attrs);
+    return storage_set(name, namesz, guid, data, data_size, attrs);
 }

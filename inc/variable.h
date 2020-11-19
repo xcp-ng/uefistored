@@ -40,11 +40,11 @@ typedef struct variable {
 #define for_each_variable(vars, var, __i)                              \
         for (__i=0; __i<ARRAY_SIZE(vars) && ((var = &vars[__i]) || true); __i++)
 
-variable_t *variable_create(const UTF16 *name, const uint8_t *data,
+variable_t *variable_create(const UTF16 *name, size_t namesz, const uint8_t *data,
                             const uint64_t datasz, const EFI_GUID *guid,
                             const uint32_t attrs);
 
-int variable_create_noalloc(variable_t *var, const UTF16 *name,
+int variable_create_noalloc(variable_t *var, const UTF16 *name, size_t namesz,
                             const uint8_t *data, const uint64_t datasz,
                             const EFI_GUID *guid, const uint32_t attrs,
                             const EFI_TIME *timestamp);
@@ -56,10 +56,9 @@ int variable_copy(variable_t *dst, const variable_t *src);
 bool variable_eq(const variable_t *a, const variable_t *b);
 
 int variable_set_attrs(variable_t *var, const uint32_t attrs);
-int variable_set_data(variable_t *var, const uint8_t *data,
-                      const uint64_t datasz);
+int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz);
 int variable_set_guid(variable_t *var, const EFI_GUID *guid);
-int variable_set_name(variable_t *var, const UTF16 *name);
+int variable_set_name(variable_t *var, const UTF16 *name, size_t namesz);
 int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp);
 void variable_printf(const variable_t *var);
 uint64_t variable_size(const variable_t *var);
@@ -72,10 +71,10 @@ static inline bool variable_is_valid(const variable_t *var) {
     return (var && var->name && var->name[0] && var->namesz != 0);
 }
 
-variable_t *find_variable(const UTF16 *name, const EFI_GUID *guid,
+variable_t *find_variable(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
                           variable_t variables[MAX_VAR_COUNT], size_t n);
 
 /* Get the namesz with no end of string char '\0' */
-#define variable_serialized_namesz(var) ((var)->namesz - sizeof(UTF16))
+#define variable_serialized_namesz(var) ((var)->namesz)
 
 #endif // __H_VARIABLE_

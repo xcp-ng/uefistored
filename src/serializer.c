@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -17,22 +18,20 @@ struct variable_list {
     struct variable_list *next;
 };
 
-void serialize_name(uint8_t **ptr, UTF16 *VariableName)
+void serialize_name(uint8_t **ptr, const UTF16 *name, size_t namesz)
 {
-    uint64_t VarNameSize = strsize16(VariableName) - 2;
-
-    memcpy(*ptr, &VarNameSize, sizeof VarNameSize);
-    *ptr += sizeof VarNameSize;
-    memcpy(*ptr, VariableName, VarNameSize);
-    *ptr += VarNameSize;
+    memcpy(*ptr, &namesz, sizeof namesz);
+    *ptr += sizeof namesz;
+    memcpy(*ptr, name, namesz);
+    *ptr += namesz;
 }
 
-void serialize_data(uint8_t **ptr, void *Data, uint64_t DataSize)
+void serialize_data(uint8_t **ptr, const void *data, uint64_t datasz)
 {
-    memcpy(*ptr, &DataSize, sizeof DataSize);
-    *ptr += sizeof DataSize;
-    memcpy(*ptr, Data, DataSize);
-    *ptr += DataSize;
+    memcpy(*ptr, &datasz, sizeof datasz);
+    *ptr += sizeof datasz;
+    memcpy(*ptr, data, datasz);
+    *ptr += datasz;
 }
 
 void serialize_uint16(uint8_t **ptr, uint16_t var)
@@ -70,6 +69,12 @@ void serialize_boolean(uint8_t **ptr, bool var)
     *ptr += sizeof var;
 }
 
+void serialize_cert(uint8_t **ptr, const uint8_t cert[SHA256_DIGEST_SIZE])
+{
+    memcpy(*ptr, cert, SHA256_DIGEST_SIZE);
+    *ptr += SHA256_DIGEST_SIZE;
+}
+
 void serialize_command(uint8_t **ptr, command_t cmd)
 {
     serialize_uint32(ptr, (uint32_t)cmd);
@@ -98,22 +103,19 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status)
  * Returns:
  *    The size of the data field.
  */
-int unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
+uint64_t unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
 {
     uint64_t ret;
 
     memcpy(&ret, *ptr, sizeof(ret));
     *ptr += sizeof(ret);
 
-    if (ret > buflen || ret > INT_MAX) {
-        DDEBUG("ret=%lu\n", ret);
-        return -1;
-    }
+    assert(ret < buflen && ret < INT_MAX);
 
     memcpy(buf, *ptr, ret);
     *ptr += ret;
 
-    return (int)ret;
+    return ret;
 }
 
 uint8_t unserialize_uint8(const uint8_t **ptr)
@@ -182,29 +184,6 @@ uint64_t unserialize_namesz(const uint8_t **ptr)
     return unserialize_uint64(ptr);
 }
 
-/**
- * Unserialize the name field.
- *
- * Adds a UTF16 null-terminator (i.e, 2 bytes of zero).
- * 
- * Returns -1 if error, otherwise the length of the name 
- * (not including null-terminator).
- */
-int unserialize_name(const uint8_t **ptr, size_t buf_sz, void *name, size_t n)
-{
-    uint64_t namesz = n - sizeof(UTF16);
-
-    if (namesz > buf_sz || namesz > MAX_VARIABLE_NAME_SIZE)
-        return -1;
-
-    memcpy(name, *ptr, namesz);
-    memset(name + namesz, 0, sizeof(UTF16));
-
-    *ptr += namesz;
-
-    return namesz;
-}
-
 EFI_STATUS unserialize_result(const uint8_t **ptr)
 {
     EFI_STATUS status;
@@ -262,7 +241,7 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
     unserialize_timestamp(ptr, &timestamp);
     unserialize_value(ptr, cert);
 
-    ret = variable_create_noalloc(var, name, data, datasz, &guid, attrs, &timestamp);
+    ret = variable_create_noalloc(var, name, namesz, data, datasz, &guid, attrs, &timestamp);
 
     free(data);
 
@@ -323,20 +302,12 @@ int serialize_var(uint8_t **p, const variable_t *var)
     if (!var->name || !var->data)
         return -1;
 
-    serialize_uint64(p, variable_serialized_namesz(var));
-
-    memcpy(*p, var->name, var->namesz);
-    *p += variable_serialized_namesz(var);
-
-    serialize_uint64(p, var->datasz);
-
-    memcpy(*p, var->data, var->datasz);
-    *p += var->datasz;
-
-    serialize_value(p, var->guid);
+    serialize_name(p, var->name, var->namesz);
+    serialize_data(p, var->data, var->datasz);
+    serialize_guid(p, &var->guid);
     serialize_uint32(p, var->attrs);
     serialize_timestamp(p, &var->timestamp);
-    serialize_value(p, var->cert);
+    serialize_cert(p, var->cert);
 
     return 0;
 }
@@ -417,7 +388,7 @@ uint64_t unserialize_variable_list(const uint8_t **ptr)
 
     for (i = 0; i < hdr.variable_count; i++) {
         var = variable_create_unserialize(ptr);
-        ret = storage_set(var->name, &var->guid, var->data, var->datasz,
+        ret = storage_set(var->name, var->namesz, &var->guid, var->data, var->datasz,
                           var->attrs);
         variable_destroy(var);
 

@@ -197,7 +197,7 @@ static void handle_get_variable(void *comm_buf)
         goto done;
     }
 
-    var = storage_find_variable((UTF16*)request->name, &request->guid);
+    var = storage_find_variable((UTF16*)request->name, request->namesz, &request->guid);
 
     if (serialize_get_error(var, request, comm_buf) < 0)
         goto done;
@@ -296,7 +296,7 @@ static struct request *unserialize_set_request(void *comm_buf)
 }
 
 #define strcmp16_len(a, a_n, b) \
-    (a_n == sizeof(b) && !strcmp16(a, b))
+    (a_n == sizeof_wchar(b) && !strcmp16(a, b))
 
 /**
  * Returns true if variable is read-only, otherwise false.
@@ -369,13 +369,13 @@ static void handle_set_variable(void *comm_buf)
     }
 
     if (request->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS ||
-            is_secure_boot_variable((UTF16*)request->name, &request->guid)) {
-        status = auth_lib_process_variable((UTF16*)request->name, &request->guid,
+            is_secure_boot_variable((UTF16*)request->name, request->namesz, &request->guid)) {
+        status = auth_lib_process_variable((UTF16*)request->name, request->namesz, &request->guid,
                                                 request->buffer, request->buffer_size,
                                                 request->attrs);
 
     } else {
-        status = storage_set((UTF16*)request->name, &request->guid,
+        status = storage_set((UTF16*)request->name, request->namesz, &request->guid,
                              request->buffer, request->buffer_size,
                              request->attrs);
     }
@@ -470,13 +470,13 @@ static void handle_get_next_variable(void *comm_buf)
     if (!next) {
         /* Return to guest EFI_NOT_FOUND, no more variables left */
         serialize_result(&ptr, EFI_NOT_FOUND);
-    } else if (request->buffer_size < next->namesz) {
+    } else if (request->buffer_size < next->namesz + 2) {
         /* Return to guest EFI_BUFFER_TOO_SMALL */
-        serialize_buffer_too_small(ptr, next->namesz);
+        serialize_buffer_too_small(ptr, next->namesz + 2);
     } else {
         /* Return to guest EFI_SUCCESS */
         serialize_result(&ptr, EFI_SUCCESS);
-        serialize_name(&ptr, next->name);
+        serialize_name(&ptr, next->name, next->namesz);
         serialize_guid(&ptr, &next->guid);
     }
 
