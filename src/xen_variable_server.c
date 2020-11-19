@@ -90,42 +90,28 @@ static void serialize_buffer_too_small(void *comm_buf, size_t required_size)
     serialize_uintn(&ptr, (uint64_t)required_size);
 }
 
-static struct request *unserialize_get_request(void *comm_buf)
+static int unserialize_get_request(struct request *request, void *comm_buf)
 {
-    struct request *request;
     const uint8_t *ptr;
 
-    if (!comm_buf)
-        return NULL;
-
-    request = calloc(1, sizeof(struct request));
-
-    if (!request)
-        return NULL;
+    if (!comm_buf || !request)
+        return -1;
 
     ptr = comm_buf;
 
     request->version = unserialize_uint32(&ptr);
 
     if (request->version != UEFISTORED_VERSION) {
-        free(request);
-        return NULL;
+        return -1;
     }
 
     request->command = (command_t)unserialize_uint32(&ptr);
     request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
-
-    if (request->namesz < 0) {
-        free(request);
-        return NULL;
-    }
-    
     unserialize_guid(&ptr, &request->guid);
     request->buffer_size = unserialize_uint64(&ptr);
-
     efi_at_runtime = unserialize_boolean(&ptr);
 
-    return request;
+    return 0;
 }
 
 /**
@@ -173,41 +159,37 @@ static int serialize_get_error(variable_t *var, struct request *request, void *c
 static void handle_get_variable(void *comm_buf)
 {
     uint8_t *ptr;
-    struct request *request;
+    struct request req = {0};
+    struct request *request = &req;
     variable_t *var;
-
-    request = unserialize_get_request(comm_buf);
-
-    debug_request(request);
 
     ptr = comm_buf;
 
-    if (!request) {
+    if (unserialize_get_request(request, comm_buf) < 0) {
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         return;
     }
 
+    debug_request(request);
+
     if (request->command != COMMAND_GET_VARIABLE) {
         serialize_result(&ptr, EFI_DEVICE_ERROR);
-        goto done;
+        return;
     }
 
     if (request->namesz <= 0) {
         serialize_result(&ptr, EFI_INVALID_PARAMETER);
-        goto done;
+        return;
     }
 
     var = storage_find_variable((UTF16*)request->name, request->namesz, &request->guid);
 
     if (serialize_get_error(var, request, comm_buf) < 0)
-        goto done;
+        return;
 
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_uint32(&ptr, var->attrs);
     serialize_data(&ptr, var->data, var->datasz);
-
-done:
-    free(request);
 }
 
 static void handle_query_variable_info(void *comm_buf)
@@ -256,43 +238,24 @@ static void handle_query_variable_info(void *comm_buf)
     serialize_value(&ptr, max_variable_size);
 }
 
-static struct request *unserialize_set_request(void *comm_buf)
+static int unserialize_set_request(struct request *request, void *comm_buf)
 {
-    struct request *request;
     const uint8_t *ptr;
 
-    if (!comm_buf)
-        return NULL;
-
-    request = calloc(1, sizeof(struct request));
-
-    if (!request)
-        return NULL;
+    if (!comm_buf || !request)
+        return -1;
 
     ptr = comm_buf;
-
     request->version = unserialize_uint32(&ptr);
-
-    if (request->version != UEFISTORED_VERSION) {
-        free(request);
-        return NULL;
-    }
-
+    assert(request->version == UEFISTORED_VERSION);
     request->command = (command_t)unserialize_uint32(&ptr);
     request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
-
-    if (request->namesz < 0) {
-        free(request);
-        return NULL;
-    }
-    
     unserialize_guid(&ptr, &request->guid);
     request->buffer_size = unserialize_data(&ptr, request->buffer, MAX_VARIABLE_DATA_SIZE);
     request->attrs = unserialize_uint32(&ptr);
-
     efi_at_runtime = unserialize_boolean(&ptr);
 
-    return request;
+    return 0;
 }
 
 #define strcmp16_len(a, a_n, b) \
@@ -324,48 +287,41 @@ static bool is_ro(UTF16 *name, uint64_t namesz, EFI_GUID *guid)
 static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
-    struct request *request;
+    struct request req = {0};
+    struct request *request = &req;
     EFI_STATUS status;
 
-    request = unserialize_set_request(comm_buf);
+    if (unserialize_set_request(request, comm_buf) < 0) {
+        ERROR("failed to parse set request\n");
+        serialize_result(&ptr, EFI_DEVICE_ERROR);
+        return;
+    };
 
     debug_request(request);
-
-    if (!request) {
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
-        ERROR("Memory error\n");
-        goto done;
-    }
-
-    if (request->version != 1) {
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
-        ERROR("Bad version: %u\n", request->version);
-        goto done;
-    }
 
     if (request->command != COMMAND_SET_VARIABLE) {
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         ERROR("Bad command: 0x%02x\n", request->command);
-        goto done;
+        return;
     }
 
     if (request->name[0] == 0 ||
             ((request->attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
              !(request->attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS))) {
         serialize_result(&ptr, EFI_INVALID_PARAMETER);
-        goto done;
+        return;
     }
 
     if (is_ro((UTF16*)request->name, request->namesz, &request->guid)) {
         serialize_result(&ptr, EFI_WRITE_PROTECTED);
-        goto done;
+        return;
     }
 
     status = evaluate_attrs(request->attrs);
 
     if (status != EFI_SUCCESS) {
         serialize_result(&ptr, status);
-        goto done;
+        return;
     }
 
     if (request->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS ||
@@ -381,48 +337,27 @@ static void handle_set_variable(void *comm_buf)
     }
 
     serialize_result(&ptr, status);
-
-done:
-    free(request);
 }
 
-struct request *unserialize_get_next_request(void *comm_buf)
+static int unserialize_get_next_request(struct request *request, void *comm_buf)
 {
     const uint8_t *ptr;
-    struct request *request;
 
-    if (!comm_buf)
-        return NULL;
-
-    request = calloc(1, sizeof(struct request));
-
-    if (!request)
-        return NULL;
+    if (!comm_buf || !request)
+        return -1;
 
     ptr = comm_buf;
-
     request->version = unserialize_uint32(&ptr);
 
-    if (request->version != UEFISTORED_VERSION) {
-        free(request);
-        return NULL;
-    }
+    assert(request->version == 1);
 
     request->command = unserialize_uint32(&ptr);
     request->buffer_size = unserialize_uintn(&ptr);
     request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
-    ((UTF16*)request->name)[request->namesz / 2] = 0;
-
-    if (request->namesz < 0) {
-        free(request);
-        return NULL;
-    }
-
     unserialize_guid(&ptr, &request->guid);
-
     efi_at_runtime = unserialize_boolean(&ptr);
 
-    return request;
+    return 0;
 }
 
 /**
@@ -436,34 +371,33 @@ struct request *unserialize_get_next_request(void *comm_buf)
 static void handle_get_next_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
+    struct request req = {0};
+    struct request *request = &req;
     variable_t *next;
-    struct request *request;
-
-    request = unserialize_get_next_request(comm_buf);
-
-    debug_request(request);
 
     ptr = comm_buf;
 
-    if (!request) {
+    if (unserialize_get_next_request(request, comm_buf) < 0) {
+        ERROR("failed to unserialize request\n");
         serialize_result(&ptr, EFI_DEVICE_ERROR);
-        ERROR("Memory error\n");
-        goto err;
+        return;
     }
+
+    debug_request(request);
 
     if (request->version != 1) {
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         ERROR("Bad version: %u\n", request->version);
-        goto err;
+        return;
     }
 
     if (request->command != COMMAND_GET_NEXT_VARIABLE) {
         serialize_result(&ptr, EFI_DEVICE_ERROR);
         ERROR("Bad command: 0x%02x\n", request->command);
-        goto err;
+        return;
     }
 
-    next = storage_next_variable((UTF16*)request->name, &request->guid);
+    next = storage_next_variable((UTF16*)request->name, request->namesz, &request->guid);
 
     ptr = comm_buf;
 
@@ -479,9 +413,6 @@ static void handle_get_next_variable(void *comm_buf)
         serialize_name(&ptr, next->name, next->namesz);
         serialize_guid(&ptr, &next->guid);
     }
-
-err:
-    free(request);
 }
 
 void xen_variable_server_handle_request(void *comm_buf)
