@@ -264,9 +264,9 @@ static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
             break;
 
         while (read_pointer != write_pointer) {
-            unsigned int    slot;
-            buf_ioreq_t     *buf_ioreq;
-            ioreq_t         ioreq;
+            unsigned int slot;
+            buf_ioreq_t *buf_ioreq;
+            ioreq_t ioreq;
 
             slot = read_pointer % IOREQ_BUFFER_SLOT_NUM;
 
