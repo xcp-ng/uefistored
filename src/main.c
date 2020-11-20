@@ -220,6 +220,10 @@ void handle_ioreq(struct ioreq *ioreq)
         return;
     }
 
+    if (ioreq->type != IOREQ_TYPE_PIO) {
+        return;
+    }
+
     p = map_guest_memory(gfn);
     if (p) {
         /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
@@ -237,11 +241,6 @@ int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
 {
     if (ioreq->type > 8) {
         ERROR("UNKNOWN (%02x)", ioreq->type);
-        return -1;
-    }
-
-    if (ioreq->type != IOREQ_TYPE_PIO) {
-        ERROR("Not PIO ioreq type, 0x%02x\n", ioreq->type);
         return -1;
     }
 
