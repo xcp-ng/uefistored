@@ -31,7 +31,6 @@
 #include "uefi/utils.h"
 #include "uefi/authlib.h"
 
-
 #define XAPI_CONNECT_RETRIES 5
 #define XAPI_CONNECT_SLEEP 3
 
@@ -75,29 +74,28 @@ static char *xapi_resume_path;
     "</params>"                                                                \
     "</methodCall>"
 
-#define MESSAGE_CREATE                                          \
-    "<?xml version='1.0'?>"                                     \
-    "<methodCall>"                                              \
-      "<methodName>message.create</methodName>"                 \
-      "<params>"                                                \
-        "<param><value><string>%s</string></value></param>"     \
-        "<param><value><string>%s</string></value></param>"     \
-        "<param><value><int>%d</int></value></param>"           \
-        "<param><value><string>%s</string></value></param>"     \
-        "<param><value><string>%s</string></value></param>"     \
-        "<param><value><string>%s</string></value></param>"     \
-      "</params>"                                               \
+#define MESSAGE_CREATE                                                         \
+    "<?xml version='1.0'?>"                                                    \
+    "<methodCall>"                                                             \
+    "<methodName>message.create</methodName>"                                  \
+    "<params>"                                                                 \
+    "<param><value><string>%s</string></value></param>"                        \
+    "<param><value><string>%s</string></value></param>"                        \
+    "<param><value><int>%d</int></value></param>"                              \
+    "<param><value><string>%s</string></value></param>"                        \
+    "<param><value><string>%s</string></value></param>"                        \
+    "<param><value><string>%s</string></value></param>"                        \
+    "</params>"                                                                \
     "</methodCall>"
 
-#define LOGOUT \
-    "<?xml version='1.0'?>" \
-    "<methodCall>" \
-      "<methodName>session.logout</methodName>" \
-      "<params>" \
-        "<param><value><string>%s</string></value></param>" \
-      "</params>" \
+#define LOGOUT                                                                 \
+    "<?xml version='1.0'?>"                                                    \
+    "<methodCall>"                                                             \
+    "<methodName>session.logout</methodName>"                                  \
+    "<params>"                                                                 \
+    "<param><value><string>%s</string></value></param>"                        \
+    "</params>"                                                                \
     "</methodCall>"
-
 
 int read_socket(int fd, char *buf, size_t size)
 {
@@ -509,7 +507,8 @@ static int send_request(char *message, char *response, size_t buffer_size)
     ret = read_socket(fd, response, buffer_size);
     if (ret < 0) {
         close(fd);
-        ERROR("read_socket() failed: %d, errno=%d (%s)\n", ret, errno, strerror(errno));
+        ERROR("read_socket() failed: %d, errno=%d (%s)\n", ret, errno,
+              strerror(errno));
         return ret;
     }
 
@@ -532,7 +531,6 @@ int xapi_set_efi_vars(void)
 {
     char buffer[BIG_MESSAGE_SIZE];
     int ret;
-
 
     ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
 
@@ -787,7 +785,8 @@ static int xapi_vm_get_by_uuid(char *session_id)
     }
 
     if (!success(response_body(response))) {
-        ERROR("failed to look up VM %s, response code %s\n", vm_uuid, response_body(response));
+        ERROR("failed to look up VM %s, response code %s\n", vm_uuid,
+              response_body(response));
         return -1;
     }
 
@@ -1096,8 +1095,8 @@ int xapi_init(bool resume)
     for (i = 0; i < len; i++) {
         var = &variables[i];
 
-        ret = storage_set(var->name, var->namesz, &var->guid,
-                          var->data, var->datasz, var->attrs);
+        ret = storage_set(var->name, var->namesz, &var->guid, var->data,
+                          var->datasz, var->attrs);
 
         /*
          * If we fail to set a variable from XAPI then we can't trust our 
@@ -1133,8 +1132,7 @@ int xapi_write_save_file(void)
 
     bytes = variable_list_bytes(&size, false);
 
-    if (!bytes)
-    {
+    if (!bytes) {
         fclose(file);
         return -1;
     }
@@ -1163,7 +1161,7 @@ int xapi_sb_notify(void)
 {
     char session_id[SESSION_ID_SIZE];
     char response[BIG_MESSAGE_SIZE] = { 0 };
-    char request[MAX_REQUEST_SIZE] = {0};
+    char request[MAX_REQUEST_SIZE] = { 0 };
     int request_size;
     int ret;
 
@@ -1177,9 +1175,10 @@ int xapi_sb_notify(void)
         return -1;
     }
 
-    request_size = snprintf(request, MAX_REQUEST_SIZE, MESSAGE_CREATE,
-            session_id, "VM_SECURE_BOOT_FAILED", 5,
-            "VM", vm_uuid, "The VM failed to pass Secure Boot verification");
+    request_size =
+            snprintf(request, MAX_REQUEST_SIZE, MESSAGE_CREATE, session_id,
+                     "VM_SECURE_BOOT_FAILED", 5, "VM", vm_uuid,
+                     "The VM failed to pass Secure Boot verification");
 
     if (request_size < 0)
         return request_size;
