@@ -570,11 +570,7 @@ void handler_loop(buffered_iopage_t *buffered_iopage,
         }
 
         if (port == bufioreq_local_port) {
-            int i;
-
-            for (i = 0; i < IOREQ_BUFFER_SLOT_NUM; i++) {
-                poll_buffered_iopage(buffered_iopage);
-            }
+            poll_buffered_iopage(buffered_iopage);
         } else {
             for (i = 0; i < vcpu_count; i++) {
                 if (ioreq_local_ports[i] == port) {
