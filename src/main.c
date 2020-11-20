@@ -151,9 +151,7 @@ static int write_pidfile(void)
     ret = 0;
 
 done:
-
     close(fd);
-
     return ret;
 }
 
