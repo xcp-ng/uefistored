@@ -706,14 +706,17 @@ int main(int argc, char **argv)
 
     /* Gain access to the hypervisor */
     xc_handle = xc_interface_open(NULL, NULL, 0);
+
     if (!xc_handle) {
         ERROR("Failed to open xc_interface handle: %d, %s\n", errno,
               strerror(errno));
         ret = errno;
         goto err;
     }
+
     /* Get info on the domain */
     ret = xc_domain_getinfo(xc_handle, domid, 1, &domain_info);
+
     if (ret < 0) {
         ret = errno;
         ERROR("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno,
@@ -754,6 +757,7 @@ int main(int argc, char **argv)
 
     /* Open xen device model */
     dmod = xendevicemodel_open(NULL, 0);
+
     if (!dmod) {
         ERROR("Failed to open xendevicemodel handle: %d, %s\n", errno,
               strerror(errno));
@@ -763,6 +767,7 @@ int main(int argc, char **argv)
 
     /* Open xen foreign memory interface */
     fmem = xenforeignmemory_open(NULL, 0);
+
     if (!fmem) {
         ERROR("Failed to open xenforeignmemory handle: %d, %s\n", errno,
               strerror(errno));
@@ -772,6 +777,7 @@ int main(int argc, char **argv)
 
     /* Open xen event channel */
     xce = xenevtchn_open(NULL, 0);
+
     if (!xce) {
         ERROR("Failed to open evtchn handle: %d, %s\n", errno, strerror(errno));
         ret = errno;
@@ -780,6 +786,7 @@ int main(int argc, char **argv)
 
     /* Restrict uefistored's privileged accesses */
     ret = xentoolcore_restrict_all(domid);
+
     if (ret < 0) {
         ERROR("Failed to restrict Xen handles: %d, %s\n", errno,
               strerror(errno));
@@ -795,6 +802,7 @@ int main(int argc, char **argv)
                                              domid,
                                              HVM_IOREQSRV_BUFIOREQ_LEGACY,
                                              &ioservid);
+
     if (ret < 0) {
         ERROR("Failed to create ioreq server: %d, %s\n", errno,
               strerror(errno));
@@ -804,6 +812,7 @@ int main(int argc, char **argv)
 
     ret = xen_map_ioreq_server(fmem, domid, ioservid, &shared_iopage,
                                &buffered_iopage, &fmem_resource);
+
     if (ret < 0) {
         ERROR("Failed to map ioreq server: %d, %s\n", errno, strerror(errno));
         goto err;
@@ -822,6 +831,7 @@ int main(int argc, char **argv)
 
     /* Enable the ioreq server state */
     ret = xendevicemodel_set_ioreq_server_state(dmod, domid, ioservid, 1);
+
     if (ret < 0) {
         ERROR("Failed to enable ioreq server: %d, %s\n", errno,
               strerror(errno));
@@ -839,7 +849,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    for (i = 0; i < vcpu_count; i++) {
+    for (i=0; i<vcpu_count; i++) {
         ret = xenevtchn_bind_interdomain(xce, domid,
                                          shared_iopage->vcpu_ioreq[i].vp_eport);
         if (ret < 0) {
