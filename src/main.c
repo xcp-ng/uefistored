@@ -914,7 +914,6 @@ int main(int argc, char **argv)
     if (ret < 0)
         goto err;
 
-    /* TODO: if this fails, should we die? (probably if SB is on) */
     if ((status = auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files))) != EFI_SUCCESS) {
         ERROR("auth_lib_initialization() failed, status=%s (0x%lx)",
                 efi_status_str(status), status);
