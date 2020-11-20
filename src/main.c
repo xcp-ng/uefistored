@@ -250,41 +250,6 @@ void handle_ioreq(struct ioreq *ioreq)
     xenforeignmemory_unmap(_fmem, shmem, SHMEM_PAGES);
 }
 
-int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
-{
-    if (ioreq->type > 8) {
-        ERROR("UNKNOWN (%02x)", ioreq->type);
-        return -1;
-    }
-
-    if (ioreq->state != STATE_IOREQ_READY) {
-        /*
-         * This often happens shortly after initializing the ioreq server.
-         * Just return -1 and let the caller try again.
-         */
-        return -1;
-    }
-
-    if (ioreq->dir == IOREQ_READ) {
-        DDEBUG("ioreq is read, happily ignore.\n");
-        return 0;
-    } else if (ioreq->dir != IOREQ_WRITE) {
-        ERROR("ioreq is not a write or a read!\n");
-        return -1;
-    }
-
-    ioreq->state = STATE_IOREQ_INPROCESS;
-    handle_ioreq(ioreq);
-    mb();
-
-    ioreq->state = STATE_IORESP_READY;
-    mb();
-
-    xenevtchn_notify(xce, port);
-
-    return 0;
-}
-
 static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
 {
     for (;;) {
@@ -394,20 +359,34 @@ static bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
 static void handle_shared_iopage(shared_iopage_t *shared_iopage,
                                evtchn_port_t port, size_t vcpu)
 {
-    struct ioreq *p;
+    struct ioreq *ioreq;
 
     if (!shared_iopage) {
         ERROR("null sharedio_page\n");
         return;
     }
 
-    p = &shared_iopage->vcpu_ioreq[vcpu];
-    if (!p) {
-        ERROR("null vcpu_ioreq\n");
+    ioreq = &shared_iopage->vcpu_ioreq[vcpu];
+
+    if (ioreq->state != STATE_IOREQ_READY) {
+        /*
+         * This often happens shortly after initializing the ioreq server.
+         * Just return -1 and let the caller try again.
+         */
+        INFO("IO request not ready\n");
         return;
     }
+    mb();
 
-    handle_pio(xce, port, p);
+    ioreq->state = STATE_IOREQ_INPROCESS;
+
+    handle_ioreq(ioreq);
+    mb();
+
+    ioreq->state = STATE_IORESP_READY;
+    mb();
+
+    xenevtchn_notify(xce, port);
 }
 
 static void signal_handler(int sig)
