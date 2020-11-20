@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.2.6] - 2020-11-20
+### Fixed
+- Prevent infinite load on restored Windows backups (issue #454)
+
 ## [0.2.5] - 2020-11-9
 ### Changed
 - Push all auth vars through auth service pipeline (not based only on attrs)
@@ -65,6 +69,7 @@ All notable changes to this project will be documented in this file.
 - Support handling of guest UEFI requests
 - Support minimal sandboxing via chroot jail
 
+[0.2.6]: https://github.com/xcp-ng/uefistored/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/xcp-ng/uefistored/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/xcp-ng/uefistored/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/xcp-ng/uefistored/compare/v0.2.2...v0.2.3
