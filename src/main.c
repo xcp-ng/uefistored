@@ -238,6 +238,7 @@ void handle_ioreq(struct ioreq *ioreq)
     }
 
     shmem = map_guest_memory(gfn);
+
     if (!shmem) {
         ERROR("failed to map guest memory!\n");
         return;
@@ -253,8 +254,8 @@ void handle_ioreq(struct ioreq *ioreq)
 static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
 {
     for (;;) {
-        unsigned int    read_pointer;
-        unsigned int    write_pointer;
+        unsigned int read_pointer;
+        unsigned int write_pointer;
 
         read_pointer = buffered_iopage->read_pointer;
         write_pointer = buffered_iopage->write_pointer;
