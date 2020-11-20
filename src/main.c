@@ -70,6 +70,14 @@ struct sigaction old_sigint;
 struct sigaction old_sigabrt;
 struct sigaction old_sigterm;
 
+static bool io_port_enabled;
+static size_t io_port_size;
+static xendevicemodel_handle *_dmod = NULL;
+static xenforeignmemory_handle *_fmem = NULL;
+static int _domid = -1;
+static ioservid_t _ioservid;
+static unsigned long io_port_addr;
+
 #define UNUSED(var) ((void)var);
 
 #define USAGE                                                                  \
@@ -180,15 +188,6 @@ static int xen_map_ioreq_server(xenforeignmemory_handle *fmem, domid_t domid,
 
     return 0;
 }
-
-static bool io_port_enabled;
-static size_t io_port_size;
-static xendevicemodel_handle *_dmod = NULL;
-static xenforeignmemory_handle *_fmem = NULL;
-static int _domid = -1;
-static ioservid_t _ioservid;
-static unsigned long io_port_addr;
-
 
 /**
  * map_guest_memory - Map in pages from the guest address space
