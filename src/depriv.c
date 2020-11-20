@@ -106,9 +106,8 @@ static const int seccomp_blacklist[] = {
     SCMP_SYS(sched_get_priority_min),
 };
 
-bool
-drop_privileges(const char *root, bool opt_depriv, gid_t opt_gid,
-                uid_t opt_uid)
+bool drop_privileges(const char *root, bool opt_depriv, gid_t opt_gid,
+                     uid_t opt_uid)
 {
     int ret;
 
@@ -124,28 +123,29 @@ drop_privileges(const char *root, bool opt_depriv, gid_t opt_gid,
     if (opt_depriv) {
         if (unshare(CLONE_NEWNS | CLONE_NEWIPC |
                     CLONE_NEWNET | CLONE_NEWUTS) < 0) {
-            ERROR("Failed to unshare namespaces: %d, %s\n", errno, strerror(errno));
+            ERROR("Failed to unshare namespaces: %d, %s\n", errno,
+                  strerror(errno));
             return false;
         }
     }
 
     if (opt_gid) {
         if (setgid(opt_gid) < 0) {
-            ERROR("Failed to set gid to %u: %d, %s\n", opt_gid,
-                errno, strerror(errno));
+            ERROR("Failed to set gid to %u: %d, %s\n", opt_gid, errno,
+                  strerror(errno));
             return false;
         }
         if (setgroups(1, &opt_gid) < 0) {
             ERROR("Failed to set supplementary groups to %u: %d, %s\n", opt_gid,
-                errno, strerror(errno));
+                  errno, strerror(errno));
             return false;
         }
     }
 
     if (opt_uid) {
         if (setuid(opt_uid) < 0) {
-            ERROR("Failed to set uid to %u: %d, %s\n", opt_uid,
-                errno, strerror(errno));
+            ERROR("Failed to set uid to %u: %d, %s\n", opt_uid, errno,
+                  strerror(errno));
             return false;
         }
         if (setuid(0) != -1) {
