@@ -928,6 +928,6 @@ int main(int argc, char **argv)
 
 err:
     ERROR("Did not enter loop! dying...\n");
-    kill(getpid(), SIGTERM);
+    exit(1);
     return -1;
 }
