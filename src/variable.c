@@ -60,9 +60,9 @@ int variable_set_name(variable_t *var, const UTF16 *name, size_t namesz)
     return 0;
 }
 
-variable_t *variable_create(const UTF16 *name, size_t namesz, const uint8_t *data,
-                            const uint64_t datasz, const EFI_GUID *guid,
-                            const uint32_t attrs)
+variable_t *variable_create(const UTF16 *name, size_t namesz,
+                            const uint8_t *data, const uint64_t datasz,
+                            const EFI_GUID *guid, const uint32_t attrs)
 {
     int ret;
     variable_t *var;
@@ -129,7 +129,7 @@ int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp)
 
 int variable_create_noalloc(variable_t *var, const UTF16 *name, size_t namesz,
                             const uint8_t *data, const uint64_t datasz,
-                            const EFI_GUID *guid, const uint32_t attrs, 
+                            const EFI_GUID *guid, const uint32_t attrs,
                             const EFI_TIME *timestamp)
 {
     if (!var || !name || !data || !guid || datasz == 0)
@@ -344,8 +344,8 @@ int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
     return i;
 }
 
-variable_t *find_variable(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
-                          variable_t *variables, size_t n)
+variable_t *find_variable(const UTF16 *name, size_t namesz,
+                          const EFI_GUID *guid, variable_t *variables, size_t n)
 {
     variable_t *var;
     size_t i;
