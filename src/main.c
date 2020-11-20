@@ -543,13 +543,16 @@ void handler_loop(buffered_iopage_t *buffered_iopage,
 
     pollfd.fd = xenevtchn_fd(xce);
     pollfd.events = POLLIN | POLLERR | POLLHUP;
+    pollfd.revents = 0;
 
     while (true) {
-        ret = poll(&pollfd, 1, -1);
-        if (ret < 0) {
-            ERROR("poll error on fd %d: %d, %s\n", pollfd.fd, errno,
-                  strerror(errno));
-            usleep(100000);
+        ret = poll(&pollfd, 1, 5000);
+
+        if (ret < 0 && errno != EINTR) {
+            exit(1);
+        }
+
+        if (ret <= 0 || !(pollfd.revents & POLLIN)) {
             continue;
         }
 
