@@ -193,7 +193,7 @@ static int xen_map_ioreq_server(xenforeignmemory_handle *fmem, domid_t domid,
  * Map the GFNs from start to (start + SHMEM_PAGES) from guest space to uefistored
  * as shared memory.
  */
-void *map_guest_memory(xen_pfn_t start)
+static void *map_guest_memory(xen_pfn_t start)
 {
     int i;
     xen_pfn_t shmem[SHMEM_PAGES];
@@ -298,8 +298,7 @@ int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
     return 0;
 }
 
-static void
-poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
+static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
 {
     for (;;) {
         unsigned int    read_pointer;
@@ -350,8 +349,8 @@ poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
     }
 }
 
-int setup_portio(xendevicemodel_handle *dmod, xenforeignmemory_handle *fmem,
-                 int domid, ioservid_t ioservid)
+static int setup_portio(xendevicemodel_handle *dmod, xenforeignmemory_handle *fmem,
+                        int domid, ioservid_t ioservid)
 {
     int ret;
 
@@ -384,8 +383,8 @@ int setup_portio(xendevicemodel_handle *dmod, xenforeignmemory_handle *fmem,
     return 0;
 }
 
-bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
-                             int domid)
+static bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
+                                    int domid)
 {
     char buf[128];
     char *data;
@@ -541,7 +540,7 @@ static void printargs(int argc, char **argv)
 /*
  * Store the uefistored pid in XenStore to signal to XAPI that uefistored is alive
  */
-int write_pid()
+static int write_pid()
 {
     char pidstr[21];
     char pidalive[0x80];
