@@ -45,6 +45,7 @@ static bool resume;
 extern char *xapi_resume_path;
 
 static evtchn_port_t bufioreq_local_port;
+static evtchn_port_t *ioreq_local_ports;
 static evtchn_port_t bufioreq_remote_port;
 static xendevicemodel_handle *dmod;
 static xenforeignmemory_handle *fmem;
@@ -390,23 +391,23 @@ static bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
     return ret;
 }
 
-int handle_shared_iopage(xenevtchn_handle *xce, shared_iopage_t *shared_iopage,
-                         evtchn_port_t port, size_t vcpu)
+static void handle_shared_iopage(shared_iopage_t *shared_iopage,
+                               evtchn_port_t port, size_t vcpu)
 {
     struct ioreq *p;
 
     if (!shared_iopage) {
         ERROR("null sharedio_page\n");
-        return -1;
+        return;
     }
 
     p = &shared_iopage->vcpu_ioreq[vcpu];
     if (!p) {
         ERROR("null vcpu_ioreq\n");
-        return -1;
+        return;
     }
 
-    return handle_pio(xce, port, p);
+    handle_pio(xce, port, p);
 }
 
 static void signal_handler(int sig)
@@ -551,9 +552,8 @@ static int write_pid()
     return 0;
 }
 
-void handler_loop(xenevtchn_handle *xce, buffered_iopage_t *buffered_iopage,
-                  evtchn_port_t bufioreq_local_port,
-                  evtchn_port_t *remote_vcpu_ports, int vcpu_count,
+void handler_loop(buffered_iopage_t *buffered_iopage,
+                  int vcpu_count,
                   shared_iopage_t *shared_iopage)
 {
     size_t i;
@@ -594,13 +594,8 @@ void handler_loop(xenevtchn_handle *xce, buffered_iopage_t *buffered_iopage,
             }
         } else {
             for (i = 0; i < vcpu_count; i++) {
-                evtchn_port_t remote_port = remote_vcpu_ports[i];
-                if (remote_port == port) {
-                    ret = handle_shared_iopage(xce, shared_iopage, port, i);
-                    if (ret < 0) {
-                        ERROR("handle_shared_iopage() = %d\n", ret);
-                        continue;
-                    }
+                if (ioreq_local_ports[i] == port) {
+                    handle_shared_iopage(shared_iopage, port, i);
                 }
             }
         }
@@ -856,11 +851,10 @@ int main(int argc, char **argv)
 
     /* Initialize Port IO for domU */
     INFO("%lu vCPU(s)\n", vcpu_count);
-    evtchn_port_t *remote_vcpu_ports =
-            malloc(sizeof (xc_evtchn_port_or_error_t) * vcpu_count);
+    ioreq_local_ports = malloc(sizeof(xc_evtchn_port_or_error_t) * vcpu_count);
 
-    if (!remote_vcpu_ports) {
-        ERROR("Failed to alloc remote_vcpu_ports\n");
+    if (!ioreq_local_ports) {
+        ERROR("Failed to alloc ioreq_local_ports\n");
         ret = -ENOMEM;
         goto err;
     }
@@ -873,10 +867,10 @@ int main(int argc, char **argv)
             goto err;
         }
 
-        remote_vcpu_ports[i] = ret;
+        ioreq_local_ports[i] = ret;
 
-        DDEBUG("VCPU%d: %u -> %u\n", i, remote_vcpu_ports[i],
-               shared_iopage->vcpu_ioreq[i].vp_eport);
+        INFO("VCPU%d: %u -> %u\n", i, ioreq_local_ports[i],
+             shared_iopage->vcpu_ioreq[i].vp_eport);
     }
 
     ret = xenevtchn_bind_interdomain(xce, domid, bufioreq_remote_port);
@@ -941,8 +935,7 @@ int main(int argc, char **argv)
     if (write_pid(xsh) < 0)
         goto err;
 
-    handler_loop(xce, buffered_iopage, bufioreq_local_port, remote_vcpu_ports,
-                 vcpu_count, shared_iopage);
+    handler_loop(buffered_iopage, vcpu_count, shared_iopage);
 
 err:
     ERROR("Did not enter loop! dying...\n");
