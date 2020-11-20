@@ -36,7 +36,7 @@
 #include "xen_variable_server.h"
 #include "depriv.h"
 
-#define mb() asm volatile ("" : : : "memory")
+#define mb() asm volatile("" : : : "memory")
 
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
@@ -97,20 +97,21 @@ static unsigned long io_port_addr;
 
 #define UNIMPLEMENTED(opt) INFO(opt " option not implemented!\n")
 
-#define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)   \
-    {                                                   \
-        .path = "/usr/share/varstored/" fname,          \
-        .var = {                                        \
-            .name = _name,                            \
-            .namesz = sizeof(_name),                  \
-            .guid = _guid,                              \
-            .attrs = _attrs,                            \
-        },                                              \
+#define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)                          \
+    {                                                                          \
+        .path = "/usr/share/varstored/" fname,                                 \
+        .var = {                                                               \
+            .name = _name,                                                     \
+            .namesz = sizeof(_name),                                           \
+            .guid = _guid,                                                     \
+            .attrs = _attrs,                                                   \
+        },                                                                     \
     }
 
-#define AT_ATTRS \
-    EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS | \
-    EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS
+#define AT_ATTRS                                                               \
+    EFI_VARIABLE_NON_VOLATILE |                                                \
+            EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |               \
+            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS
 
 struct auth_data auth_files[] = {
     DEFINE_AUTH_FILE("PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
@@ -188,8 +189,9 @@ static int xen_map_ioreq_server(xenforeignmemory_handle *fmem, domid_t domid,
     return 0;
 }
 
-static int setup_portio(xendevicemodel_handle *dmod, xenforeignmemory_handle *fmem,
-                        int domid, ioservid_t ioservid)
+static int setup_portio(xendevicemodel_handle *dmod,
+                        xenforeignmemory_handle *fmem, int domid,
+                        ioservid_t ioservid)
 {
     int ret;
 
@@ -268,7 +270,6 @@ void handle_ioreq(struct ioreq *ioreq)
     uint64_t port_addr = ioreq->addr;
     uint64_t gfn = ioreq->data;
     uint32_t size = ioreq->size;
-
 
     if (!io_port_enabled) {
         ERROR("ioport not yet enabled!\n");
@@ -513,7 +514,7 @@ static int write_pid()
     int ret;
 
     if (snprintf(pidalive, sizeof(pidalive), "/local/domain/%u/varstored-pid",
-                   domid) < 0) {
+                 domid) < 0) {
         ERROR("buffer error: %d, %s\n", errno, strerror(errno));
         return -1;
     }
@@ -531,8 +532,7 @@ static int write_pid()
     return 0;
 }
 
-void handler_loop(buffered_iopage_t *buffered_iopage,
-                  int vcpu_count,
+void handler_loop(buffered_iopage_t *buffered_iopage, int vcpu_count,
                   shared_iopage_t *shared_iopage)
 {
     size_t i;
@@ -792,10 +792,8 @@ int main(int argc, char **argv)
      * range 0x100 to 0x103.  XenVariable in OVMF uses 0x100,
      * 0x101-0x103 are reserved.
      */
-    ret = xendevicemodel_create_ioreq_server(dmod,
-                                             domid,
-                                             HVM_IOREQSRV_BUFIOREQ_LEGACY,
-                                             &ioservid);
+    ret = xendevicemodel_create_ioreq_server(
+            dmod, domid, HVM_IOREQSRV_BUFIOREQ_LEGACY, &ioservid);
 
     if (ret < 0) {
         ERROR("Failed to create ioreq server: %d, %s\n", errno,
@@ -812,10 +810,8 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    ret = xendevicemodel_get_ioreq_server_info(dmod,
-                                               domid,
-                                               ioservid, NULL, NULL,
-                                               &bufioreq_remote_port);
+    ret = xendevicemodel_get_ioreq_server_info(dmod, domid, ioservid, NULL,
+                                               NULL, &bufioreq_remote_port);
     if (ret < 0) {
         ERROR("Failed to get ioreq server info: %d, %s\n", errno,
               strerror(errno));
@@ -843,7 +839,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    for (i=0; i<vcpu_count; i++) {
+    for (i = 0; i < vcpu_count; i++) {
         ret = xenevtchn_bind_interdomain(xce, domid,
                                          shared_iopage->vcpu_ioreq[i].vp_eport);
         if (ret < 0) {
@@ -908,9 +904,11 @@ int main(int argc, char **argv)
     if (ret < 0)
         goto err;
 
-    if ((status = auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files))) != EFI_SUCCESS) {
+    status = auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
+
+    if (status != EFI_SUCCESS) {
         ERROR("auth_lib_initialization() failed, status=%s (0x%lx)",
-                efi_status_str(status), status);
+              efi_status_str(status), status);
 
         assert(status == EFI_SUCCESS);
     }
