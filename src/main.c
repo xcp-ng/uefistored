@@ -210,22 +210,8 @@ void handle_ioreq(struct ioreq *ioreq)
 
 {
     void *shmem;
-
-    /* The port number is the ioreq address. */
     uint64_t port_addr = ioreq->addr;
-
-    /*
-     * The data written to the port is actually the GFN of the XenVariable command.
-     *
-     * See relevant XenVariable here:
-     *  https://github.com/xcp-ng-rpms/edk2/blob/bd307ee95ceddc8edcaafd212ee5416ae7d8a0c9/SOURCES/add-xen-variable.patch#L204
-     */
     uint64_t gfn = ioreq->data;
-
-    /*
-     * This is just the size of the port write.  We only use it to require
-     * XenVariable to use 32bit port IO writes.
-     */
     uint32_t size = ioreq->size;
 
 
