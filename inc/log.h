@@ -6,25 +6,19 @@
 #include "common.h"
 #include "variable.h"
 
-#define uefistored_fprintf(stream, ...)                                        \
-    do {                                                                       \
-        fprintf(stream, __VA_ARGS__);                                          \
-        fflush(stream);                                                        \
-    } while (0)
-
 #define ERROR(...)                                                             \
     do {                                                                       \
-        uefistored_fprintf(stderr, "uefistored:ERROR: " __VA_ARGS__);                     \
+        fprintf(stderr, "uefistored:ERROR: " __VA_ARGS__);                     \
     } while (0)
 
 #define WARNING(...)                                                           \
     do {                                                                       \
-        uefistored_fprintf(stderr, "uefistored:WARNING: " __VA_ARGS__);                   \
+        fprintf(stderr, "uefistored:WARNING: " __VA_ARGS__);                   \
     } while (0)
 
 #define INFO(...)                                                              \
     do {                                                                       \
-        uefistored_fprintf(stdout, "uefistored:INFO: " __VA_ARGS__);                      \
+        fprintf(stdout, "uefistored:INFO: " __VA_ARGS__);                      \
     } while (0)
 
 #if DEBUG
@@ -32,11 +26,10 @@
     do {                                                                       \
         fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);       \
         fprintf(stdout, __VA_ARGS__);                                          \
-        fflush(stdout);                                                        \
     } while (0)
 
 #define DPRINTF(...)                                                           \
-        uefistored_fprintf(stdout, __VA_ARGS__)                                \
+        fprintf(stdout, __VA_ARGS__)                                \
 
 static inline void _dprint_data(const char *func, int lineno, const void *data, size_t datasz)
 {
@@ -71,6 +64,5 @@ void dprint_name(const UTF16 *name, size_t namesz);
 #define dprint_variable_list(...) do { } while(0)
 #define dprint_variable(...) do { } while(0)
 #endif
-
 
 #endif // __H_LOG__
