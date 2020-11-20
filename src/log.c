@@ -35,13 +35,14 @@ void _dprint_variable(const variable_t *var)
         return;
 
     dprint_name(var->name, var->namesz);
-    DPRINTF(", guid=0x%02x",var->guid.Data1);
+    DPRINTF(", guid=0x%02x", var->guid.Data1);
     DPRINTF(", attrs=0x%02x, ", var->attrs);
     dprint_data(var->data, var->datasz);
     if (var->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
         DPRINTF(", Time<Year=%u, Month=%u, Day=%u, Hour=%u, Minute=%u, Second=%u>",
                 var->timestamp.Year, var->timestamp.Month, var->timestamp.Day,
-                var->timestamp.Hour, var->timestamp.Minute, var->timestamp.Second);
+                var->timestamp.Hour, var->timestamp.Minute,
+                var->timestamp.Second);
     DPRINTF("\n");
 }
 
