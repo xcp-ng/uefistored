@@ -19,6 +19,7 @@
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <openssl/rsa.h>
 #include <openssl/pkcs7.h>
 #include <openssl/err.h>
 
@@ -32,7 +33,6 @@
 #include "uefi/pkcs7_verify.h"
 #include "uefi/types.h"
 #include "uefi/utils.h"
-#include "uefi/x509.h"
 #include "variable.h"
 
 extern EFI_GUID gEfiGlobalVariableGuid;
@@ -69,6 +69,113 @@ EFI_SIGNATURE_ITEM supported_sigs[] = {
     { EFI_CERT_X509_SHA384_GUID, 0, 64 },
     { EFI_CERT_X509_SHA512_GUID, 0, 80 }
 };
+
+/**
+ * Construct a X509 object from DER-encoded certificate data.
+ *
+ * If cert is NULL, then return false.
+ * If single_x509_cert is NULL, then return false.
+ *
+ * @parm cert Pointer to the DER-encoded certificate data.
+ * @parm cert_size The size of certificate data in bytes.
+ * @parm single_x509_cert The generated X509 object.
+ *
+ * @return true The X509 object generation succeeded.
+ * @return false The operation failed.
+ *
+ */
+bool x509_construct_certificate(const uint8_t *cert, uint64_t cert_size,
+                                uint8_t **single_x509_cert)
+{
+    X509 *x509_cert;
+    const uint8_t *temp;
+
+    if (cert == NULL || single_x509_cert == NULL || cert_size > INT_MAX) {
+        return false;
+    }
+
+    /*
+     * Read DER-encoded X509 Certificate and Construct X509 object.
+     */
+    temp = cert;
+    x509_cert = d2i_X509(NULL, &temp, (long)cert_size);
+    if (x509_cert == NULL) {
+        return false;
+    }
+
+    *single_x509_cert = (uint8_t *)x509_cert;
+
+    return true;
+}
+
+/**
+ * Retrieve the RSA Public Key from one DER-encoded X509 certificate.
+ *
+ * @parm cert         Pointer to the DER-encoded X509 certificate.
+ * @parm cert_size    Size of the X509 certificate in bytes.
+ * @parm rsa_context   Pointer to new-generated RSA context which contain the retrieved
+ *                    RSA public key component. Use RsaFree() function to free the
+ *                    resource.
+ *
+ * If cert is NULL, then return false.
+ * If rsa_context is NULL, then return false.
+ *
+ * @return true   RSA Public Key was retrieved successfully.
+ * @return false  Fail to retrieve RSA public key from X509 certificate.
+ *
+ */
+bool rsa_get_pub_key_from_x509(const uint8_t *cert, uint64_t cert_size,
+                               void **rsa_context)
+{
+    bool status;
+    EVP_PKEY *pkey = NULL;
+    X509 *x509_cert = NULL;
+
+    if (cert == NULL || rsa_context == NULL) {
+        return false;
+    }
+
+    /*
+     * Read DER-encoded X509 Certificate and Construct X509 object.
+     */
+    status = x509_construct_certificate(cert, cert_size, (uint8_t **)&x509_cert);
+    if ((x509_cert == NULL) || (!status)) {
+        status = false;
+        goto err;
+    }
+
+    status = false;
+
+    /*
+     * Retrieve and check EVP_PKEY data from X509 Certificate.
+     */
+    pkey = X509_get_pubkey(x509_cert);
+    if ((pkey == NULL) || (EVP_PKEY_id(pkey) != EVP_PKEY_RSA)) {
+        goto err;
+    }
+
+    /*
+     * Duplicate RSA Context from the retrieved EVP_PKEY.
+     */
+    //
+    RSA *rsa = EVP_PKEY_get1_RSA(pkey);
+    if (((*rsa_context = RSAPublicKey_dup(rsa)) != NULL)) {
+        status = true;
+    }
+
+    RSA_free(rsa);
+
+err:
+    if (x509_cert != NULL) {
+        X509_free(x509_cert);
+    }
+
+    if (pkey != NULL) {
+        EVP_PKEY_free(pkey);
+    }
+
+    return status;
+}
 
 bool cert_equals_esl(uint8_t *cert_der, uint32_t cert_size,
                      EFI_SIGNATURE_LIST *old_esl)
@@ -568,7 +675,7 @@ EFI_STATUS check_signature_list_format(UTF16 *name, EFI_GUID *guid, void *data,
                                                sizeof(EFI_SIGNATURE_LIST) +
                                                SigList->SignatureHeaderSize);
             certLen = SigList->SignatureSize - sizeof(EFI_GUID);
-            if (!RsaGetPublicKeyFromX509(cert_data->SignatureData, certLen,
+            if (!rsa_get_pub_key_from_x509(cert_data->SignatureData, certLen,
                                          (void *)&RsaContext)) {
                 return EFI_INVALID_PARAMETER;
             }
