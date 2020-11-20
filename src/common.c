@@ -171,7 +171,7 @@ void fprintf16(FILE *stream, UTF16 *str)
 
     n = strlen16(str);
 
-    for (i=0; i<n; i++) {
-        fprintf(stream, "%c", (char) str[i]);
+    for (i = 0; i < n; i++) {
+        fprintf(stream, "%c", (char)str[i]);
     }
 }
