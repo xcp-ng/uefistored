@@ -43,14 +43,15 @@ static void debug_request(struct request *req)
     if (!req)
         return;
 
-    DPRINTF("request: version=%u, command=0x%02x, name=", req->version, req->command);
-    dprint_name((UTF16*)req->name, req->namesz);
+    DPRINTF("request: version=%u, command=0x%02x, name=", req->version,
+            req->command);
+    dprint_name((UTF16 *)req->name, req->namesz);
     DPRINTF(", ");
 
     if (req->command == COMMAND_SET_VARIABLE)
         dprint_data(req->buffer, req->buffer_size);
 
-    DPRINTF(", guid=0x%02llx", *((unsigned long long*)&req->guid));
+    DPRINTF(", guid=0x%02llx", *((unsigned long long *)&req->guid));
 
     if (req->command == COMMAND_SET_VARIABLE)
         DPRINTF(", attrs=0x%02x, ", req->attrs);
@@ -58,7 +59,9 @@ static void debug_request(struct request *req)
     DPRINTF("\n");
 }
 #else
-#define debug_request(...) do { } while ( 0 )
+#define debug_request(...)                                                     \
+    do {                                                                       \
+    } while (0)
 #endif
 
 EFI_STATUS evaluate_attrs(uint32_t attrs)
@@ -70,7 +73,7 @@ EFI_STATUS evaluate_attrs(uint32_t attrs)
     else if ((attrs & RT_BS_ATTRS) == EFI_VARIABLE_RUNTIME_ACCESS)
         return EFI_INVALID_PARAMETER;
     /* Not both authentication bits may be set */
-    else if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) && \
+    else if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) &&
              (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS))
         return EFI_SECURITY_VIOLATION;
     /* We do not support EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS */
@@ -106,7 +109,8 @@ static int unserialize_get_request(struct request *request, void *comm_buf)
     }
 
     request->command = (command_t)unserialize_uint32(&ptr);
-    request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+    request->namesz =
+            unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
     unserialize_guid(&ptr, &request->guid);
     request->buffer_size = unserialize_uint64(&ptr);
     efi_at_runtime = unserialize_boolean(&ptr);
@@ -123,7 +127,8 @@ static int unserialize_get_request(struct request *request, void *comm_buf)
  *
  * @return 0 if no error found, otherwise -1.
  */
-static int serialize_get_error(variable_t *var, struct request *request, void *comm_buf)
+static int serialize_get_error(variable_t *var, struct request *request,
+                               void *comm_buf)
 {
     int ret;
     uint8_t *ptr = comm_buf;
@@ -159,7 +164,7 @@ static int serialize_get_error(variable_t *var, struct request *request, void *c
 static void handle_get_variable(void *comm_buf)
 {
     uint8_t *ptr;
-    struct request req = {0};
+    struct request req = { 0 };
     struct request *request = &req;
     variable_t *var;
 
@@ -182,7 +187,8 @@ static void handle_get_variable(void *comm_buf)
         return;
     }
 
-    var = storage_find_variable((UTF16*)request->name, request->namesz, &request->guid);
+    var = storage_find_variable((UTF16 *)request->name, request->namesz,
+                                &request->guid);
 
     if (serialize_get_error(var, request, comm_buf) < 0)
         return;
@@ -220,9 +226,8 @@ static void handle_query_variable_info(void *comm_buf)
 
     attrs = unserialize_uint32(&inptr);
 
-    if (attrs == 0 ||
-            ((attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
-             !(attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS))) {
+    if (attrs == 0 || ((attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
+                       !(attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS))) {
         serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
@@ -249,17 +254,18 @@ static int unserialize_set_request(struct request *request, void *comm_buf)
     request->version = unserialize_uint32(&ptr);
     assert(request->version == UEFISTORED_VERSION);
     request->command = (command_t)unserialize_uint32(&ptr);
-    request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+    request->namesz =
+            unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
     unserialize_guid(&ptr, &request->guid);
-    request->buffer_size = unserialize_data(&ptr, request->buffer, MAX_VARIABLE_DATA_SIZE);
+    request->buffer_size =
+            unserialize_data(&ptr, request->buffer, MAX_VARIABLE_DATA_SIZE);
     request->attrs = unserialize_uint32(&ptr);
     efi_at_runtime = unserialize_boolean(&ptr);
 
     return 0;
 }
 
-#define strcmp16_len(a, a_n, b) \
-    (a_n == sizeof_wchar(b) && !strcmp16(a, b))
+#define strcmp16_len(a, a_n, b) (a_n == sizeof_wchar(b) && !strcmp16(a, b))
 
 /**
  * Returns true if variable is read-only, otherwise false.
@@ -278,16 +284,15 @@ static bool is_ro(UTF16 *name, uint64_t namesz, EFI_GUID *guid)
         strcmp16_len(name, namesz, L"AuditMode") ||
         strcmp16_len(name, namesz, L"DeployedMode") ||
         strcmp16_len(name, namesz, L"SignatureSupport"))
-       return true;
+        return true;
 
     return false;
 }
 
-
 static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
-    struct request req = {0};
+    struct request req = { 0 };
     struct request *request = &req;
     EFI_STATUS status;
 
@@ -306,13 +311,13 @@ static void handle_set_variable(void *comm_buf)
     }
 
     if (request->name[0] == 0 ||
-            ((request->attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
-             !(request->attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS))) {
+        ((request->attrs & EFI_VARIABLE_RUNTIME_ACCESS) &&
+         !(request->attrs & EFI_VARIABLE_BOOTSERVICE_ACCESS))) {
         serialize_result(&ptr, EFI_INVALID_PARAMETER);
         return;
     }
 
-    if (is_ro((UTF16*)request->name, request->namesz, &request->guid)) {
+    if (is_ro((UTF16 *)request->name, request->namesz, &request->guid)) {
         serialize_result(&ptr, EFI_WRITE_PROTECTED);
         return;
     }
@@ -325,15 +330,16 @@ static void handle_set_variable(void *comm_buf)
     }
 
     if (request->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS ||
-            is_secure_boot_variable((UTF16*)request->name, request->namesz, &request->guid)) {
-        status = auth_lib_process_variable((UTF16*)request->name, request->namesz, &request->guid,
-                                                request->buffer, request->buffer_size,
-                                                request->attrs);
+        is_secure_boot_variable((UTF16 *)request->name, request->namesz,
+                                &request->guid)) {
+        status = auth_lib_process_variable(
+                (UTF16 *)request->name, request->namesz, &request->guid,
+                request->buffer, request->buffer_size, request->attrs);
 
     } else {
-        status = storage_set((UTF16*)request->name, request->namesz, &request->guid,
-                             request->buffer, request->buffer_size,
-                             request->attrs);
+        status = storage_set((UTF16 *)request->name, request->namesz,
+                             &request->guid, request->buffer,
+                             request->buffer_size, request->attrs);
     }
 
     serialize_result(&ptr, status);
@@ -353,7 +359,8 @@ static int unserialize_get_next_request(struct request *request, void *comm_buf)
 
     request->command = unserialize_uint32(&ptr);
     request->buffer_size = unserialize_uintn(&ptr);
-    request->namesz = unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+    request->namesz =
+            unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
     unserialize_guid(&ptr, &request->guid);
     efi_at_runtime = unserialize_boolean(&ptr);
 
@@ -371,7 +378,7 @@ static int unserialize_get_next_request(struct request *request, void *comm_buf)
 static void handle_get_next_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
-    struct request req = {0};
+    struct request req = { 0 };
     struct request *request = &req;
     variable_t *next;
 
@@ -397,7 +404,8 @@ static void handle_get_next_variable(void *comm_buf)
         return;
     }
 
-    next = storage_next_variable((UTF16*)request->name, request->namesz, &request->guid);
+    next = storage_next_variable((UTF16 *)request->name, request->namesz,
+                                 &request->guid);
 
     ptr = comm_buf;
 
