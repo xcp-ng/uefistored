@@ -65,8 +65,6 @@ static char *pidfile;
 extern bool secure_boot_enabled;
 bool enforcement_level;
 
-char assertsz[sizeof(unsigned long) == sizeof(xen_pfn_t)] = { 0 };
-char assertsz2[sizeof(size_t) == sizeof(uint64_t)] = { 0 };
 
 #define UNUSED(var) ((void)var);
 
@@ -656,9 +654,6 @@ int main(int argc, char **argv)
         { "help", no_argument, 0, 'h' },
         { 0, 0, 0, 0 },
     };
-
-    UNUSED(assertsz);
-    UNUSED(assertsz2);
 
     if (argc == 1) {
         printf(USAGE);
