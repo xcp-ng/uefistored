@@ -188,120 +188,6 @@ static int xen_map_ioreq_server(xenforeignmemory_handle *fmem, domid_t domid,
     return 0;
 }
 
-/**
- * map_guest_memory - Map in pages from the guest address space
- *
- * Map the GFNs from start to (start + SHMEM_PAGES) from guest space to uefistored
- * as shared memory.
- */
-static void *map_guest_memory(xen_pfn_t start)
-{
-    int i;
-    xen_pfn_t shmem[SHMEM_PAGES];
-
-    for (i = 0; i < SHMEM_PAGES; i++) {
-        shmem[i] = start + i;
-    }
-
-    return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE,
-                                SHMEM_PAGES, shmem, NULL);
-}
-
-void handle_ioreq(struct ioreq *ioreq)
-
-{
-    void *shmem;
-    uint64_t port_addr = ioreq->addr;
-    uint64_t gfn = ioreq->data;
-    uint32_t size = ioreq->size;
-
-
-    if (!io_port_enabled) {
-        ERROR("ioport not yet enabled!\n");
-        return;
-    }
-
-    if (!(io_port_addr <= port_addr &&
-          port_addr < io_port_addr + io_port_size)) {
-        ERROR("port addr 0x%lx not in range (0x%02lx-0x%02lx)\n", port_addr,
-              io_port_addr, io_port_addr + io_port_size - 1);
-        return;
-    }
-
-    if (size != 4) {
-        ERROR("Expected size 4, got %u\n", size);
-        return;
-    }
-
-    if (ioreq->type != IOREQ_TYPE_PIO) {
-        return;
-    }
-
-    shmem = map_guest_memory(gfn);
-
-    if (!shmem) {
-        ERROR("failed to map guest memory!\n");
-        return;
-    }
-
-    /* Now that we have mapped in the XenVariable command, let's process it. */
-    xen_variable_server_handle_request(shmem);
-
-    /* Free up mappable space */
-    xenforeignmemory_unmap(_fmem, shmem, SHMEM_PAGES);
-}
-
-static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
-{
-    for (;;) {
-        unsigned int read_pointer;
-        unsigned int write_pointer;
-
-        read_pointer = buffered_iopage->read_pointer;
-        write_pointer = buffered_iopage->write_pointer;
-
-        if (read_pointer == write_pointer)
-            break;
-
-        while (read_pointer != write_pointer) {
-            unsigned int slot;
-            buf_ioreq_t *buf_ioreq;
-            ioreq_t ioreq;
-
-            slot = read_pointer % IOREQ_BUFFER_SLOT_NUM;
-
-            buf_ioreq = &buffered_iopage->buf_ioreq[slot];
-
-            ioreq.size = 1UL << buf_ioreq->size;
-            ioreq.count = 1;
-            ioreq.addr = buf_ioreq->addr;
-            ioreq.data = buf_ioreq->data;
-            ioreq.state = STATE_IOREQ_READY;
-            ioreq.dir = buf_ioreq->dir;
-            ioreq.df = 1;
-            ioreq.type = buf_ioreq->type;
-            ioreq.data_is_ptr = 0;
-
-            read_pointer++;
-
-            if (ioreq.size == 8) {
-                slot = read_pointer % IOREQ_BUFFER_SLOT_NUM;
-                buf_ioreq = &buffered_iopage->buf_ioreq[slot];
-
-                ioreq.data |= ((uint64_t)buf_ioreq->data) << 32;
-
-                read_pointer++;
-            }
-
-            handle_ioreq(&ioreq);
-            mb();
-        }
-
-        buffered_iopage->read_pointer = read_pointer;
-        mb();
-    }
-}
-
 static int setup_portio(xendevicemodel_handle *dmod, xenforeignmemory_handle *fmem,
                         int domid, ioservid_t ioservid)
 {
@@ -357,8 +243,70 @@ static bool uefistored_xs_read_bool(struct xs_handle *xsh, const char *xs_path,
     return ret;
 }
 
+/**
+ * map_guest_memory - Map in pages from the guest address space
+ *
+ * Map the GFNs from start to (start + SHMEM_PAGES) from guest space to uefistored
+ * as shared memory.
+ */
+static void *map_guest_memory(xen_pfn_t start)
+{
+    int i;
+    xen_pfn_t shmem[SHMEM_PAGES];
+
+    for (i = 0; i < SHMEM_PAGES; i++) {
+        shmem[i] = start + i;
+    }
+
+    return xenforeignmemory_map(_fmem, _domid, PROT_READ | PROT_WRITE,
+                                SHMEM_PAGES, shmem, NULL);
+}
+
+void handle_ioreq(struct ioreq *ioreq)
+{
+    void *shmem;
+    uint64_t port_addr = ioreq->addr;
+    uint64_t gfn = ioreq->data;
+    uint32_t size = ioreq->size;
+
+
+    if (!io_port_enabled) {
+        ERROR("ioport not yet enabled!\n");
+        return;
+    }
+
+    if (!(io_port_addr <= port_addr &&
+          port_addr < io_port_addr + io_port_size)) {
+        ERROR("port addr 0x%lx not in range (0x%02lx-0x%02lx)\n", port_addr,
+              io_port_addr, io_port_addr + io_port_size - 1);
+        return;
+    }
+
+    if (size != 4) {
+        ERROR("Expected size 4, got %u\n", size);
+        return;
+    }
+
+    if (ioreq->type != IOREQ_TYPE_PIO) {
+        return;
+    }
+
+    shmem = map_guest_memory(gfn);
+
+    if (!shmem) {
+        ERROR("failed to map guest memory!\n");
+        return;
+    }
+
+    /* Now that we have mapped in the XenVariable command, let's process it. */
+    xen_variable_server_handle_request(shmem);
+
+    /* Free up mappable space */
+    xenforeignmemory_unmap(_fmem, shmem, SHMEM_PAGES);
+}
+
 static void handle_shared_iopage(shared_iopage_t *shared_iopage,
-                               evtchn_port_t port, size_t vcpu)
+                                 evtchn_port_t port, size_t vcpu)
 {
     struct ioreq *ioreq;
 
@@ -377,8 +325,8 @@ static void handle_shared_iopage(shared_iopage_t *shared_iopage,
         INFO("IO request not ready\n");
         return;
     }
-    mb();
 
+    mb();
     ioreq->state = STATE_IOREQ_INPROCESS;
 
     handle_ioreq(ioreq);
@@ -388,6 +336,57 @@ static void handle_shared_iopage(shared_iopage_t *shared_iopage,
     mb();
 
     xenevtchn_notify(xce, port);
+}
+
+static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
+{
+    for (;;) {
+        unsigned int read_pointer;
+        unsigned int write_pointer;
+
+        read_pointer = buffered_iopage->read_pointer;
+        write_pointer = buffered_iopage->write_pointer;
+
+        if (read_pointer == write_pointer)
+            break;
+
+        while (read_pointer != write_pointer) {
+            unsigned int slot;
+            buf_ioreq_t *buf_ioreq;
+            ioreq_t ioreq;
+
+            slot = read_pointer % IOREQ_BUFFER_SLOT_NUM;
+
+            buf_ioreq = &buffered_iopage->buf_ioreq[slot];
+
+            ioreq.size = 1UL << buf_ioreq->size;
+            ioreq.count = 1;
+            ioreq.addr = buf_ioreq->addr;
+            ioreq.data = buf_ioreq->data;
+            ioreq.state = STATE_IOREQ_READY;
+            ioreq.dir = buf_ioreq->dir;
+            ioreq.df = 1;
+            ioreq.type = buf_ioreq->type;
+            ioreq.data_is_ptr = 0;
+
+            read_pointer++;
+
+            if (ioreq.size == 8) {
+                slot = read_pointer % IOREQ_BUFFER_SLOT_NUM;
+                buf_ioreq = &buffered_iopage->buf_ioreq[slot];
+
+                ioreq.data |= ((uint64_t)buf_ioreq->data) << 32;
+
+                read_pointer++;
+            }
+
+            handle_ioreq(&ioreq);
+            mb();
+        }
+
+        buffered_iopage->read_pointer = read_pointer;
+        mb();
+    }
 }
 
 static void signal_handler(int sig)
