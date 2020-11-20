@@ -65,6 +65,10 @@ static char *pidfile;
 extern bool secure_boot_enabled;
 bool enforcement_level;
 
+struct sigaction old_sighup;
+struct sigaction old_sigint;
+struct sigaction old_sigabrt;
+struct sigaction old_sigterm;
 
 #define UNUSED(var) ((void)var);
 
@@ -469,11 +473,6 @@ static void signal_handler(int sig)
     raise(sig);
     exit(0);
 }
-
-struct sigaction old_sighup;
-struct sigaction old_sigint;
-struct sigaction old_sigabrt;
-struct sigaction old_sigterm;
 
 static struct sigaction *get_old(int sig)
 {
