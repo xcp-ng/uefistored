@@ -41,12 +41,9 @@ uint8_t *X509_to_buf(X509 *cert, int *len)
  */
 bool is_content_info(const uint8_t *data, size_t data_size)
 {
-    if (data_size < 16 || 
-        data[4] != 0x06 ||
-        data[5] != 0x09 ||
+    if (data_size < 16 || data[4] != 0x06 || data[5] != 0x09 ||
         memcmp(data + 6, mOidValue, sizeof(mOidValue)) != 0 ||
-        data[15] != 0xA0 ||
-        data[16] != 0x82)
+        data[15] != 0xA0 || data[16] != 0x82)
         return false;
 
     return true;
@@ -63,7 +60,8 @@ bool is_content_info(const uint8_t *data, size_t data_size)
  *
  * Based on tianocore/edk2.
  */
-uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,  uint32_t *wrapped_size)
+uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,
+                                uint32_t *wrapped_size)
 {
     uint8_t *wrapped;
 
@@ -136,88 +134,6 @@ uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,  uint32_t *w
     return wrapped;
 }
 
-/**
-  Pop single certificate from STACK_OF(X509).
-
-  If X509Stack, Cert, or CertSize is NULL, then return false.
-
-  @param[in]  X509Stack       Pointer to a X509 stack object.
-  @param[out] Cert            Pointer to a X509 certificate.
-  @param[out] CertSize        Length of output X509 certificate in bytes.
-
-  @retval     true            The X509 stack pop succeeded.
-  @retval     false           The pop operation failed.
-
-**/
-bool X509PopCertificate(void *X509Stack, uint8_t **Cert, uint64_t *CertSize)
-{
-    BIO *CertBio;
-    X509 *X509Cert;
-    STACK_OF(X509) * CertStack;
-    bool Status;
-    int32_t Result;
-    BUF_MEM *Ptr;
-    int32_t Length;
-    void *Buffer;
-
-    Status = false;
-
-    if ((X509Stack == NULL) || (Cert == NULL) || (CertSize == NULL)) {
-        return Status;
-    }
-
-    CertStack = (STACK_OF(X509) *)X509Stack;
-
-    X509Cert = sk_X509_pop(CertStack);
-
-    if (X509Cert == NULL) {
-        return Status;
-    }
-
-    Buffer = NULL;
-
-    CertBio = BIO_new(BIO_s_mem());
-    if (CertBio == NULL) {
-        return Status;
-    }
-
-    Result = i2d_X509_bio(CertBio, X509Cert);
-    if (Result == 0) {
-        goto _Exit;
-    }
-
-    BIO_get_mem_ptr(CertBio, &Ptr);
-    Length = (int32_t)(Ptr->length);
-    if (Length <= 0) {
-        goto _Exit;
-    }
-
-    Buffer = malloc(Length);
-    if (Buffer == NULL) {
-        goto _Exit;
-    }
-
-    Result = BIO_read(CertBio, Buffer, Length);
-    if (Result != Length) {
-        goto _Exit;
-    }
-
-    *Cert = Buffer;
-    *CertSize = Length;
-
-    Status = true;
-
-_Exit:
-
-    BIO_free(CertBio);
-
-    if (!Status && (Buffer != NULL)) {
-        free(Buffer);
-    }
-
-    return Status;
-}
-
 /*
  * Get the signer's certificates from PKCS#7 signed data.
  * Adapted from edk2.
@@ -227,7 +143,7 @@ _Exit:
  * context is freed.
  */
 EFI_STATUS pkcs7_get_signers(const uint8_t *p7data, uint64_t p7_len,
-                             PKCS7 **pkcs7, STACK_OF(X509) **certs)
+                             PKCS7 **pkcs7, STACK_OF(X509) * *certs)
 {
     const uint8_t *ptr;
 
@@ -268,7 +184,7 @@ PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth)
 
     sig_data = auth->AuthInfo.CertData;
     sig_data_size = auth->AuthInfo.Hdr.dwLength -
-                  (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
+                    (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
 
     if (sig_data_size == 0) {
         ERROR("size=0, EFI_VARIABLE_AUTHENTICATION_2 contains no SignedData cert\n");
@@ -283,7 +199,7 @@ PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth)
     }
 
     temp = sig_data;
-    pkcs7 = d2i_PKCS7(NULL, (const unsigned char**)&temp, (int)sig_data_size);
+    pkcs7 = d2i_PKCS7(NULL, (const unsigned char **)&temp, (int)sig_data_size);
 
     if (pkcs7 == NULL) {
         ERROR("%s\n", ERR_error_string(ERR_get_error(), NULL));
@@ -305,7 +221,7 @@ PKCS7 *pkcs7_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *auth)
 
 X509 *pkcs7_get_top_cert(PKCS7 *pkcs7)
 {
-    STACK_OF(X509) *certs;
+    STACK_OF(X509) * certs;
 
     certs = PKCS7_get0_signers(pkcs7, NULL, PKCS7_BINARY);
 
@@ -325,93 +241,12 @@ uint8_t *pkcs7_get_top_cert_der(PKCS7 *pkcs7, int *top_cert_der_size)
     return X509_to_buf(top_cert, top_cert_der_size);
 }
 
-/**
-  Get the signer's certificates from PKCS#7 signed data as described in "PKCS #7:
-  Cryptographic Message Syntax Standard". The input signed data could be wrapped
-  in a ContentInfo structure.
-
-  If P7Data, SignerCerts, SignerCertsCount, TrustedCert is NULL, then
-  return false. If P7Length overflow, then return false.
-
-  Caution: This function may receive untrusted input.
-  UEFI Authenticated Variable is external input, so this function will do basic
-  check for PKCS#7 data structure.
-
-  @param[in]  P7Data       Pointer to the PKCS#7 message to verify.
-  @param[in]  P7Length     Length of the PKCS#7 message in bytes.
-  @param[out] SignerCerts    Pointer to Signer's certificates retrieved from P7Data.
-                           It's caller's responsibility to free the buffer with
-                           Pkcs7FreeSigners().
-                           This data structure is EFI_CERT_STACK type.
-  @param[out] SignerCertsCount  Length of signer's certificates in bytes.
-  @param[out] TrustedCert  Pointer to a trusted certificate from Signer's certificates.
-                           It's caller's responsibility to free the buffer with
-                           Pkcs7FreeSigners().
-
-  @retval  true            The operation is finished successfully.
-  @retval  false           Error occurs during the operation.
-
-**/
-bool Pkcs7GetSigners(const uint8_t *P7Data, uint64_t P7Length,
-                     STACK_OF(X509) **SignerCerts, uint64_t *SignerCertsCount)
-{
-    PKCS7 *Pkcs7 = NULL;
-    STACK_OF(X509) *Stack = NULL;
-    const uint8_t *Temp;
-
-    if (!SignerCerts || !SignerCertsCount)
-        return false;
-
-    Temp = P7Data;
-    Pkcs7 = d2i_PKCS7(NULL, &Temp, (int)P7Length);
-    if (Pkcs7 == NULL) {
-        DDEBUG("Pkcs7 == NULL\n");
-        return false;
-    }
-
-    //
-    // Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
-    //
-    if (!PKCS7_type_is_signed(Pkcs7)) {
-        DDEBUG("Pkcs7 not signed\n");
-        PKCS7_free(Pkcs7);
-        return false;
-    }
-
-    Stack = PKCS7_get0_signers(Pkcs7, NULL, PKCS7_BINARY);
-    if (Stack == NULL) {
-        PKCS7_free(Pkcs7);
-        DDEBUG("PKCS7_get0_signers failed\n");
-        return false;
-    }
-
-    *SignerCerts = Stack;
-    *SignerCertsCount = sk_X509_num(*SignerCerts);
-
-    PKCS7_free(Pkcs7);
-
-    return true;
-}
-
-/**
-  Wrap function to use free() to free allocated memory for certificates.
-
-  @param[in]  Certs        Pointer to the certificates to be freed.
-
-**/
-void Pkcs7FreeSigners(X509 *Certs)
-{
-    if (Certs == NULL) {
-        return;
-    }
-
-    free(Certs);
-}
-
 #ifndef X509_V_FLAG_NO_CHECK_TIME
 #define OPENSSL_NO_CHECK_TIME 0
 
 /*
+ * Borrowed from varstored.
+ *
  * Verification callback function to override the existing callbacks in
  * OpenSSL.  This is required due to the lack of X509_V_FLAG_NO_CHECK_TIME in
  * OpenSSL 1.0.2.  This function has been taken directly from an older version
@@ -422,8 +257,7 @@ void Pkcs7FreeSigners(X509 *Certs)
  * David Woodhouse entitled "CryptoPkg: Remove OpenSSL hack and manually ignore
  * validity time range".
  */
-static int
-X509_verify_cb(int status, X509_STORE_CTX *context)
+static int X509_verify_cb(int status, X509_STORE_CTX *context)
 {
     X509_OBJECT *obj = NULL;
     int error;
@@ -433,7 +267,7 @@ X509_verify_cb(int status, X509_STORE_CTX *context)
     error = X509_STORE_CTX_get_error(context);
 
     if ((error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT) ||
-            (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)) {
+        (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)) {
         obj = malloc(sizeof(*obj));
         if (!obj)
             return 0;
@@ -441,7 +275,7 @@ X509_verify_cb(int status, X509_STORE_CTX *context)
         obj->type = X509_LU_X509;
         obj->data.x509 = context->current_cert;
 
-        CRYPTO_w_lock (CRYPTO_LOCK_X509_STORE);
+        CRYPTO_w_lock(CRYPTO_LOCK_X509_STORE);
 
         if (X509_OBJECT_retrieve_match(context->ctx->objs, obj)) {
             status = 1;
@@ -458,13 +292,13 @@ X509_verify_cb(int status, X509_STORE_CTX *context)
             }
         }
 
-        CRYPTO_w_unlock (CRYPTO_LOCK_X509_STORE);
+        CRYPTO_w_unlock(CRYPTO_LOCK_X509_STORE);
     }
 
     if ((error == X509_V_ERR_CERT_UNTRUSTED) ||
-            (error == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE) ||
-            (error == X509_V_ERR_CERT_HAS_EXPIRED) ||
-            (error == X509_V_ERR_CERT_NOT_YET_VALID))
+        (error == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE) ||
+        (error == X509_V_ERR_CERT_HAS_EXPIRED) ||
+        (error == X509_V_ERR_CERT_NOT_YET_VALID))
         status = 1;
 
     free(obj);
@@ -487,19 +321,17 @@ X509_verify_cb(int status, X509_STORE_CTX *context)
   UEFI Authenticated Variable is external input, so this function will do basic
   check for PKCS#7 data structure.
 
-  @param[in]  P7Data       Pointer to the PKCS#7 message to verify.
-  @param[in]  P7Length     Length of the PKCS#7 message in bytes.
-  @param[in]  TrustedCert  Pointer to a trusted/root certificate encoded in DER, which
-                           is used for certificate chain verification.
-  @param[in]  InData       Pointer to the content to be verified.
-  @param[in]  DataLength   Length of InData in bytes.
+  @parm P7Data      Pointer to the PKCS#7 message to verify.
+  @parm P7Length    Length of the PKCS#7 message in bytes.
+  @parm TrustedCert Pointer to a trusted/root certificate encoded in DER, which
+                    is used for certificate chain verification.
+  @parm InData      Pointer to the content to be verified.
+  @parm DataLength  Length of InData in bytes.
 
-  @retval  true  The specified PKCS#7 signed data is valid.
-  @retval  false Invalid PKCS#7 signed data.
-
+  @return  true  The specified PKCS#7 signed data is valid.
+  @return  false Invalid PKCS#7 signed data.
 **/
-bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
-                 X509 *TrustedCert,
+bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length, X509 *TrustedCert,
                  const uint8_t *InData, uint64_t DataLength)
 {
     PKCS7 *Pkcs7;
@@ -510,8 +342,8 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     const uint8_t *Temp;
     uint32_t SignedDataSize;
 
-    if (P7Data == NULL || InData == NULL ||
-        P7Length > INT_MAX || DataLength > INT_MAX) {
+    if (P7Data == NULL || InData == NULL || P7Length > INT_MAX ||
+        DataLength > INT_MAX) {
         return false;
     }
 
@@ -585,8 +417,7 @@ bool Pkcs7Verify(const uint8_t *P7Data, uint64_t P7Length,
     // Allow partial certificate chains, terminated by a non-self-signed but
     // still trusted intermediate certificate. Also disable time checks.
     //
-    X509_STORE_set_flags(CertStore,
-                         X509_V_FLAG_PARTIAL_CHAIN);
+    X509_STORE_set_flags(CertStore, X509_V_FLAG_PARTIAL_CHAIN);
 
     //
     // OpenSSL PKCS7 Verification by default checks for SMIME (email signing) and
@@ -615,8 +446,8 @@ _Exit:
     return Status;
 }
 
-bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
-                 const uint8_t *new_data, uint64_t new_data_size)
+bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert, const uint8_t *new_data,
+                  uint64_t new_data_size)
 {
     BIO *bio;
     bool status;
@@ -682,13 +513,13 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
     /*
      * Verifies the PKCS#7 signedData structure
      */
-    status = (bool)PKCS7_verify(pkcs7, NULL, store, bio, NULL,
-                                PKCS7_BINARY);
+    status = (bool)PKCS7_verify(pkcs7, NULL, store, bio, NULL, PKCS7_BINARY);
 
     if (!status) {
         ERR_print_errors_fp(stderr);
         ERR_load_crypto_strings();
-        ERROR("PKCS7_verify() failed, err= %s (%lu)\n", ERR_error_string(ERR_get_error(), NULL), ERR_get_error());
+        ERROR("PKCS7_verify() failed, err= %s (%lu)\n",
+              ERR_error_string(ERR_get_error(), NULL), ERR_get_error());
         ERR_free_strings();
     }
 
