@@ -879,7 +879,7 @@ int main(int argc, char **argv)
 
     xsh = xs_open(0);
     if (!xsh) {
-        ERROR("Couldn\'t open xenstore: %d, %s", errno, strerror(errno));
+        ERROR("Couldn't open xenstore: %d, %s", errno, strerror(errno));
         goto err;
     }
 
