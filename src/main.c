@@ -238,16 +238,16 @@ void handle_ioreq(struct ioreq *ioreq)
     }
 
     shmem = map_guest_memory(gfn);
-    if (shmem) {
-        /* Now that we have mapped in the UEFI Variables Service command from XenVariable,
-         * let's process it. */
-        xen_variable_server_handle_request(shmem);
-
-        /* Free up mappable space */
-        xenforeignmemory_unmap(_fmem, shmem, SHMEM_PAGES);
-    } else {
+    if (!shmem) {
         ERROR("failed to map guest memory!\n");
+        return;
     }
+
+    /* Now that we have mapped in the XenVariable command, let's process it. */
+    xen_variable_server_handle_request(shmem);
+
+    /* Free up mappable space */
+    xenforeignmemory_unmap(_fmem, shmem, SHMEM_PAGES);
 }
 
 int handle_pio(xenevtchn_handle *xce, evtchn_port_t port, struct ioreq *ioreq)
