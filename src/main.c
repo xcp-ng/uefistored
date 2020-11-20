@@ -563,16 +563,12 @@ void handler_loop(buffered_iopage_t *buffered_iopage,
             continue;
         }
 
-        ret = xenevtchn_unmask(xce, port);
-        if (ret < 0) {
-            ERROR("xenevtchn_unmask() error: %d, %s\n", errno, strerror(errno));
-            continue;
-        }
-
         if (port == bufioreq_local_port) {
+            xenevtchn_unmask(xce, port);
             poll_buffered_iopage(buffered_iopage);
         } else {
             for (i = 0; i < vcpu_count; i++) {
+                xenevtchn_unmask(xce, port);
                 if (ioreq_local_ports[i] == port) {
                     handle_shared_iopage(shared_iopage, port, i);
                 }
