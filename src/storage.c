@@ -261,12 +261,13 @@ EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
     /* If it already exists, replace it */
     for_each_variable(variables, var, i)
     {
-        if (var->namesz != namesz)
+        if (var->namesz != namesz) {
             continue;
+        }
 
         if (memcmp(var->name, name, var->namesz) == 0 &&
             memcmp(&var->guid, guid, sizeof(EFI_GUID)) == 0) {
-            /* If the attrs are different, then return EFI_UNSUPPORTED */
+
             if (var->attrs != attrs)
                 return EFI_INVALID_PARAMETER;
 
@@ -405,43 +406,6 @@ variable_t *storage_next_variable(UTF16 *name, size_t namesz, EFI_GUID *guid)
     return &variables[i];
 }
 
-static void log_data(uint8_t *data, uint64_t data_len)
-{
-    uint64_t i;
-
-    if (!data)
-        return;
-
-    fprintf(stderr, "[");
-    for (i = 0; i < data_len; i++) {
-        fprintf(stderr, "0x%02x", data[i]);
-
-        if (i != data_len - 1) {
-            fprintf(stderr, ", ");
-        }
-    }
-    fprintf(stderr, "]");
-}
-
-void storage_print_all_data_only(void)
-{
-    int i, j;
-    variable_t *var;
-
-    fprintf(stderr, "All UEFI variables (data only)\n");
-
-    for_each_variable(variables, var, i)
-    {
-        for (j = 0; j < var->namesz / 2; j++) {
-            if (isprint(var->name[j]))
-                fprintf(stderr, "%c", (char)var->name[j]);
-        }
-        fprintf(stderr, ", data(%lu)=", var->datasz);
-        log_data(var->data, var->datasz);
-        fprintf(stderr, "\n");
-    }
-}
-
 void storage_print_all(void)
 {
     int i;
@@ -450,7 +414,8 @@ void storage_print_all(void)
     DDEBUG("All UEFI Variables:\n");
     for_each_variable(variables, var, i)
     {
+        DPRINTF("%d: ", i);
         dprint_variable(var);
     }
-    DDEBUG("\n");
+    DPRINTF("\n");
 }
