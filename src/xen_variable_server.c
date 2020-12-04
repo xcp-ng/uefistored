@@ -342,6 +342,12 @@ static void handle_set_variable(void *comm_buf)
                              request->buffer_size, request->attrs);
     }
 
+    if (status == EFI_SUCCESS && request->attrs & EFI_VARIABLE_NON_VOLATILE) {
+        if(xapi_set_efi_vars() < 0) {
+            ERROR("Failed to set EFI vars\n");
+	}
+    }
+
     serialize_result(&ptr, status);
 }
 
