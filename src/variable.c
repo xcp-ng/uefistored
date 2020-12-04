@@ -43,6 +43,22 @@ int variable_set_guid(variable_t *var, const EFI_GUID *guid)
     return 0;
 }
 
+/**
+ * Some RCs of uefistored also stored the the null terminator.
+ * This was changed for backwards compatibility with
+ * varstored.
+ */
+static inline void sanitize_namesz(variable_t *var)
+{
+    if (!var)
+        return;
+
+    /* Leave out null-terminator if it exists */
+    if (var->name[(var->namesz / sizeof(UTF16) - 1)] == 0) {
+        var->namesz = var->namesz - sizeof(UTF16);
+    }
+}
+
 int variable_set_name(variable_t *var, const UTF16 *name, size_t namesz)
 {
     if (!var || !name || namesz > MAX_VARIABLE_NAME_SIZE)
@@ -56,6 +72,7 @@ int variable_set_name(variable_t *var, const UTF16 *name, size_t namesz)
 
     var->namesz = namesz;
     memcpy(var->name, name, var->namesz);
+    sanitize_namesz(var);
 
     return 0;
 }
