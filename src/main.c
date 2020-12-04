@@ -103,7 +103,7 @@ static unsigned long io_port_addr;
         .path = "/usr/share/varstored/" fname,                                 \
         .var = {                                                               \
             .name = _name,                                                     \
-            .namesz = sizeof(_name),                                           \
+            .namesz = sizeof_wchar(_name),                                           \
             .guid = _guid,                                                     \
             .attrs = _attrs,                                                   \
         },                                                                     \
