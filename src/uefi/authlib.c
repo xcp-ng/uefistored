@@ -84,28 +84,21 @@ static int load_auth(struct auth_data *auth)
     return ret;
 }
 
-int auth_lib_load(struct auth_data *auths, size_t n)
+void auth_lib_load(struct auth_data *auths, size_t n)
 {
-    int ret;
     size_t i;
 
     if (!auths)
-        return -1;
+        return;
 
-    ret = 0;
     for (i = 0; i < n; i++) {
         if (load_auth(&auths[i]) < 0) {
-            ret = -1;
             ERROR("error opening file %s\n", auths[i].path);
-        } else {
-            INFO("successfully loaded %s\n", auths[i].path);
         }
     }
-
-    return ret;
 }
 
-EFI_STATUS load_auth_files(struct auth_data *auths, size_t n)
+static void load_auth_files(struct auth_data *auths, size_t n)
 {
     size_t i;
     EFI_STATUS status;
@@ -114,19 +107,21 @@ EFI_STATUS load_auth_files(struct auth_data *auths, size_t n)
     for (i = 0; i < n; i++) {
         var = &auths[i].var;
 
-        if (!storage_exists(var->name, var->namesz, &var->guid)) {
+        if (!storage_exists(var->name, var->namesz, &var->guid) && var->datasz > 0) {
             status = auth_lib_process_variable(var->name, var->namesz,
                                                &var->guid, var->data,
                                                var->datasz, var->attrs);
 
             if (status != EFI_SUCCESS) {
-                DDEBUG("Failed to set SB variable from %s, status=%s (0x%02lx)\n",
-                       auths[i].path, efi_status_str(status), status);
-            }
+                DDEBUG("Failed to set SB variable from %s (attrs=0x%02x), status=%s (0x%02lx)\n",
+                       auths[i].path, var->attrs, efi_status_str(status), status);
+            } else {
+                INFO("Successfuly set SB variable from %s (attrs=0x%02x)\n",
+                       auths[i].path, var->attrs);
+		dprint_variable(var);
+	    }
         }
     }
-
-    return EFI_SUCCESS;
 }
 
 /**
@@ -182,6 +177,8 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
             &audit_mode, sizeof(audit_mode),
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
+    load_auth_files(auths, n);
+
     if (status != EFI_SUCCESS)
         return status;
 
@@ -193,7 +190,6 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
     if (status != EFI_SUCCESS)
         return status;
 
-    status = load_auth_files(auths, n);
 
     if (status != EFI_SUCCESS)
         return status;
