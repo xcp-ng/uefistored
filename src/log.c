@@ -12,7 +12,7 @@
 /**
  * Print UTF16 variable name.
  */
-void dprint_name(const UTF16 *name, size_t namesz)
+void _dprint_name(const UTF16 *name, size_t namesz)
 {
     char buf[MAX_VARIABLE_NAME_SIZE] = { 0 };
 
@@ -20,7 +20,7 @@ void dprint_name(const UTF16 *name, size_t namesz)
         return;
 
     uc2_ascii_safe(name, namesz, buf, MAX_VARIABLE_NAME_SIZE);
-    DPRINTF("%s", buf);
+    DPRINTF("%s (%lu)", buf, namesz);
 }
 
 /**
@@ -35,7 +35,7 @@ void _dprint_variable(const variable_t *var)
         return;
 
     dprint_name(var->name, var->namesz);
-    DPRINTF(", guid=0x%02x", var->guid.Data1);
+    DPRINTF(", guid=0x%02llx", *((unsigned long long*)&var->guid));
     DPRINTF(", attrs=0x%02x, ", var->attrs);
     dprint_data(var->data, var->datasz);
     if (var->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
