@@ -52,28 +52,30 @@ set -x
 
 create_x509 PK
 create_x509 KEK
-create_x509 DB
+create_x509 db
 create_x509 newPK
 
 create_esl PK
 create_esl KEK
-create_esl DB
+create_esl db
 
 sleep 1
 sign-efi-sig-list -t "$(date --date='1 second' +'%Y-%m-%d %H:%M:%S')" -g "${GUID}" \
-                  -k PK.key -c PK.crt db DB.esl DB-signed-by-PK.auth
+                  -k PK.key -c PK.crt db db.esl db-signed-by-PK.auth
 
 sleep 1
 sign-efi-sig-list -t "$(date --date='1 second' +'%Y-%m-%d %H:%M:%S')"  -g "${GUID}" \
-                  -k KEK.key -c KEK.crt db DB.esl DB-signed-by-KEK.auth
+                  -k KEK.key -c KEK.crt db db.esl db-signed-by-KEK.auth
 
 sign PK PK PK.auth
 sign PK KEK KEK.auth
 
 sign PK PK nullPK.auth --null
 sign PK KEK nullKEK.auth --null
-sign KEK DB nullDB-signed-by-KEK.auth --null
-sign PK DB nullDB-signed-by-PK.auth --null
+sign KEK db null-db-signed-by-KEK.auth --null
+sign PK db null-db-signed-by-PK.auth --null
+
+sign PK db db.auth
 
 sleep 1
 
