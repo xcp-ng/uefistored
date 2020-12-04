@@ -164,14 +164,3 @@ const char *efi_status_str(EFI_STATUS status)
 
     return "UNKNOWN";
 }
-
-void fprintf16(FILE *stream, UTF16 *str)
-{
-    size_t i, n;
-
-    n = strlen16(str);
-
-    for (i = 0; i < n; i++) {
-        fprintf(stream, "%c", (char)str[i]);
-    }
-}

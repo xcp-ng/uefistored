@@ -46,7 +46,6 @@ void uc2_ascii(const UTF16 *uc2, char *ascii, size_t len);
 char *strstrip(char *s);
 
 const char *efi_status_str(EFI_STATUS status);
-void fprintf16(FILE *stream, UTF16 *str);
 
 #define sizeof_wchar(str) (sizeof(str) - sizeof(L""))
 
