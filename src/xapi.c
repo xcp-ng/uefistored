@@ -125,7 +125,6 @@ int xapi_parse_arg(char *arg)
 {
     char *p;
 
-    /* TODO: no longer use strncpy, just point a pointer */
     if ((p = strstr(optarg, "socket:")) != NULL) {
         p += sizeof("socket:") - 1;
         socket_path = strdup(p);
@@ -493,33 +492,27 @@ static int send_request(char *message, char *response, size_t buffer_size)
     if (ret < 0) {
         close(fd);
         ERROR("connect() failed: %d, %s\n", errno, strerror(errno));
-        return ret;
+        goto err;
     }
 
     ret = write(fd, message, strlen(message));
 
     if (ret < 0) {
-        close(fd);
         ERROR("write() failed: %d\n", ret);
-        return ret;
+	goto err;
     }
 
     ret = read_socket(fd, response, buffer_size);
     if (ret < 0) {
-        close(fd);
-        ERROR("read_socket() failed: %d, errno=%d (%s)\n", ret, errno,
-              strerror(errno));
-        return ret;
+	ERROR("read_socket() failed: %d, errno=%d (%s)\n", ret, errno,
+	      strerror(errno));
+	goto err;
     }
 
+    ret = http_status(response) == 200 ? 0 : -1;
+err:
     close(fd);
-
-    if (ret != -1 && ret < 0) {
-        ERROR("read() err: %d\n", ret);
-        return ret;
-    }
-
-    return http_status(response);
+    return ret;
 }
 
 /**
@@ -539,9 +532,7 @@ int xapi_set_efi_vars(void)
         return ret;
     }
 
-    ret = send_request(buffer, buffer, BIG_MESSAGE_SIZE);
-
-    return ret == 200 ? 0 : -1;
+    return send_request(buffer, buffer, BIG_MESSAGE_SIZE);
 }
 
 #define HTTP_LOGIN                                                             \
@@ -573,14 +564,14 @@ int xapi_connect(void)
     while (retries-- > 0) {
         ret = send_request(HTTP_LOGIN, response, MAX_RESPONSE_SIZE);
 
-        if (ret == 200)
+        if (ret == 0)
             break;
 
         INFO("%s: retrying...\n", __func__);
         sleep(XAPI_CONNECT_SLEEP);
     }
 
-    if (ret == 200)
+    if (ret == 0)
         INFO("XAPI connection successful\n");
 
     return ret;
@@ -612,9 +603,7 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
 
     strncat(message, body, BIG_MESSAGE_SIZE);
 
-    ret = send_request(message, response, response_sz);
-
-    return ret;
+    return send_request(message, response, response_sz);
 }
 
 /**
@@ -779,7 +768,7 @@ static int xapi_vm_get_by_uuid(char *session_id)
                           "</methodCall>",
                           session_id, vm_uuid);
 
-    if (status != 200) {
+    if (status != 0) {
         ERROR("Failed to communicate with XAPI\n");
         return -1;
     }
@@ -821,7 +810,7 @@ int session_login(char *session_id, size_t n)
                           "</params>"
                           "</methodCall>");
 
-    if (status != 200) {
+    if (status != 0) {
         ERROR("failed to login to xapi, status=%d\n", status);
         return -1;
     }
@@ -877,7 +866,7 @@ int session_logout(char *session_id)
                           "</methodCall>",
                           session_id);
 
-    if (status != 200) {
+    if (status != 0) {
         ERROR("failed to logout of xapi session\n");
         return -1;
     }
@@ -1008,7 +997,7 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
                           "</methodCall>",
                           session_id, vm_uuid);
 
-    if (status != 200) {
+    if (status != 0) {
         ERROR("VM.get_NVRAM failed: status=%d\n", status);
         return -1;
     }
@@ -1070,6 +1059,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
 int xapi_init(bool resume)
 {
     int i, ret, len;
+    EFI_STATUS status;
     variable_t variables[MAX_VAR_COUNT];
     variable_t *var;
 
@@ -1093,20 +1083,25 @@ int xapi_init(bool resume)
     len = ret;
 
     for (i = 0; i < len; i++) {
-        var = &variables[i];
+	var = &variables[i];
 
-        ret = storage_set(var->name, var->namesz, &var->guid, var->data,
-                          var->datasz, var->attrs);
+        if (var->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
+		status = storage_set_with_timestamp(var->name, var->namesz,
+						    &var->guid, var->data,
+						    var->datasz, var->attrs,
+						    &var->timestamp);
+	} else {
+		status = storage_set(var->name, var->namesz, &var->guid, var->data,
+				     var->datasz, var->attrs);
+	}
 
         /*
          * If we fail to set a variable from XAPI then we can't trust our 
          * secure boot state.  It's best if we die loudly then let it slide
          * quietly.
          */
-        assert(ret == 0);
+        assert(status == EFI_SUCCESS);
     }
-
-    storage_print_all_data_only();
 
     return 0;
 }
@@ -1160,9 +1155,9 @@ void xapi_cleanup(void)
 int xapi_sb_notify(void)
 {
     char session_id[SESSION_ID_SIZE];
-    char response[BIG_MESSAGE_SIZE] = { 0 };
-    char request[MAX_REQUEST_SIZE] = { 0 };
-    int request_size;
+    char response[MAX_RESPONSE_SIZE];
+    //char request[MAX_REQUEST_SIZE] = { 0 };
+    //int request_size;
     int ret;
 
     if (session_login_retry(session_id, SESSION_ID_SIZE) < 0) {
@@ -1170,20 +1165,9 @@ int xapi_sb_notify(void)
         return -1;
     }
 
-    if (xapi_vm_get_by_uuid(session_id) < 0) {
-        ERROR("failed to notify xapi of SB failure, get VM by uuid\n");
-        return -1;
-    }
-
-    request_size =
-            snprintf(request, MAX_REQUEST_SIZE, MESSAGE_CREATE, session_id,
+    ret = xapi_request(response, MAX_RESPONSE_SIZE, MESSAGE_CREATE, session_id,
                      "VM_SECURE_BOOT_FAILED", 5, "VM", vm_uuid,
                      "The VM failed to pass Secure Boot verification");
-
-    if (request_size < 0)
-        return request_size;
-
-    ret = send_request(request, response, BIG_MESSAGE_SIZE) == 200 ? 0 : -1;
 
     if (ret) {
         ERROR("failed to send_request() to notify XAPI of SB failure\n");
