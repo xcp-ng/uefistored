@@ -221,24 +221,24 @@ auth_lib_process_variable(UTF16 *variable_name, size_t namesz,
 
     if (compare_guid(vendor_guid, &gEfiGlobalVariableGuid) &&
         (strcmp16(variable_name, EFI_PLATFORM_KEY_NAME) == 0)) {
-        status = process_var_with_pk(variable_name, vendor_guid, data,
+        status = process_var_with_pk(variable_name, namesz, vendor_guid, data,
                                      data_size, attributes, true);
     } else if (compare_guid(vendor_guid, &gEfiGlobalVariableGuid) &&
                (strcmp16(variable_name, EFI_KEY_EXCHANGE_KEY_NAME) == 0)) {
-        status = process_var_with_pk(variable_name, vendor_guid, data,
+        status = process_var_with_pk(variable_name, namesz, vendor_guid, data,
                                      data_size, attributes, false);
     } else if (compare_guid(vendor_guid, &gEfiImageSecurityDatabaseGuid) &&
                ((strcmp16(variable_name, EFI_IMAGE_SECURITY_DATABASE) == 0) ||
                 (strcmp16(variable_name, EFI_IMAGE_SECURITY_DATABASE1) == 0) ||
                 (strcmp16(variable_name, EFI_IMAGE_SECURITY_DATABASE2) == 0))) {
-        status = process_var_with_pk(variable_name, vendor_guid, data,
+        status = process_var_with_pk(variable_name, namesz, vendor_guid, data,
                                      data_size, attributes, false);
         if (status != EFI_SUCCESS) {
-            status = process_var_with_kek(variable_name, vendor_guid, data,
+            status = process_var_with_kek(variable_name, namesz, vendor_guid, data,
                                           data_size, attributes);
         }
     } else {
-        status = process_variable(variable_name, vendor_guid, data, data_size,
+        status = process_variable(variable_name, namesz, vendor_guid, data, data_size,
                                   attributes);
     }
 
