@@ -15,14 +15,19 @@ LIB_DEPS :=				\
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 INC := -Iinc/ -Ilibs/ -I/usr/include/libxml2
-CFLAGS += -g -Wall -Werror -fshort-wchar -rdynamic
+CFLAGS += -Wall -Werror -fshort-wchar
 
 all:        ## Build uefistored (same as uefistored target)
-all: uefistored
+all: uefistored uefistored-debug
 
 
 uefistored: ## Build uefistored
 uefistored: src/main.c $(OBJS)
+	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
+
+uefistored-debug: CFLAGS += -g
+uefistored-debug: ## Build uefistored with debug symbols
+uefistored-debug: src/main.c $(OBJS)
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
