@@ -30,6 +30,7 @@
 #include "log.h"
 #include "storage.h"
 #include "uefi/authlib.h"
+#include "uefi/image_authentication.h"
 #include "uefi/types.h"
 #include "uefi/guids.h"
 #include "xapi.h"
@@ -114,6 +115,9 @@ static unsigned long io_port_addr;
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS
 
 struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("KEK.auth", L"KEK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+    DEFINE_AUTH_FILE("db.auth", L"db", EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
+    DEFINE_AUTH_FILE("dbx.auth", L"dbx", EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
     DEFINE_AUTH_FILE("PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
 };
 
