@@ -2,13 +2,23 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- Support variable write appends
+- Document key exchanges and the key creation tools
+
+## [0.3.0] - 2020-12-04
+### Added
 - Support Secure Boot
     - Support KEK
     - Support db
     - Support dbx
-- Harden sandbox with seccomp and rlimits
-- Support variable write appends
-- Document key exchanges and the key creation tools
+- Harden sandbox with seccomp, rlimits, deprivileging
+
+### Changed
+- Code refactoring for simplicity and style upkeep
+- Further reduced dynamic memory usage
+
+### Fixed
+- Filter RO variables on GUID
 
 ## [0.2.6] - 2020-11-20
 ### Fixed
@@ -69,6 +79,7 @@ All notable changes to this project will be documented in this file.
 - Support handling of guest UEFI requests
 - Support minimal sandboxing via chroot jail
 
+[0.3.0]: https://github.com/xcp-ng/uefistored/compare/v0.2.6...v0.3.0
 [0.2.6]: https://github.com/xcp-ng/uefistored/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/xcp-ng/uefistored/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/xcp-ng/uefistored/compare/v0.2.3...v0.2.4
