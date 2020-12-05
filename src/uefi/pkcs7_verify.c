@@ -446,7 +446,7 @@ _Exit:
     return Status;
 }
 
-bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert, const uint8_t *new_data,
+bool pkcs7_verify(PKCS7 *pkcs7, X509 *trusted_cert, const uint8_t *new_data,
                   uint64_t new_data_size)
 {
     BIO *bio;
@@ -456,20 +456,29 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert, const uint8_t *new_data,
     if (new_data == NULL || new_data_size > INT_MAX)
         return false;
 
-    if (EVP_add_digest(EVP_sha256()) == 0)
+    if (!pkcs7 || !trusted_cert) {
+        ERROR("null args\n");
+        return  false;
+    }
+
+    if (EVP_add_digest(EVP_sha256()) == 0) {
+        ERROR("Failed to add sha256 to OpenSSL EVP\n");
         return false;
+    }
 
     status = false;
 
-    //
-    // Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
-    //
-    if (!PKCS7_type_is_signed(pkcs7))
+    /*
+     * Check if it's PKCS#7 Signed Data (for Authenticode Scenario)
+     */
+    if (!PKCS7_type_is_signed(pkcs7)) {
+        ERROR("PKCS7 is not signed!\n");
         return false;
+    }
 
-    //
-    // Setup X509 Store for trusted certificate
-    //
+    /*
+     * Setup X509 Store for trusted certificate
+     */
     store = X509_STORE_new();
 
     if (store == NULL)
@@ -479,7 +488,8 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert, const uint8_t *new_data,
     store->verify_cb = X509_verify_cb;
 #endif
 
-    if (!(X509_STORE_add_cert(store, TrustedCert))) {
+    if (!(X509_STORE_add_cert(store, trusted_cert))) {
+        ERROR("Failed to add cert\n");
         goto err;
     }
 
@@ -488,11 +498,14 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert, const uint8_t *new_data,
      * in PKCS#7 structure. So ignore NULL checking here.
      */
     bio = BIO_new(BIO_s_mem());
+
     if (bio == NULL) {
+        ERROR("Failed to allocated OpenSSL BIO\n");
         goto err;
     }
 
     if (BIO_write(bio, new_data, (int)new_data_size) != new_data_size) {
+        ERROR("Failed to write OpenSSL BIO\n");
         goto err;
     }
 
@@ -516,10 +529,9 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert, const uint8_t *new_data,
     status = (bool)PKCS7_verify(pkcs7, NULL, store, bio, NULL, PKCS7_BINARY);
 
     if (!status) {
+        ERROR("PKCS7_verify() failed\n");
         ERR_print_errors_fp(stderr);
         ERR_load_crypto_strings();
-        ERROR("PKCS7_verify() failed, err= %s (%lu)\n",
-              ERR_error_string(ERR_get_error(), NULL), ERR_get_error());
         ERR_free_strings();
     }
 
