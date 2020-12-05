@@ -1381,14 +1381,6 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
             name, namesz, guid, payload_ptr, payload_size, attrs,
             &cert_data->TimeStamp);
 
-    //
-    // Delete signer's certificates when delete the common authenticated variable.
-    //
-    if (is_del && auth_var_type == AUTH_VAR_TYPE_PRIV
-            && status == EFI_SUCCESS) {
-        //status = delete_certs_from_db(name, guid, attrs);
-    }
-
     if (var_del != NULL) {
         if (is_del && (status == EFI_SUCCESS)) {
             *var_del = true;
@@ -1658,18 +1650,7 @@ EFI_STATUS process_variable(UTF16 *name, size_t namesz, EFI_GUID *guid,
          * Allow the delete operation of common authenticated variable(AT or AW)
          * at user physical presence.
          */
-        status = storage_set(name, namesz, guid, NULL, 0, 0);
-
-        if (status != EFI_SUCCESS) {
-            return status;
-        }
-
-        if (((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) !=
-             0)) {
-            //status = delete_certs_from_db(name, guid, attrs);
-        }
-
-        return status;
+        return storage_set(name, namesz, guid, NULL, 0, 0);
     }
 
     if ((attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS) != 0) {
