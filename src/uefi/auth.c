@@ -552,9 +552,7 @@ EFI_STATUS update_platform_mode(uint32_t mode)
     uint8_t deployed_mode;
     uint8_t secure_boot_mode;
 
-    if (mode != USER_MODE && mode != SETUP_MODE) {
-        return EFI_NOT_FOUND;
-    }
+    assert(mode == USER_MODE || mode == SETUP_MODE);
 
     setup_mode = (uint8_t)mode;
 
@@ -858,7 +856,7 @@ X509 *X509_from_sig_data(EFI_SIGNATURE_DATA *sig, uint64_t sig_size)
  * Verify that the PKCS7 SignedData signature is from the
  * X509 certificate in the payload.
  *
- * @return true if payload is signed by payload's X509, otherwise false.
+ * @return true if payload is signed by previous X509 priv key, otherwise false.
  */
 static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                            uint8_t *payload_ptr, uint8_t *new_data,
@@ -883,13 +881,17 @@ static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                  cert_list->SignatureSize -
                                          (sizeof(EFI_SIGNATURE_DATA) - 1));
 
-    if (!trusted_cert)
+    if (!trusted_cert) {
+        DDEBUG("No trusted cert found\n");
         return false;
+    }
 
     pkcs7 = pkcs7_from_auth(efi_auth);
 
-    if (!pkcs7)
+    if (!pkcs7) {
+        DDEBUG("Failed to parse pkcs7 from auth2\n");
         return false;
+    }
 
     return pkcs7_verify(pkcs7, trusted_cert, new_data, new_data_size);
 }
@@ -908,25 +910,35 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
     pkcs7 = pkcs7_from_auth(efi_auth);
 
-    if (!pkcs7)
+    if (!pkcs7) {
+        DDEBUG("Failed to parse pkcs7 from auth2\n");
         return false;
+    }
 
     top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
 
-    if (!top_cert_der)
+    if (!top_cert_der) {
+        DDEBUG("No top cert found\n");
         return false;
+    }
 
     status = auth_internal_find_variable(L"PK", sizeof_wchar(L"PK"),
                                          &gEfiGlobalVariableGuid,
                                          (void *)&old_esl, &old_esl_size);
 
-    if (status != EFI_SUCCESS)
+    if (status != EFI_SUCCESS) {
+        DDEBUG("No PK found\n");
         return false;
+    }
 
-    /* The new PK must be signed with the same certificate as the old PK,
-     * no chaining allowed so just use the top cert */
-    if (!cert_equals_esl(top_cert_der, top_cert_der_size, old_esl))
+    /*
+     * The new PK must be signed with old PK, no chaining allowed so just use
+     * the top and only cert.
+     */
+    if (!cert_equals_esl(top_cert_der, top_cert_der_size, old_esl)) {
+        DDEBUG("PKCS7 SignedData cert not equal old PK!\n");
         return false;
+    }
 
     /*
      * Verify Pkcs7 SignedData.
@@ -961,12 +973,14 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
             &gEfiGlobalVariableGuid, &kek, &kek_size);
 
     if (status != EFI_SUCCESS) {
+        DDEBUG("No KEK found!\n");
         return false;
     }
 
     pkcs7 = pkcs7_from_auth(efi_auth);
 
     if (!pkcs7) {
+        DDEBUG("Failed to parse pkcs7 from auth2\n");
         return false;
     }
 
@@ -1004,6 +1018,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                              new_data_size);
 
                 if (verify_status) {
+                    DDEBUG("pkcs7_verify() failed\n");
                     return verify_status;
                 }
 
@@ -1065,7 +1080,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     uint8_t *new_data = NULL;
     uint64_t new_data_size;
     uint8_t *p;
-    uint64_t Length;
+    uint64_t length;
     X509 *top_cert = NULL;
     STACK_OF(X509) *signer_certs = NULL;
     uint8_t digest[SHA256_DIGEST_SIZE];
@@ -1095,7 +1110,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         (efi_auth->TimeStamp.TimeZone != 0) ||
         (efi_auth->TimeStamp.Daylight != 0) ||
         (efi_auth->TimeStamp.Pad2 != 0)) {
-        WARNING("Invalid TimeStamp in auth variable: \n");
+        WARNING("Invalid TimeStamp in auth variable\n");
         return EFI_SECURITY_VIOLATION;
     }
 
@@ -1103,7 +1118,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         ((attrs & EFI_VARIABLE_APPEND_WRITE) == 0)) {
         if (auth_internal_compare_timestamp(&efi_auth->TimeStamp,
                                             org_time_stamp)) {
-            WARNING("TimeStamp check fail, suspicious replay attack, return EFI_SECURITY_VIOLATION.");
+            WARNING("TimeStamp check fail, suspicious replay attack: EFI_SECURITY_VIOLATION.");
             return EFI_SECURITY_VIOLATION;
         }
     }
@@ -1153,6 +1168,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
             if (((*(wrap_data + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
                 (memcmp(wrap_data + 32, &sha256_oid, sizeof(sha256_oid)) !=
                  0)) {
+                WARNING("VARIABLE_AUTHENTICATION_2 not using SHA256 (wrong oid)\n");
                 return EFI_SECURITY_VIOLATION;
             }
         }
@@ -1180,44 +1196,50 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     }
 
     p = new_data;
-    Length = strlen16(name) * sizeof(UTF16);
-    memcpy(p, name, Length);
-    p += Length;
+    length = strlen16(name) * sizeof(UTF16);
+    memcpy(p, name, length);
+    p += length;
 
-    Length = sizeof(EFI_GUID);
-    memcpy(p, guid, Length);
-    p += Length;
+    length = sizeof(EFI_GUID);
+    memcpy(p, guid, length);
+    p += length;
 
-    Length = sizeof(uint32_t);
-    memcpy(p, &attrs, Length);
-    p += Length;
+    length = sizeof(uint32_t);
+    memcpy(p, &attrs, length);
+    p += length;
 
-    Length = sizeof(EFI_TIME);
-    memcpy(p, &efi_auth->TimeStamp, Length);
-    p += Length;
+    length = sizeof(EFI_TIME);
+    memcpy(p, &efi_auth->TimeStamp, length);
+    p += length;
 
     memcpy(p, payload_ptr, payload_size);
 
     if (auth_var_type == AUTH_VAR_TYPE_PK) {
+        DDEBUG("AUTH_VAR_TYPE_PK\n");
         verify_status = verify_pk(efi_auth, sig_data, sig_data_size, new_data,
                                   new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PAYLOAD) {
+        DDEBUG("AUTH_VAR_TYPE_PAYLOAD\n");
         verify_status =
                 verify_payload(efi_auth, payload_ptr, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_KEK) {
+        DDEBUG("AUTH_VAR_TYPE_KEK\n");
         verify_status = verify_kek(efi_auth, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PRIV) {
+        DDEBUG("AUTH_VAR_TYPE_PRIV\n");
         PKCS7 *pkcs7;
 
         status = pkcs7_get_signers(wrap_data, wrap_data_size, &pkcs7,
                                    &signer_certs);
 
         if (status != EFI_SUCCESS) {
+            WARNING("Failed to get pkcs7 signers\n");
             verify_status = false;
             goto done;
         }
 
         if (sk_X509_num(signer_certs) == 0) {
+            WARNING("No pkcs7 signers found\n");
             verify_status = false;
             goto done;
         }
@@ -1225,7 +1247,9 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         top_cert = sk_X509_value(signer_certs, sk_X509_num(signer_certs) - 1);
 
         status = sha256_priv_sig(signer_certs, top_cert, digest);
+
         if (status != EFI_SUCCESS) {
+            WARNING("Failed to create SHA256 digest of CN + tbsCertificate\n");
             goto done;
         }
 
@@ -1241,6 +1265,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
              * correctly since it is used for verifying subsequent updates.
              */
             if (auth_enforce && memcmp(digest, var->cert, SHA256_DIGEST_SIZE)) {
+                WARNING("SHA256 of CN + tbsCertificate not equal old variable\n");
                 verify_status = false;
                 status = EFI_SECURITY_VIOLATION;
                 goto done;
@@ -1250,10 +1275,12 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         verify_status = Pkcs7Verify(sig_data, sig_data_size, top_cert, new_data,
                                     new_data_size);
         if (!verify_status) {
+            WARNING("Pkc7Verify failed\n");
             goto done;
         }
     } else {
         free(new_data);
+        DDEBUG("Invalid auth type: %u\n", auth_var_type);
         return EFI_SECURITY_VIOLATION;
     }
 
@@ -1357,7 +1384,8 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
     //
     // Delete signer's certificates when delete the common authenticated variable.
     //
-    if (is_del && auth_var_type == AUTH_VAR_TYPE_PRIV && !EFI_ERROR(status)) {
+    if (is_del && auth_var_type == AUTH_VAR_TYPE_PRIV
+            && status == EFI_SUCCESS) {
         //status = delete_certs_from_db(name, guid, attrs);
     }
 
@@ -1394,41 +1422,43 @@ EFI_STATUS process_var_with_pk(UTF16 *name, size_t namesz, EFI_GUID *guid,
                                bool is_pk)
 {
     EFI_STATUS status;
-    bool Del;
+    bool del;
     uint8_t *payload;
     uint64_t payload_size;
 
     if ((attrs & EFI_VARIABLE_NON_VOLATILE) == 0 ||
         (attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) == 0) {
         /*
-         * PK, KEK and db/dbx/dbt should set EFI_VARIABLE_NON_VOLATILE attribute and should be a time-based
-         * authenticated variable.
+         * PK, KEK and db/dbx/dbt should set EFI_VARIABLE_NON_VOLATILE
+         * attribute and should be a time-based authenticated variable.
          */
+        DDEBUG("Wrong attrs\n");
         return EFI_INVALID_PARAMETER;
     }
 
     /*
      * Init state of Del. State may change due to secure check
      */
-    Del = false;
+    del = false;
 
     if (setup_mode == SETUP_MODE) {
         if (is_pk) {
             status = verify_time_based_payload_and_update(
                     name, namesz, guid, data, data_size, attrs,
-                    AUTH_VAR_TYPE_PAYLOAD, &Del);
+                    AUTH_VAR_TYPE_PAYLOAD, &del);
         } else {
             payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
             payload_size = data_size - AUTHINFO2_SIZE(data);
 
             if (payload_size == 0) {
-                Del = true;
+                del = true;
             }
 
             status = check_signature_list_format(name, guid, payload,
                                                  payload_size);
 
             if (status) {
+                DDEBUG("check_signature_list_format() = 0x%02lx\n", status);
                 return status;
             }
 
@@ -1437,6 +1467,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, size_t namesz, EFI_GUID *guid,
                     &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
 
             if (status) {
+                DDEBUG("auth_internal_update_variable_with_timestamp() = 0x%02lx\n", status);
                 return status;
             }
         }
@@ -1446,16 +1477,16 @@ EFI_STATUS process_var_with_pk(UTF16 *name, size_t namesz, EFI_GUID *guid,
          */
         status = verify_time_based_payload_and_update(name, namesz, guid, data,
                                                       data_size, attrs,
-                                                      AUTH_VAR_TYPE_PK, &Del);
+                                                      AUTH_VAR_TYPE_PK, &del);
     }
 
     if (status == EFI_SUCCESS && is_pk) {
-        if (setup_mode == SETUP_MODE && !Del) {
+        if (setup_mode == SETUP_MODE && !del) {
             /*
              * If enroll PK in setup mode, need change to user mode.
              */
             status = update_platform_mode(USER_MODE);
-        } else if (setup_mode == USER_MODE && Del) {
+        } else if (setup_mode == USER_MODE && del) {
             /*
              * If delete PK in user mode, need change to setup mode.
              */
@@ -1540,7 +1571,7 @@ EFI_STATUS process_var_with_kek(UTF16 *name, size_t namesz, EFI_GUID *guid,
 /**
   Check if it is to delete auth variable.
 
-  @parm Orgattrs      Original attribute value of the variable.
+  @parm org_attrs      Original attribute value of the variable.
   @parm data               data pointer.
   @parm data_size           Size of data.
   @parm attrs         Attribute value of the variable.
@@ -1549,13 +1580,13 @@ EFI_STATUS process_var_with_kek(UTF16 *name, size_t namesz, EFI_GUID *guid,
   @return false                 It is not to delete auth variable.
 
 **/
-bool is_delete_auth_variable(uint32_t Orgattrs, void *data, uint64_t data_size,
+bool is_delete_auth_variable(uint32_t org_attrs, void *data, uint64_t data_size,
                              uint32_t attrs)
 {
-    bool Del;
+    bool del;
     uint64_t payload_size;
 
-    Del = false;
+    del = false;
 
     //
     // To delete a variable created with the EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS
@@ -1563,23 +1594,23 @@ bool is_delete_auth_variable(uint32_t Orgattrs, void *data, uint64_t data_size,
     // SetVariable must be used with attributes matching the existing variable
     // and the data_size set to the size of the AuthInfo descriptor.
     //
-    if ((attrs == Orgattrs) &&
+    if ((attrs == org_attrs) &&
         ((attrs & (EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS |
                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) != 0)) {
         if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) != 0) {
             payload_size = data_size - AUTHINFO2_SIZE(data);
             if (payload_size == 0) {
-                Del = true;
+                del = true;
             }
         } else {
             payload_size = data_size - AUTHINFO_SIZE;
             if (payload_size == 0) {
-                Del = true;
+                del = true;
             }
         }
     }
 
-    return Del;
+    return del;
 }
 
 /**
