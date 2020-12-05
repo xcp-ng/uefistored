@@ -20,4 +20,6 @@ EFI_STATUS process_var_with_kek(UTF16 *name, size_t namesz, EFI_GUID *guid, void
 
 bool cert_equals_esl(uint8_t *cert_der, uint32_t cert_size, EFI_SIGNATURE_LIST *old_esl);
 
+EFI_STATUS update_platform_mode(uint32_t mode);
+
 #endif // __H__AUTH_
