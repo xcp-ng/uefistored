@@ -396,19 +396,11 @@ static void handle_get_next_variable(void *comm_buf)
         return;
     }
 
+    assert(request->version == 1);
+    assert(request->command == COMMAND_GET_NEXT_VARIABLE);
+
     debug_request(request);
 
-    if (request->version != 1) {
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
-        ERROR("Bad version: %u\n", request->version);
-        return;
-    }
-
-    if (request->command != COMMAND_GET_NEXT_VARIABLE) {
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
-        ERROR("Bad command: 0x%02x\n", request->command);
-        return;
-    }
 
     next = storage_next_variable((UTF16 *)request->name, request->namesz,
                                  &request->guid);
@@ -434,6 +426,7 @@ void xen_variable_server_handle_request(void *comm_buf)
     const uint8_t *inptr = comm_buf;
     uint8_t *outptr = comm_buf;
     uint32_t command;
+    uint32_t version;
 
     if (!comm_buf) {
         ERROR("comm buffer is null!\n");
@@ -441,7 +434,13 @@ void xen_variable_server_handle_request(void *comm_buf)
     }
 
     /* advance the pointer passed the version field */
-    unserialize_uint32(&inptr);
+    version = unserialize_uint32(&inptr);
+
+    if (version != 1) {
+        serialize_result(&outptr, EFI_DEVICE_ERROR);
+        ERROR("Bad version: %u\n", version);
+        return;
+    }
 
     command = unserialize_uint32(&inptr);
 
@@ -472,7 +471,7 @@ void xen_variable_server_handle_request(void *comm_buf)
         break;
     }
 
-#if 0
+#if DEBUG
     const uint8_t *dbg_ptr = comm_buf;
     DDEBUG("result: 0x%02lx\n", unserialize_result(&dbg_ptr));
 #endif
