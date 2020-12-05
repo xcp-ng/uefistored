@@ -550,7 +550,7 @@ EFI_STATUS update_platform_mode(uint32_t mode)
 {
     EFI_STATUS status;
     uint8_t deployed_mode;
-    uint8_t secure_boot_mode;
+    uint8_t secure_boot;
 
     assert(mode == USER_MODE || mode == SETUP_MODE);
 
@@ -560,11 +560,11 @@ EFI_STATUS update_platform_mode(uint32_t mode)
                 &gEfiGlobalVariableGuid, &setup_mode, sizeof(setup_mode),
                 EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
-    secure_boot_mode = secure_boot_enabled;
+    secure_boot = secure_boot_enabled;
 
     status = storage_set(
             EFI_SECURE_BOOT_MODE_NAME, sizeof_wchar(EFI_SECURE_BOOT_MODE_NAME),
-            &gEfiGlobalVariableGuid, &secure_boot_mode, sizeof(uint8_t),
+            &gEfiGlobalVariableGuid, &secure_boot, sizeof(uint8_t),
             EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
 
     if (mode == SETUP_MODE)

@@ -133,27 +133,10 @@ EFI_STATUS
 auth_lib_initialize(struct auth_data *auths, size_t n)
 {
     EFI_STATUS status = EFI_SUCCESS;
-    setup_mode = USER_MODE;
     uint8_t secure_boot = 0;
-    uint8_t deployed_mode = 1;
     uint8_t audit_mode = 0;
 
     hash_ctx = malloc(sizeof(SHA256_CTX));
-
-    if (!storage_exists(L"PK", sizeof_wchar(L"PK"), &gEfiGlobalVariableGuid)) {
-        setup_mode = SETUP_MODE;
-        deployed_mode = 0;
-    } else {
-        secure_boot = secure_boot_enabled;
-    }
-
-    status = storage_set(
-            L"SetupMode", sizeof_wchar(L"SetupMode"), &gEfiGlobalVariableGuid,
-            &setup_mode, sizeof(setup_mode),
-            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
-
-    if (status != EFI_SUCCESS)
-        return status;
 
     status = storage_set(L"SignatureSupport", sizeof_wchar(L"SignatureSupport"),
                          &gEfiGlobalVariableGuid, signature_support,
@@ -164,6 +147,19 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
     if (status != EFI_SUCCESS)
         return status;
 
+    if (storage_exists(L"PK", sizeof_wchar(L"PK"), &gEfiGlobalVariableGuid)) {
+        status = update_platform_mode(USER_MODE);
+    } else {
+        status = update_platform_mode(SETUP_MODE);
+    }
+
+    if (status != EFI_SUCCESS)
+        return status;
+
+    load_auth_files(auths, n);
+
+    secure_boot = secure_boot_enabled;
+
     status = storage_set(
             L"SecureBoot", sizeof_wchar(L"SecureBoot"), &gEfiGlobalVariableGuid,
             &secure_boot, sizeof(secure_boot),
@@ -172,29 +168,10 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
     if (status != EFI_SUCCESS)
         return status;
 
-    status = storage_set(
+    return storage_set(
             L"AuditMode", sizeof_wchar(L"AuditMode"), &gEfiGlobalVariableGuid,
             &audit_mode, sizeof(audit_mode),
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
-
-    load_auth_files(auths, n);
-
-    if (status != EFI_SUCCESS)
-        return status;
-
-    status = storage_set(
-            L"DeployedMode", sizeof_wchar(L"DeployedMode"),
-            &gEfiGlobalVariableGuid, &deployed_mode, sizeof(deployed_mode),
-            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
-
-    if (status != EFI_SUCCESS)
-        return status;
-
-
-    if (status != EFI_SUCCESS)
-        return status;
-
-    return status;
 }
 
 /**
