@@ -1225,6 +1225,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     } else if (auth_var_type == AUTH_VAR_TYPE_PRIV) {
         DDEBUG("AUTH_VAR_TYPE_PRIV\n");
         PKCS7 *pkcs7;
+        variable_t *var;
 
         status = pkcs7_get_signers(wrap_data, wrap_data_size, &pkcs7,
                                    &signer_certs);
@@ -1249,8 +1250,6 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
             WARNING("Failed to create SHA256 digest of CN + tbsCertificate\n");
             goto done;
         }
-
-        variable_t *var;
 
         status = storage_get_var_ptr(&var, name, namesz, guid);
 
