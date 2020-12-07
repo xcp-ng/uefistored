@@ -1009,10 +1009,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                 }
 
                 /*
-                 * Verify Pkcs7 SignedData via Pkcs7Verify library.
-                 *
-                 * verify_status = Pkcs7Verify(sig_data, sig_data_size,
-                 *  trusted_cert, new_data, new_data_size);
+                 * Verify Pkcs7 SignedData
                  */
                 verify_status = pkcs7_verify(pkcs7, trusted_cert, new_data,
                                              new_data_size);
@@ -1375,7 +1372,7 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
     cert_data = (EFI_VARIABLE_AUTHENTICATION_2 *)data;
 
     //
-    // Final step: Update/Append Variable if it pass Pkcs7Verify
+    // Final step: Update/Append Variable if it pass PKCS#7 verification
     //
     status = auth_internal_update_variable_with_timestamp(
             name, namesz, guid, payload_ptr, payload_size, attrs,
