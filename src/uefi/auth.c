@@ -896,6 +896,85 @@ static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     return pkcs7_verify(pkcs7, trusted_cert, new_data, new_data_size);
 }
 
+static bool verify_priv(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
+                        UTF16 *name, size_t namesz, EFI_GUID *guid,
+                        uint8_t *sig_data, uint32_t sig_data_size,
+                        uint8_t *new_data, uint64_t new_data_size)
+
+{
+    STACK_OF(X509) *signer_certs;
+    X509 *top_cert;
+    uint8_t digest[SHA256_DIGEST_SIZE];
+    bool verify_status;
+    EFI_STATUS status;
+    PKCS7 *pkcs7;
+    variable_t *var;
+
+    pkcs7 = pkcs7_from_auth(efi_auth);
+    if (!pkcs7) {
+        DDEBUG("Failed to parse pkcs7 from auth2\n");
+        return false;
+    }
+
+    status = pkcs7_get_signers(pkcs7, &signer_certs);
+    if (status != EFI_SUCCESS) {
+        WARNING("Failed to get pkcs7 signers\n");
+        verify_status = false;
+        goto free_pkcs7;
+    }
+
+    if (sk_X509_num(signer_certs) == 0) {
+        WARNING("No pkcs7 signers found\n");
+        verify_status = false;
+        goto free_certs;
+    }
+
+    top_cert = sk_X509_value(signer_certs, sk_X509_num(signer_certs) - 1);
+
+    if (!top_cert) {
+        WARNING("No top cert found\n");
+        verify_status = false;
+        goto free_certs;
+    }
+
+    status = sha256_priv_sig(signer_certs, top_cert, digest);
+
+    if (status != EFI_SUCCESS) {
+        WARNING("Failed to create SHA256 digest of CN + tbsCertificate\n");
+        verify_status = false;
+        goto free_certs;
+    }
+
+    status = storage_get_var_ptr(&var, name, namesz, guid);
+
+    if (status == EFI_SUCCESS) {
+        /*
+         * For private authenticated variables, permissive mode means that the
+         * certificate used to sign the data does not need to match the
+         * previous one. However, it still needs to exist and sign the data
+         * correctly since it is used for verifying subsequent updates.
+         */
+        if (auth_enforce && memcmp(digest, var->cert, SHA256_DIGEST_SIZE)) {
+            WARNING("SHA256 of CN + tbsCertificate not equal old variable\n");
+            verify_status = false;
+            goto free_certs;
+        }
+    }
+
+    verify_status = Pkcs7Verify(sig_data, sig_data_size, top_cert, new_data,
+                                new_data_size);
+    if (!verify_status) {
+        WARNING("Pkc7Verify failed\n");
+        goto free_certs;
+    }
+
+free_certs:
+    sk_X509_free(signer_certs);
+free_pkcs7:
+    PKCS7_free(pkcs7);
+    return verify_status;
+}
+
 static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                       uint8_t *sig_data, uint32_t sig_data_size,
                       uint8_t *new_data, uint64_t new_data_size)
@@ -947,7 +1026,6 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                        new_data_size);
 
     PKCS7_free(pkcs7);
-
     return ret;
 }
 
@@ -1016,7 +1094,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
                 if (verify_status) {
                     DDEBUG("pkcs7_verify() failed\n");
-                    return verify_status;
+                    goto err;
                 }
 
                 cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert +
@@ -1029,6 +1107,8 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                            cert_list->SignatureListSize);
     }
 
+err:
+    PKCS7_free(pkcs7);
     return verify_status;
 }
 
@@ -1078,9 +1158,6 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     uint64_t new_data_size;
     uint8_t *p;
     uint64_t length;
-    X509 *top_cert = NULL;
-    STACK_OF(X509) *signer_certs = NULL;
-    uint8_t digest[SHA256_DIGEST_SIZE];
     uint8_t *wrap_data;
     uint32_t wrap_data_size;
 
@@ -1224,69 +1301,14 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         verify_status = verify_kek(efi_auth, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PRIV) {
         DDEBUG("AUTH_VAR_TYPE_PRIV\n");
-        PKCS7 *pkcs7;
-        variable_t *var;
-
-        status = pkcs7_get_signers(wrap_data, wrap_data_size, &pkcs7,
-                                   &signer_certs);
-
-        if (status != EFI_SUCCESS) {
-            WARNING("Failed to get pkcs7 signers\n");
-            verify_status = false;
-            goto done;
-        }
-
-        if (sk_X509_num(signer_certs) == 0) {
-            WARNING("No pkcs7 signers found\n");
-            verify_status = false;
-            goto done;
-        }
-
-        top_cert = sk_X509_value(signer_certs, sk_X509_num(signer_certs) - 1);
-
-        status = sha256_priv_sig(signer_certs, top_cert, digest);
-
-        if (status != EFI_SUCCESS) {
-            WARNING("Failed to create SHA256 digest of CN + tbsCertificate\n");
-            goto done;
-        }
-
-        status = storage_get_var_ptr(&var, name, namesz, guid);
-
-        if (status == EFI_SUCCESS) {
-            /*
-             * For private authenticated variables, permissive mode means that the
-             * certificate used to sign the data does not need to match the
-             * previous one. However, it still needs to exist and sign the data
-             * correctly since it is used for verifying subsequent updates.
-             */
-            if (auth_enforce && memcmp(digest, var->cert, SHA256_DIGEST_SIZE)) {
-                WARNING("SHA256 of CN + tbsCertificate not equal old variable\n");
-                verify_status = false;
-                status = EFI_SECURITY_VIOLATION;
-                goto done;
-            }
-        }
-
-        verify_status = Pkcs7Verify(sig_data, sig_data_size, top_cert, new_data,
-                                    new_data_size);
-        if (!verify_status) {
-            WARNING("Pkc7Verify failed\n");
-            goto done;
-        }
+        verify_status = verify_priv(efi_auth, name, namesz, guid, sig_data,
+                                    sig_data_size, new_data, new_data_size);
     } else {
-        free(new_data);
         DDEBUG("Invalid auth type: %u\n", auth_var_type);
-        return EFI_SECURITY_VIOLATION;
+        verify_status = false;
     }
 
-done:
     free(new_data);
-
-    if (auth_var_type == AUTH_VAR_TYPE_PK ||
-        auth_var_type == AUTH_VAR_TYPE_PRIV) {
-        sk_X509_free(signer_certs);
-    }
 
     if (!verify_status) {
         return EFI_SECURITY_VIOLATION;

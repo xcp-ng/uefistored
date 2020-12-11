@@ -142,26 +142,17 @@ uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,
  * (but not the certs themselves). The certs should not be used after the
  * context is freed.
  */
-EFI_STATUS pkcs7_get_signers(const uint8_t *p7data, uint64_t p7_len,
-                             PKCS7 **pkcs7, STACK_OF(X509) * *certs)
+EFI_STATUS pkcs7_get_signers(PKCS7 *pkcs7, STACK_OF(X509) **certs)
 {
-    const uint8_t *ptr;
-
-    ptr = p7data;
-    *pkcs7 = d2i_PKCS7(NULL, &ptr, (int)p7_len);
-    if (!*pkcs7)
+    if (!pkcs7)
         return EFI_SECURITY_VIOLATION;
 
-    if (!PKCS7_type_is_signed(*pkcs7)) {
-        PKCS7_free(*pkcs7);
-        *pkcs7 = NULL;
+    if (!PKCS7_type_is_signed(pkcs7)) {
         return EFI_SECURITY_VIOLATION;
     }
 
-    *certs = PKCS7_get0_signers(*pkcs7, NULL, PKCS7_BINARY);
+    *certs = PKCS7_get0_signers(pkcs7, NULL, PKCS7_BINARY);
     if (!*certs) {
-        PKCS7_free(*pkcs7);
-        *pkcs7 = NULL;
         return EFI_SECURITY_VIOLATION;
     }
 
