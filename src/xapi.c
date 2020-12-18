@@ -364,33 +364,41 @@ static int retrieve_vars(variable_t *vars, size_t n)
 static uint8_t *variable_list_bytes(size_t *size, bool nonvolatile)
 {
     int ret;
-    uint8_t *bytes, *p;
-    variable_t vars[MAX_VAR_COUNT];
+    uint8_t *bytes = NULL;
+    uint8_t *p;
+    variable_t *vars;
+
+    vars = calloc(MAX_VAR_COUNT, sizeof(variable_t));
 
     if (nonvolatile)
         ret = retrieve_nonvolatile_vars(vars, MAX_VAR_COUNT);
     else
         ret = retrieve_vars(vars, MAX_VAR_COUNT);
 
-    if (ret <= 0)
-        return NULL;
+    if (ret <= 0) {
+        goto out;
+    }
 
     //dprint_variable_list(vars, ret);
 
     *size = list_size(vars, ret);
     bytes = malloc(*size);
 
-    if (!bytes)
-        return NULL;
+    if (!bytes) {
+        goto out;
+    }
 
     p = bytes;
     ret = serialize_variable_list(&p, *size, vars, (size_t)ret);
 
     if (ret < 0) {
         free(bytes);
-        return NULL;
+        bytes = NULL;
+        goto out;
     }
 
+out:
+    free(vars);
     return bytes;
 }
 
@@ -429,6 +437,7 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     size_t base64_size, body_len, hdr_len;
 
     base64 = variable_list_base64();
+
     if (!base64)
         return -1;
 
@@ -446,7 +455,7 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
 
     if (ret < 0) {
         ret = -1;
-        goto end;
+        goto out;
     }
 
     body_len = strlen(body);
@@ -455,14 +464,15 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
 
     if (hdr_len < 0) {
         ret = -1;
-        goto end;
+        goto out;
     }
 
     strncpy(buffer + hdr_len, body, n - hdr_len);
     buffer[body_len + hdr_len] = '\0';
 
     ret = 0;
-end:
+
+out:
     free(body);
     free(base64);
 
@@ -492,25 +502,25 @@ static int send_request(char *message, char *response, size_t buffer_size)
     if (ret < 0) {
         close(fd);
         ERROR("connect() failed: %d, %s\n", errno, strerror(errno));
-        goto err;
+        goto out;
     }
 
     ret = write(fd, message, strlen(message));
 
     if (ret < 0) {
         ERROR("write() failed: %d\n", ret);
-	goto err;
+	goto out;
     }
 
     ret = read_socket(fd, response, buffer_size);
     if (ret < 0) {
-	ERROR("read_socket() failed: %d, errno=%d (%s)\n", ret, errno,
-	      strerror(errno));
-	goto err;
+        ERROR("read_socket() failed: %d, errno=%d (%s)\n", ret, errno,
+        strerror(errno));
+        goto out;
     }
 
     ret = http_status(response) == 200 ? 0 : -1;
-err:
+out:
     close(fd);
     return ret;
 }
@@ -528,7 +538,7 @@ int xapi_set_efi_vars(void)
     ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
 
     if (ret < 0) {
-        ERROR("Failed to build VM.set_NVRAM_EFI_variables message\n");
+        DDEBUG("Failed to build VM.set_NVRAM_EFI_variables message, ret=%d\n", ret);
         return ret;
     }
 
@@ -931,7 +941,7 @@ int base64_from_response_body(char *buffer, size_t n, char *body)
 
     string = xmlNodeGetContent((xmlNodePtr)obj->nodesetval->nodeTab[0]);
     if (memcmp(string, "Success", 8) != 0) {
-        INFO("xapi response, no success!\n");
+        DDEBUG("xapi response, no success!\n");
         free(doc);
         xmlXPathFreeContext(context);
         xmlXPathFreeObject(obj);
@@ -949,9 +959,7 @@ int base64_from_response_body(char *buffer, size_t n, char *body)
     if (!obj || !obj->nodesetval) {
         free(doc);
         free(context);
-
-        ERROR("EFI-vars not found in response\n");
-
+        DDEBUG("EFI-vars not found in response\n");
         return -1;
     }
 
@@ -1002,7 +1010,14 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
         return -1;
     }
 
-    return base64_from_response(buffer, n, response);
+    status =  base64_from_response(buffer, n, response);
+
+    if (status != 0) {
+        ERROR("failed to parse XAPI response: status=%d\n", status);
+        return -1;
+    }
+
+    return status;
 }
 
 /**
@@ -1034,7 +1049,6 @@ int xapi_variables_request(variable_t *vars, size_t n)
     ret = xapi_get_nvram(session_id, b64, BIG_MESSAGE_SIZE);
 
     if (ret < 0) {
-        ERROR("failed to get NVRAM from xapi, ret=%d\n", ret);
         return 0;
     }
 
@@ -1060,14 +1074,18 @@ int xapi_init(bool resume)
 {
     int i, ret, len;
     EFI_STATUS status;
-    variable_t variables[MAX_VAR_COUNT];
-    variable_t *var;
+    variable_t *variables, *var;
 
-    memset(variables, 0, sizeof(variables));
+    variables = calloc(MAX_VAR_COUNT,  sizeof(variable_t));
+
+    if (!variables)
+        return -1;
 
     if (!vm_uuid) {
         ERROR("No uuid initialized passed as arg!\n");
-        return -1;
+
+        ret = -1;
+        goto out;
     }
 
     if (resume) {
@@ -1078,32 +1096,37 @@ int xapi_init(bool resume)
     }
 
     if (ret < 0)
-        return -1;
+        goto out;
 
     len = ret;
 
-    for (i = 0; i < len; i++) {
-	var = &variables[i];
+	for (i = 0; i < len; i++) {
+        var = &variables[i];
 
         if (var->attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS) {
-		status = storage_set_with_timestamp(var->name, var->namesz,
+            status = storage_set_with_timestamp(var->name, var->namesz,
 						    &var->guid, var->data,
 						    var->datasz, var->attrs,
 						    &var->timestamp);
-	} else {
-		status = storage_set(var->name, var->namesz, &var->guid, var->data,
-				     var->datasz, var->attrs);
-	}
+        } else {
+            status = storage_set(var->name, var->namesz, &var->guid, var->data,
+                         var->datasz, var->attrs);
+        }
 
         /*
          * If we fail to set a variable from XAPI then we can't trust our 
          * secure boot state.  It's best if we die loudly then let it slide
-         * quietly.
+         * quietly and compromise a protected VM.
          */
         assert(status == EFI_SUCCESS);
     }
 
-    return 0;
+    ret = 0;
+
+out:
+    free(variables);
+
+    return ret;
 }
 
 /**
