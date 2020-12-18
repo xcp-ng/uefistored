@@ -74,6 +74,8 @@ static int load_auth(struct auth_data *auth)
 
     auth->var.datasz = statbuf.st_size;
 
+    assert(auth->var.datasz < MAX_VARIABLE_DATA_SIZE);
+
     if (read(fd, auth->var.data, auth->var.datasz) < 0) {
         ERROR("failed to read %s\n", auth->path);
         ret = -1;
