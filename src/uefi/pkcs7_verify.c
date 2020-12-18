@@ -440,7 +440,7 @@ _Exit:
 bool pkcs7_verify(PKCS7 *pkcs7, X509 *trusted_cert, const uint8_t *new_data,
                   uint64_t new_data_size)
 {
-    BIO *bio;
+    BIO *bio = NULL;
     bool status;
     X509_STORE *store;
 
@@ -530,7 +530,9 @@ err:
     //
     // Release Resources
     //
-    BIO_free(bio);
+    if (bio) {
+        BIO_free(bio);
+    }
     X509_STORE_free(store);
 
     return status;
