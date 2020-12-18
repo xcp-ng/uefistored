@@ -1288,18 +1288,13 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     memcpy(p, payload_ptr, payload_size);
 
     if (auth_var_type == AUTH_VAR_TYPE_PK) {
-        // TODO: remove these debugs
-        DDEBUG("AUTH_VAR_TYPE_PK\n");
         verify_status = verify_pk(efi_auth, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PAYLOAD) {
-        DDEBUG("AUTH_VAR_TYPE_PAYLOAD\n");
         verify_status =
                 verify_payload(efi_auth, payload_ptr, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_KEK) {
-        DDEBUG("AUTH_VAR_TYPE_KEK\n");
         verify_status = verify_kek(efi_auth, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PRIV) {
-        DDEBUG("AUTH_VAR_TYPE_PRIV\n");
         verify_status = verify_priv(efi_auth, name, namesz, guid, sig_data,
                                     sig_data_size, new_data, new_data_size);
     } else {
