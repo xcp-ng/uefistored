@@ -17,7 +17,7 @@ bool is_secure_boot_variable(UTF16 *name, size_t namesz, EFI_GUID *guid);
  *
  * @return true if two guids are equal, otherwise false.
  */
-bool static inline compare_guid(EFI_GUID *guid1, EFI_GUID *guid2)
+static inline bool compare_guid(EFI_GUID *guid1, EFI_GUID *guid2)
 {
     return memcmp(guid1, guid2, sizeof(EFI_GUID)) == 0;
 }

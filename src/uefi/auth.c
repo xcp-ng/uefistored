@@ -976,7 +976,6 @@ free_pkcs7:
 }
 
 static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
-                      uint8_t *sig_data, uint32_t sig_data_size,
                       uint8_t *new_data, uint64_t new_data_size)
 {
     bool ret;
@@ -1289,9 +1288,9 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     memcpy(p, payload_ptr, payload_size);
 
     if (auth_var_type == AUTH_VAR_TYPE_PK) {
+        // TODO: remove these debugs
         DDEBUG("AUTH_VAR_TYPE_PK\n");
-        verify_status = verify_pk(efi_auth, sig_data, sig_data_size, new_data,
-                                  new_data_size);
+        verify_status = verify_pk(efi_auth, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PAYLOAD) {
         DDEBUG("AUTH_VAR_TYPE_PAYLOAD\n");
         verify_status =

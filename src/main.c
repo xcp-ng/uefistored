@@ -57,7 +57,7 @@ static xc_interface *xc_handle;
 struct xs_handle *xsh;
 
 /* Options/args */
-static int domid;
+static unsigned int domid;
 static bool depriv;
 static uid_t uid;
 static gid_t gid;
@@ -501,6 +501,8 @@ static void printargs(int argc, char **argv)
 {
     int i;
 
+    (void)argv;
+
     DPRINTF("\nargs: ");
     for (i = 0; i < argc; i++) {
         DPRINTF("%s ", argv[i]);
@@ -536,7 +538,7 @@ static int write_pid()
     return 0;
 }
 
-void handler_loop(buffered_iopage_t *buffered_iopage, int vcpu_count,
+void handler_loop(buffered_iopage_t *buffered_iopage, size_t vcpu_count,
                   shared_iopage_t *shared_iopage)
 {
     size_t i;
@@ -560,11 +562,6 @@ void handler_loop(buffered_iopage_t *buffered_iopage, int vcpu_count,
         }
 
         port = xenevtchn_pending(xce);
-        if (port < 0) {
-            ERROR("xenevtchn_pending() error: %d, %s\n", errno,
-                  strerror(errno));
-            continue;
-        }
 
         if (port == bufioreq_local_port) {
             xenevtchn_unmask(xce, port);
@@ -589,7 +586,7 @@ int main(int argc, char **argv)
     size_t vcpu_count = 1;
     int ret;
     int option_index = 0;
-    int i;
+    size_t i;
     char c;
     EFI_STATUS status;
     char *end;
@@ -853,7 +850,7 @@ int main(int argc, char **argv)
 
         ioreq_local_ports[i] = ret;
 
-        INFO("VCPU%d: %u -> %u\n", i, ioreq_local_ports[i],
+        INFO("VCPU%lu: %u -> %u\n", i, ioreq_local_ports[i],
              shared_iopage->vcpu_ioreq[i].vp_eport);
     }
 

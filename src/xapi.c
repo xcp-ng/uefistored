@@ -125,23 +125,23 @@ int xapi_parse_arg(char *arg)
 {
     char *p;
 
-    if ((p = strstr(optarg, "socket:")) != NULL) {
+    if ((p = strstr(arg, "socket:")) != NULL) {
         p += sizeof("socket:") - 1;
         socket_path = strdup(p);
 
         return 0;
 
-    } else if ((p = strstr(optarg, "uuid:")) != NULL) {
+    } else if ((p = strstr(arg, "uuid:")) != NULL) {
         p += sizeof("uuid:") - 1;
         vm_uuid = strstrip(strdup(p));
 
         return 0;
-    } else if ((p = strstr(optarg, "save:")) != NULL) {
+    } else if ((p = strstr(arg, "save:")) != NULL) {
         p += sizeof("save:") - 1;
         xapi_save_path = strdup(p);
 
         return 0;
-    } else if ((p = strstr(optarg, "resume:")) != NULL) {
+    } else if ((p = strstr(arg, "resume:")) != NULL) {
         p += sizeof("resume:") - 1;
         xapi_resume_path = strdup(p);
 
@@ -205,7 +205,7 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
         goto cleanup2;
     }
 
-    ret = from_bytes_to_vars(vars, n, mem, size);
+    ret = from_bytes_to_vars(vars, n, mem);
 
 cleanup2:
     free(mem);
@@ -434,7 +434,8 @@ static int build_set_efi_vars_message(char *buffer, size_t n)
     int ret;
     char *base64;
     char *body;
-    size_t base64_size, body_len, hdr_len;
+    size_t base64_size, body_len;
+    int hdr_len;
 
     base64 = variable_list_base64();
 
@@ -1060,7 +1061,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
         return 0;
     }
 
-    return from_bytes_to_vars(vars, n, plaintext, (size_t)ret);
+    return from_bytes_to_vars(vars, n, plaintext);
 }
 
 /**

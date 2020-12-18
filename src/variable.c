@@ -1,5 +1,7 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include "common.h"
 #include "log.h"
@@ -335,13 +337,12 @@ void variable_printf(const variable_t *var)
  *
  * @return the number of variables on success, otherwise -1.
  */
-int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
-                       size_t bytes_sz)
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes)
 {
     int ret;
     const uint8_t *ptr = bytes;
     struct variable_list_header hdr;
-    int i;
+    size_t i;
 
     if (!vars || !bytes)
         return -1;
@@ -358,7 +359,9 @@ int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
             break;
     }
 
-    return i;
+    assert(i <= INT_MAX);
+
+    return (int)i;
 }
 
 variable_t *find_variable(const UTF16 *name, size_t namesz,

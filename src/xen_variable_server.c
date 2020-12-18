@@ -31,7 +31,7 @@ struct request {
     command_t command;
     int namesz;
     uint8_t name[MAX_VARIABLE_NAME_SIZE];
-    int buffer_size;
+    size_t buffer_size;
     uint8_t buffer[MAX_VARIABLE_DATA_SIZE];
     EFI_GUID guid;
     uint32_t attrs;

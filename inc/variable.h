@@ -64,8 +64,7 @@ void variable_printf(const variable_t *var);
 uint64_t variable_size(const variable_t *var);
 variable_t *variable_create_unserialize(const uint8_t **ptr);
 
-int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes,
-                       size_t bytes_sz);
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes);
 
 static inline bool variable_is_valid(const variable_t *var) {
     return (var && var->name && var->name[0] && var->namesz != 0);

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -495,7 +496,9 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *trusted_cert, const uint8_t *new_data,
         goto err;
     }
 
-    if (BIO_write(bio, new_data, (int)new_data_size) != new_data_size) {
+    assert(new_data_size < INT_MAX);
+
+    if (BIO_write(bio, new_data, (int)new_data_size) != (int)new_data_size) {
         ERROR("Failed to write OpenSSL BIO\n");
         goto err;
     }

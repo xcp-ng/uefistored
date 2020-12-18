@@ -157,7 +157,8 @@ bool drop_privileges(const char *root, bool opt_depriv, gid_t opt_gid,
     if (opt_depriv) {
         struct rlimit limit;
         scmp_filter_ctx ctx;
-        int rc, i;
+        int rc;
+        size_t i;
 
         /* Set the max writable file size to 256 KiB. */
         limit.rlim_cur = 20 * 1024 * 1024;

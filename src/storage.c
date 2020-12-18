@@ -22,7 +22,7 @@ static variable_t variables[MAX_VAR_COUNT];
 static size_t total = 0;
 static uint64_t used = 0;
 
-bool static inline is_delete(uint32_t attrs, size_t datasz)
+static inline bool is_delete(uint32_t attrs, size_t datasz)
 {
     return datasz == 0 || attrs == 0;
 }
@@ -44,7 +44,7 @@ void storage_deinit(void)
 
 void storage_destroy(void)
 {
-    int i;
+    size_t i;
     variable_t *var;
 
     total = 0;
@@ -212,7 +212,7 @@ err:
 EFI_STATUS storage_remove(const UTF16 *name, size_t namesz,
                           const EFI_GUID *guid)
 {
-    int i;
+    size_t i;
     variable_t *var;
 
     if (!name || !guid)
@@ -239,7 +239,7 @@ EFI_STATUS storage_remove(const UTF16 *name, size_t namesz,
 EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
                        const void *data, size_t datasz, uint32_t attrs)
 {
-    int i;
+    size_t i;
     int ret;
     variable_t *var;
 
@@ -408,7 +408,7 @@ variable_t *storage_next_variable(UTF16 *name, size_t namesz, EFI_GUID *guid)
 
 void storage_print_all(void)
 {
-    int i;
+    size_t i;
     variable_t *var;
 
     DDEBUG("All UEFI Variables:\n");
