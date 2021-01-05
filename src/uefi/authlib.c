@@ -76,9 +76,16 @@ static int load_auth(struct auth_data *auth)
 
     assert(auth->var.datasz < MAX_VARIABLE_DATA_SIZE);
 
+    auth->var.data = malloc(auth->var.datasz);
+
+    if (!auth->var.data) {
+        return -1;
+    }
+
     if (read(fd, auth->var.data, auth->var.datasz) < 0) {
         ERROR("failed to read %s\n", auth->path);
         ret = -1;
+        free(auth->var.data);
     }
 
     close(fd);
@@ -109,7 +116,7 @@ static void load_auth_files(struct auth_data *auths, size_t n)
     for (i = 0; i < n; i++) {
         var = &auths[i].var;
 
-        if (!storage_exists(var->name, var->namesz, &var->guid) && var->datasz > 0) {
+        if (!storage_exists(var->name, var->namesz, &var->guid) && var->datasz > 0 && var->data != NULL) {
             status = auth_lib_process_variable(var->name, var->namesz,
                                                &var->guid, var->data,
                                                var->datasz, var->attrs);

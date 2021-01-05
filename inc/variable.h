@@ -17,7 +17,7 @@ typedef struct variable {
     uint64_t namesz;
 
     /* Pointer to the data itself */
-    uint8_t data[MAX_VARIABLE_DATA_SIZE];
+    uint8_t *data;
 
     /* The size of the variable's data or value */
     uint64_t datasz;

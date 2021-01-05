@@ -286,6 +286,7 @@ static int retrieve_nonvolatile_vars(variable_t *vars, size_t n)
     variable_t tmp;
 
     memset(vars, 0, sizeof(*vars) * n);
+    memset(&tmp, 0, sizeof(tmp));
 
     while (cnt < n) {
         status = storage_iter(&tmp);

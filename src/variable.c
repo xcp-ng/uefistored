@@ -28,6 +28,15 @@ int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz)
     if (datasz > MAX_VARIABLE_DATA_SIZE)
         return -2;
 
+    if (var->datasz != datasz) {
+        if (var->data) {
+            free(var->data);
+            var->data = NULL;
+        }
+
+        var->data = malloc(datasz);
+    }
+
     var->datasz = datasz;
 
     memcpy(var->data, data, datasz);
@@ -190,7 +199,8 @@ void variable_destroy_noalloc(variable_t *var)
     }
 
     if (var->data) {
-        memset(var->data, 0, MAX_VARIABLE_DATA_SIZE);
+        free(var->data);
+        var->data = NULL;
         var->datasz = 0;
     }
 
