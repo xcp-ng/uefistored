@@ -21,7 +21,7 @@
         fprintf(stdout, "uefistored:INFO: " __VA_ARGS__);                      \
     } while (0)
 
-#if DEBUG
+#ifdef DEBUG
 #define DDEBUG(...)                                                            \
     do {                                                                       \
         fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);       \
