@@ -127,8 +127,8 @@ static void load_auth_files(struct auth_data *auths, size_t n)
             } else {
                 INFO("Successfuly set SB variable from %s (attrs=0x%02x)\n",
                        auths[i].path, var->attrs);
-		dprint_variable(var);
-	    }
+                dprint_variable(var);
+            }
         }
     }
 }
