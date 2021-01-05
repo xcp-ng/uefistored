@@ -15,7 +15,9 @@ LIB_DEPS :=				\
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 INC := -Iinc/ -Ilibs/ -I/usr/include/libxml2
-CFLAGS += -Wall -Werror -fshort-wchar
+
+CFLAGS += -Wall -Werror -Wextra -fshort-wchar -fstack-protector -O2 \
+		  -fstack-clash-protection
 
 all:        ## Build uefistored (same as uefistored target)
 all: uefistored uefistored-debug
@@ -25,7 +27,7 @@ uefistored: ## Build uefistored
 uefistored: src/main.c $(OBJS)
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
-uefistored-debug: CFLAGS += -g
+uefistored-debug: CFLAGS += -g -grecord-gcc-switches
 uefistored-debug: ## Build uefistored with debug symbols
 uefistored-debug: src/main.c $(OBJS)
 	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
