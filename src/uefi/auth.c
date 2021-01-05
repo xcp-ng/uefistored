@@ -997,12 +997,6 @@ static bool verify_priv(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     status = storage_get_var_ptr(&var, name, namesz, guid);
 
     if (status == EFI_SUCCESS) {
-        /*
-         * For private authenticated variables, permissive mode means that the
-         * certificate used to sign the data does not need to match the
-         * previous one. However, it still needs to exist and sign the data
-         * correctly since it is used for verifying subsequent updates.
-         */
         if (auth_enforce && memcmp(digest, var->cert, SHA256_DIGEST_SIZE)) {
             WARNING("SHA256 of CN + tbsCertificate not equal old variable\n");
             verify_status = false;
@@ -1166,34 +1160,23 @@ err:
 }
 
 /**
-  Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
-
-  Caution: This function may receive untrusted input.
-  This function may be invoked in SMM mode, and datasize and data are external input.
-  This function will do basic validation, before parse the data.
-  This function will parse the authentication carefully to avoid security issues, like
-  buffer overflow, integer overflow.
-
-  @parm  name                Name of Variable to be found.
-  @parm  guid                  Variable vendor GUID.
-  @parm  data                        data pointer.
-  @parm  data_size                    Size of data found. If size is less than the
-                                          data, this value contains the required size.
-  @parm  attrs                  Attribute value of the variable.
-  @parm  auth_var_type                 Verify against PK, KEK database, private database or certificate in data payload.
-  @parm  org_time_stamp                Pointer to original time stamp,
-                                          original variable is not found if NULL.
-  @parm  var_payload_ptr              Pointer to variable payload address.
-  @parm  var_payload_size             Pointer to variable payload size.
-
-  @return EFI_INVALID_PARAMETER           Invalid parameter.
-  @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
-                                          check carried out by the firmware.
-  @return EFI_OUT_OF_RESOURCES            Failed to process variable due to lack
-                                          of resources.
-  @return EFI_SUCCESS                     Variable pass validation successfully.
-
-**/
+ * Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
+ *
+ * @parm  name                Name of Variable to be found.
+ * @parm  guid                Variable vendor GUID.
+ * @parm  data                data pointer.
+ * @parm  data_size           Size of data found. If size is less than the
+ *                            data, this value contains the required size.
+ * @parm  attrs               Attribute value of the variable.
+ * @parm  auth_var_type       Verify against PK, KEK database,
+ *                            private database or certificate in data payload.
+ * @parm  org_time_stamp      Pointer to original time stamp,
+ *                            original variable is not found if NULL.
+ * @parm  var_payload_ptr     Pointer to variable payload address.
+ * @parm  var_payload_size    Pointer to variable payload size.
+ *
+ * @return EFI_SUCCESS or EFI error code
+ */
 EFI_STATUS
 verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
                           void *data, uint64_t data_size, uint32_t attrs,
@@ -1214,24 +1197,8 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     uint8_t *wrap_data;
     uint32_t wrap_data_size;
 
-    /*
-     * 1. top_cert is the top-level issuer certificate in signature Signer Cert Chain
-     * 2. trusted_cert is the certificate which firmware trusts. It could be saved in protected
-     *     storage or PK payload on PK init
-     *
-     * When the attribute EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS is
-     * set, then the data buffer shall begin with an instance of a complete (and serialized)
-     * EFI_VARIABLE_AUTHENTICATION_2 descriptor. The descriptor shall be followed by the new
-     * variable value and data_size shall reflect the combined size of the descriptor and the new
-     * variable value. The authentication descriptor is not part of the variable data and is not
-     * returned by subsequent calls to GetVariable().
-     */
     efi_auth = (EFI_VARIABLE_AUTHENTICATION_2 *)data;
 
-    /*
-     * Verify that Pad1, Nanosecond, TimeZone, Daylight and Pad2 components of the
-     * TimeStamp value are set to zero.
-     */
     if ((efi_auth->TimeStamp.Pad1 != 0) ||
         (efi_auth->TimeStamp.Nanosecond != 0) ||
         (efi_auth->TimeStamp.TimeZone != 0) ||
@@ -1250,20 +1217,12 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         }
     }
 
-    /*
-     * wCertificateType should be WIN_CERT_TYPE_EFI_GUID.
-     * Cert type should be EFI_CERT_TYPE_PKCS7_GUID.
-     */
     if ((efi_auth->AuthInfo.Hdr.wCertificateType != WIN_CERT_TYPE_EFI_GUID) ||
         !compare_guid(&efi_auth->AuthInfo.CertType, &gEfiCertPkcs7Guid)) {
         WARNING("Invalid AuthInfo type, return EFI_SECURITY_VIOLATION.\n");
         return EFI_SECURITY_VIOLATION;
     }
 
-    /*
-     * Find out Pkcs7 SignedData which follows the EFI_VARIABLE_AUTHENTICATION_2 descriptor.
-     * AuthInfo.Hdr.dwLength is the length of the entire certificate, including the length of the header.
-     */
     sig_data = efi_auth->AuthInfo.CertData;
     sig_data_size = efi_auth->AuthInfo.Hdr.dwLength -
                     (uint32_t)(OFFSET_OF(WIN_CERTIFICATE_UEFI_GUID, CertData));
@@ -1276,20 +1235,21 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         return EFI_DEVICE_ERROR;
     }
 
-    //
-    // SignedData.digestAlgorithms shall contain the digest algorithm used when preparing the
-    // signature. Only a digest algorithm of SHA-256 is accepted.
-    //
-    //    According to PKCS#7 Definition:
-    //        SignedData ::= SEQUENCE {
-    //            version Version,
-    //            digestAlgorithms DigestAlgorithmIdentifiers,
-    //            contentInfo ContentInfo,
-    //            .... }
-    //    The DigestAlgorithmIdentifiers can be used to determine the hash algorithm
-    //    in VARIABLE_AUTHENTICATION_2 descriptor.
-    //    This field has the fixed offset (+13) and be calculated based on two bytes of length encoding.
-    //
+    /*
+     * SignedData.digestAlgorithms shall contain the digest algorithm used when
+     * preparing the signature. Only a digest algorithm of SHA-256 is accepted.
+     *
+     *    According to PKCS#7 Definition:
+     *        SignedData ::= SEQUENCE {
+     *            version Version,
+     *            digestAlgorithms DigestAlgorithmIdentifiers,
+     *            contentInfo ContentInfo,
+     *            .... }
+     *    The DigestAlgorithmIdentifiers can be used to determine the hash algorithm
+     *    in VARIABLE_AUTHENTICATION_2 descriptor.
+     *    This field has the fixed offset (+13) and be calculated based on two
+     *    bytes of length encoding.
+     */
     if ((attrs & EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)) {
         if (wrap_data_size >= (32 + sizeof(sha256_oid))) {
             if (((*(wrap_data + 1) & TWO_BYTE_ENCODE) != TWO_BYTE_ENCODE) ||
@@ -1301,9 +1261,9 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         }
     }
 
-    //
-    // Find out the new data payload which follows Pkcs7 SignedData directly.
-    //
+    /*
+     * Find out the new data payload which follows Pkcs7 SignedData directly.
+     */
     payload_ptr = sig_data + sig_data_size;
     payload_size =
             data_size - OFFSET_OF_AUTHINFO2_CERT_DATA - (uint64_t)sig_data_size;
@@ -1374,31 +1334,25 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
 }
 
 /**
-  Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
+ * Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set
+ *
+ * @parm  name                Name of Variable to be found.
+ * @parm  guid                  Variable vendor GUID.
+ * @parm  data                        data pointer.
+ * @parm  data_size                    Size of data found. If size is less than the
+ *                                        data, this value contains the required size.
+ * @parm  attrs                  Attribute value of the variable.
+ * @parm  auth_var_type                 Verify against PK, KEK database, private database or certificate in data payload.
+ * @parm  var_del                      Delete the variable or not.
 
-  Caution: This function may receive untrusted input.
-  This function may be invoked in SMM mode, and datasize and data are external input.
-  This function will do basic validation, before parse the data.
-  This function will parse the authentication carefully to avoid security issues, like
-  buffer overflow, integer overflow.
-
-  @parm  name                Name of Variable to be found.
-  @parm  guid                  Variable vendor GUID.
-  @parm  data                        data pointer.
-  @parm  data_size                    Size of data found. If size is less than the
-                                          data, this value contains the required size.
-  @parm  attrs                  Attribute value of the variable.
-  @parm  auth_var_type                 Verify against PK, KEK database, private database or certificate in data payload.
-  @parm  var_del                      Delete the variable or not.
-
-  @return EFI_INVALID_PARAMETER           Invalid parameter.
-  @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
-                                          check carried out by the firmware.
-  @return EFI_OUT_OF_RESOURCES            Failed to process variable due to lack
-                                          of resources.
-  @return EFI_SUCCESS                     Variable pass validation successfully.
-
-**/
+ * @return EFI_INVALID_PARAMETER           Invalid parameter.
+ * @return EFI_SECURITY_VIOLATION          The variable does NOT pass the validation
+ *                                         check carried out by the firmware.
+ * @return EFI_OUT_OF_RESOURCES            Failed to process variable due to lack
+ *                                         of resources.
+ * @return EFI_SUCCESS                     Variable pass validation successfully.
+ *
+ */
 EFI_STATUS
 verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
                                      void *data, uint64_t data_size,
@@ -1440,9 +1394,6 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
 
     cert_data = (EFI_VARIABLE_AUTHENTICATION_2 *)data;
 
-    //
-    // Final step: Update/Append Variable if it pass PKCS#7 verification
-    //
     status = auth_internal_update_variable_with_timestamp(
             name, namesz, guid, payload_ptr, payload_size, attrs,
             &cert_data->TimeStamp);
