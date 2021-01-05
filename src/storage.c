@@ -174,7 +174,7 @@ EFI_STATUS storage_remove(const UTF16 *name, size_t namesz,
         if (memcmp(var->name, name, var->namesz) == 0 &&
             memcmp(&var->guid, guid, sizeof(var->guid)) == 0) {
             variable_destroy_noalloc(var);
-            used -= (var->datasz + namesz);
+            used -= (MAX_VARIABLE_NAME_SIZE + MAX_VARIABLE_DATA_SIZE);
             total--;
             return EFI_SUCCESS;
         }
@@ -249,7 +249,7 @@ EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
                 return EFI_DEVICE_ERROR;
 
             total++;
-            used += datasz + namesz;
+            used += MAX_VARIABLE_NAME_SIZE + MAX_VARIABLE_DATA_SIZE;
             return EFI_SUCCESS;
         }
     }
