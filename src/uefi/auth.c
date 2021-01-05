@@ -948,7 +948,6 @@ free_pkcs7:
 
 static bool verify_priv(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                         UTF16 *name, size_t namesz, EFI_GUID *guid,
-                        uint8_t *sig_data, uint32_t sig_data_size,
                         uint8_t *new_data, uint64_t new_data_size)
 
 {
@@ -1011,8 +1010,13 @@ static bool verify_priv(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
         }
     }
 
-    verify_status = Pkcs7Verify(sig_data, sig_data_size, top_cert, new_data,
-                                new_data_size);
+    /*
+     * We can verify with whichever cert we'd like (new or old) because
+     * we've already proven they are equal (if there is a pre-existing
+     * variable of this name.
+     */
+    verify_status = pkcs7_verify(pkcs7, top_cert, new_data, new_data_size);
+
     if (!verify_status) {
         WARNING("Pkc7Verify failed\n");
         goto free_certs;
@@ -1345,8 +1349,8 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     } else if (auth_var_type == AUTH_VAR_TYPE_KEK) {
         verify_status = verify_kek(efi_auth, new_data, new_data_size);
     } else if (auth_var_type == AUTH_VAR_TYPE_PRIV) {
-        verify_status = verify_priv(efi_auth, name, namesz, guid, sig_data,
-                                    sig_data_size, new_data, new_data_size);
+        verify_status = verify_priv(efi_auth, name, namesz, guid,
+                                    new_data, new_data_size);
     } else {
         DDEBUG("Invalid auth type: %u\n", auth_var_type);
         verify_status = false;
