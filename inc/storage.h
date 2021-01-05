@@ -19,7 +19,6 @@ EFI_STATUS storage_set_with_timestamp(const UTF16 *name, size_t namesz, const EF
         *timestamp);
 void storage_destroy(void);
 variable_t *storage_next_variable(UTF16 *name, size_t namesz, EFI_GUID *guid);
-EFI_STATUS storage_get_var(variable_t *var, const UTF16 *name, size_t namesz, const EFI_GUID *guid);
 bool storage_exists(const UTF16 *name, size_t namesz, const EFI_GUID *guid);
 uint64_t storage_used(void);
 EFI_STATUS storage_remove(const UTF16 *name, size_t namesz, const EFI_GUID *guid);
