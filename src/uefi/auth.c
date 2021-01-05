@@ -896,6 +896,56 @@ static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     return pkcs7_verify(pkcs7, trusted_cert, new_data, new_data_size);
 }
 
+static EFI_STATUS sha256_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
+                                   uint8_t digest[SHA256_DIGEST_SIZE])
+{
+    STACK_OF(X509) *signer_certs;
+    X509 *top_cert;
+    PKCS7 *pkcs7;
+    EFI_STATUS status = EFI_SUCCESS;
+
+    pkcs7 = pkcs7_from_auth(efi_auth);
+    if (!pkcs7) {
+        DDEBUG("Failed to parse pkcs7 from auth2\n");
+        return EFI_SECURITY_VIOLATION;
+    }
+
+    status = pkcs7_get_signers(pkcs7, &signer_certs);
+    if (status != EFI_SUCCESS) {
+        WARNING("Failed to get pkcs7 signers\n");
+        status = EFI_SECURITY_VIOLATION;
+        goto free_pkcs7;
+    }
+
+    if (sk_X509_num(signer_certs) == 0) {
+        WARNING("No pkcs7 signers found\n");
+        status = EFI_SECURITY_VIOLATION;
+        goto free_certs;
+    }
+
+    top_cert = sk_X509_value(signer_certs, sk_X509_num(signer_certs) - 1);
+
+    if (!top_cert) {
+        WARNING("No top cert found\n");
+        status = EFI_SECURITY_VIOLATION;
+        goto free_certs;
+    }
+
+    status = sha256_priv_sig(signer_certs, top_cert, digest);
+
+    if (status != EFI_SUCCESS) {
+        ERROR("Failed to create SHA256 digest of CN + tbsCertificate\n");
+        status = EFI_SECURITY_VIOLATION;
+    }
+
+free_certs:
+    sk_X509_free(signer_certs);
+free_pkcs7:
+    PKCS7_free(pkcs7);
+
+    return status;
+}
+
 static bool verify_priv(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                         UTF16 *name, size_t namesz, EFI_GUID *guid,
                         uint8_t *sig_data, uint32_t sig_data_size,
@@ -1398,6 +1448,20 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
             *var_del = true;
         } else {
             *var_del = false;
+        }
+    }
+
+    if (status == EFI_SUCCESS && !is_del) {
+        status = storage_get_var_ptr(&var, name, namesz, guid);
+
+        if (status != EFI_SUCCESS) {
+            return status;
+        }
+
+        status = sha256_from_auth(cert_data, var->cert);
+
+        if (status != EFI_SUCCESS) {
+            return status;
         }
     }
 
