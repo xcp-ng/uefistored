@@ -304,39 +304,6 @@ uint64_t variable_size(const variable_t *var)
     return sum;
 }
 
-void variable_printf(const variable_t *var)
-{
-    char *data, *name;
-
-    if (!var)
-        return;
-
-    name = malloc(var->namesz + 2);
-
-    if (!name)
-        return;
-
-    memset(name, 0, (var->namesz + 2) / sizeof(UTF16));
-    uc2_ascii(var->name, name, var->namesz / sizeof(UTF16));
-
-    data = malloc(var->datasz + 2);
-
-    if (!data)
-        return;
-
-    memset(data, 0, var->datasz + 2);
-    uc2_ascii((UTF16 *)var->data, data, var->datasz + 2);
-
-    printf("Variable<name=%s", name);
-    printf(", data(%lu)=0x%02x%02x%02x%02x", var->datasz, var->data[0],
-           var->data[1], var->data[2], var->data[3]);
-    printf(", guid=%x", var->guid.Data1);
-    printf(", attrs=%x>\n", var->attrs);
-
-    free(name);
-    free(data);
-}
-
 /**
  * This function populates an array of variables from byte-serialized form.
  *

@@ -60,7 +60,6 @@ int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz);
 int variable_set_guid(variable_t *var, const EFI_GUID *guid);
 int variable_set_name(variable_t *var, const UTF16 *name, size_t namesz);
 int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp);
-void variable_printf(const variable_t *var);
 uint64_t variable_size(const variable_t *var);
 variable_t *variable_create_unserialize(const uint8_t **ptr);
 
