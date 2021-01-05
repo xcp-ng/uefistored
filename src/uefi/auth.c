@@ -1368,8 +1368,6 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
     EFI_TIME *time_stamp = NULL;
     variable_t *var = NULL;
 
-    memset(&var, 0, sizeof(var));
-
     find_status = storage_get_var_ptr(&var, name, namesz, guid);
 
     if (find_status == EFI_SUCCESS) {
@@ -1380,7 +1378,7 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
                                        attrs, auth_var_type, time_stamp,
                                        &payload_ptr, &payload_size);
 
-    if (EFI_ERROR(status)) {
+    if (status != EFI_SUCCESS) {
         DDEBUG("error=%s (0x%02lx)\n", efi_status_str(status), status);
         return status;
     }
@@ -1398,14 +1396,6 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
             name, namesz, guid, payload_ptr, payload_size, attrs,
             &cert_data->TimeStamp);
 
-    if (var_del != NULL) {
-        if (is_del && (status == EFI_SUCCESS)) {
-            *var_del = true;
-        } else {
-            *var_del = false;
-        }
-    }
-
     if (status == EFI_SUCCESS && !is_del) {
         status = storage_get_var_ptr(&var, name, namesz, guid);
 
@@ -1418,6 +1408,10 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
         if (status != EFI_SUCCESS) {
             return status;
         }
+    }
+
+    if (var_del != NULL) {
+        *var_del = is_del && (status == EFI_SUCCESS);
     }
 
     return status;
