@@ -414,7 +414,7 @@ void storage_print_all(void)
     DDEBUG("All UEFI Variables:\n");
     for_each_variable(variables, var, i)
     {
-        DPRINTF("%d: ", i);
+        DPRINTF("%lu: ", i);
         dprint_variable(var);
     }
     DPRINTF("\n");
