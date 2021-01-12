@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.3.1] - 2020-01-11
+### Changed
+- Increased max variable data size to 32KB (required by Microsoft)
+- Due to the increased data size, dynamic memory wass re-introduced
+- Remove more OVMF-style code, dead code
+
+### Fixed
+- Make query variable calculate available space based on slots
+- Compiler flags: -O2,  stack protection, etc...
+
 ## [0.3.0] - 2020-12-04
 ### Added
 - Support Secure Boot
@@ -79,6 +89,7 @@ All notable changes to this project will be documented in this file.
 - Support handling of guest UEFI requests
 - Support minimal sandboxing via chroot jail
 
+[0.3.1]: https://github.com/xcp-ng/uefistored/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/xcp-ng/uefistored/compare/v0.2.6...v0.3.0
 [0.2.6]: https://github.com/xcp-ng/uefistored/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/xcp-ng/uefistored/compare/v0.2.4...v0.2.5
