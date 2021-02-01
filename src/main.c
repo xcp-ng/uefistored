@@ -141,7 +141,7 @@ static int write_pidfile(void)
 
     len = (size_t)ret;
 
-    fd = open(pidfile, O_RDWR | O_CREAT);
+    fd = open(pidfile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 
     if (fd < 0) {
         ERROR("Could not open pidfile: %s, %s\n", pidfile, strerror(errno));
