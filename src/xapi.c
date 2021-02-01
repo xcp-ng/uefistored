@@ -38,7 +38,7 @@
 #define MAX_REQUEST_SIZE 4096
 #define MAX_RESUME_FILE_SIZE (8 * PAGE_SIZE)
 
-#define BIG_MESSAGE_SIZE (64 * PAGE_SIZE)
+#define MSG_SIZE (64 * PAGE_SIZE)
 #define VM_UUID_MAX 36
 #define SOCKET_MAX 108
 #define SESSION_ID_SIZE 512
@@ -534,17 +534,17 @@ out:
  */
 int xapi_set_efi_vars(void)
 {
-    char buffer[BIG_MESSAGE_SIZE];
+    char buffer[MSG_SIZE];
     int ret;
 
-    ret = build_set_efi_vars_message(buffer, BIG_MESSAGE_SIZE);
+    ret = build_set_efi_vars_message(buffer, MSG_SIZE);
 
     if (ret < 0) {
         DDEBUG("Failed to build VM.set_NVRAM_EFI_variables message, ret=%d\n", ret);
         return ret;
     }
 
-    return send_request(buffer, buffer, BIG_MESSAGE_SIZE);
+    return send_request(buffer, buffer, MSG_SIZE);
 }
 
 #define HTTP_LOGIN                                                             \
@@ -592,14 +592,14 @@ int xapi_connect(void)
 int xapi_request(char *response, size_t response_sz, const char *format, ...)
 {
     va_list ap;
-    char message[BIG_MESSAGE_SIZE];
-    char body[BIG_MESSAGE_SIZE];
+    char message[MSG_SIZE];
+    char body[MSG_SIZE];
     int hdr_len;
     size_t body_len;
     int ret;
 
     va_start(ap, format);
-    ret = vsnprintf(body, BIG_MESSAGE_SIZE, format, ap);
+    ret = vsnprintf(body, MSG_SIZE, format, ap);
     va_end(ap);
 
     if (ret < 0)
@@ -607,13 +607,13 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
 
     body_len = ret;
 
-    hdr_len = create_header(body_len, message, BIG_MESSAGE_SIZE);
+    hdr_len = create_header(body_len, message, MSG_SIZE);
 
     if (hdr_len < 0) {
         return -1;
     }
 
-    strncat(message, body, BIG_MESSAGE_SIZE - hdr_len);
+    strncat(message, body, MSG_SIZE - hdr_len);
 
     return send_request(message, response, response_sz);
 }
@@ -994,9 +994,9 @@ int base64_from_response(char *buffer, size_t n, char *response)
 static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 {
     int status;
-    char response[BIG_MESSAGE_SIZE] = { 0 };
+    char response[MSG_SIZE] = { 0 };
 
-    status = xapi_request(response, BIG_MESSAGE_SIZE,
+    status = xapi_request(response, MSG_SIZE,
                           "<?xmlversion=\'1.0\'?>"
                           "<methodCall>"
                           "<methodName>VM.get_NVRAM</methodName>"
@@ -1035,8 +1035,8 @@ int xapi_variables_request(variable_t *vars, size_t n)
 {
     int ret;
     char session_id[SESSION_ID_SIZE];
-    uint8_t plaintext[BIG_MESSAGE_SIZE];
-    char b64[BIG_MESSAGE_SIZE];
+    uint8_t plaintext[MSG_SIZE];
+    char b64[MSG_SIZE];
 
     if (session_login_retry(session_id, SESSION_ID_SIZE) < 0) {
         ERROR("failed to login session\n");
@@ -1048,7 +1048,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
         return 0;
     }
 
-    ret = xapi_get_nvram(session_id, b64, BIG_MESSAGE_SIZE);
+    ret = xapi_get_nvram(session_id, b64, MSG_SIZE);
 
     if (ret < 0) {
         return 0;
@@ -1056,7 +1056,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
 
     session_logout(session_id);
 
-    ret = base64_to_bytes(plaintext, BIG_MESSAGE_SIZE, b64, strlen(b64));
+    ret = base64_to_bytes(plaintext, MSG_SIZE, b64, strlen(b64));
 
     if (ret < 0) {
         return 0;
