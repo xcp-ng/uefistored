@@ -22,6 +22,8 @@ CFLAGS += -Wall -Werror -Wextra -fshort-wchar -fstack-protector -O2 \
 		  -fstack-clash-protection
 CFLAGS += $$(pkg-config --cflags libxml-2.0)
 
+CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
+DEPS     = ./.*.d src/.*.d
 
 all:        ## Build uefistored (same as uefistored target)
 all: $(TARGET) $(TARGET)-debug
@@ -41,6 +43,7 @@ $(TARGET)-debug: src/main.c $(OBJS)
 .PHONY: clean
 clean:
 	rm -f $(TARGET) $(OBJS)
+	rm -f $(DEPS)
 
 .PHONY: clean-test
 clean-test:
@@ -82,4 +85,5 @@ help:
 print-%:
 	@:$(info $($*))
 
+-include $(DEPS)
 include Docker.mk
