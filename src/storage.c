@@ -321,8 +321,6 @@ variable_t *storage_next_variable(UTF16 *name, size_t namesz, EFI_GUID *guid)
         return storage_get_first();
     }
 
-    var = variables;
-
     /* Find the previous variable (passed in from caller) */
     for (i = 0; i < MAX_VAR_COUNT; i++) {
         var = &variables[i];

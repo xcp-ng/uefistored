@@ -113,7 +113,6 @@ variable_t *variable_create(const UTF16 *name, size_t namesz,
     ret = variable_set_data(var, data, datasz);
 
     if (ret < 0) {
-        free(var->name);
         free(var);
         return NULL;
     }

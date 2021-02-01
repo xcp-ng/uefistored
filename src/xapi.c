@@ -490,7 +490,7 @@ static int send_request(char *message, char *response, size_t buffer_size)
         return -1;
 
     saddr.sun_family = AF_UNIX;
-    strncpy(saddr.sun_path, socket_path, sizeof(saddr.sun_path));
+    memcpy(saddr.sun_path, socket_path, sizeof(saddr.sun_path));
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -613,7 +613,7 @@ int xapi_request(char *response, size_t response_sz, const char *format, ...)
         return -1;
     }
 
-    strncat(message, body, BIG_MESSAGE_SIZE);
+    strncat(message, body, BIG_MESSAGE_SIZE - hdr_len);
 
     return send_request(message, response, response_sz);
 }
@@ -1172,7 +1172,7 @@ void xapi_cleanup(void)
     if (xapi_save_path)
         free(xapi_save_path);
     if (xapi_resume_path)
-        free(xapi_save_path);
+        free(xapi_resume_path);
     if (vm_uuid)
         free(vm_uuid);
 }
@@ -1181,8 +1181,6 @@ int xapi_sb_notify(void)
 {
     char session_id[SESSION_ID_SIZE];
     char response[MAX_RESPONSE_SIZE];
-    //char request[MAX_REQUEST_SIZE] = { 0 };
-    //int request_size;
     int ret;
 
     if (session_login_retry(session_id, SESSION_ID_SIZE) < 0) {

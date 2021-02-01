@@ -567,6 +567,9 @@ EFI_STATUS update_platform_mode(uint32_t mode)
             &gEfiGlobalVariableGuid, &secure_boot, sizeof(uint8_t),
             EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
 
+    if (status != EFI_SUCCESS)
+        return status;
+
     if (mode == SETUP_MODE)
         deployed_mode = 1;
     else
@@ -1088,7 +1091,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     void *kek;
     uint64_t kek_size;
     uint64_t cert_count;
-    bool verify_status;
+    bool verify_status = false;
 
     /*
      * Get KEK database from variable.
@@ -1553,8 +1556,6 @@ EFI_STATUS process_var_with_kek(UTF16 *name, size_t namesz, EFI_GUID *guid,
         return EFI_INVALID_PARAMETER;
     }
 
-    status = EFI_SUCCESS;
-
     if (setup_mode == USER_MODE) {
         /*
          * Time-based, verify against X509 Cert KEK.
@@ -1660,8 +1661,6 @@ EFI_STATUS process_variable(UTF16 *name, size_t namesz, EFI_GUID *guid,
     variable_t *var;
     EFI_STATUS status;
     AUTH_VARIABLE_INFO org_variable_info;
-
-    status = EFI_SUCCESS;
 
     memset(&org_variable_info, 0, sizeof(org_variable_info));
 

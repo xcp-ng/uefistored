@@ -45,8 +45,8 @@ static bool resume;
 
 extern char *xapi_resume_path;
 
-static evtchn_port_t bufioreq_local_port;
-static evtchn_port_t *ioreq_local_ports;
+static xc_evtchn_port_or_error_t bufioreq_local_port;
+static xc_evtchn_port_or_error_t *ioreq_local_ports;
 static evtchn_port_t bufioreq_remote_port;
 static xendevicemodel_handle *dmod;
 static xenforeignmemory_handle *fmem;
@@ -544,7 +544,7 @@ void handler_loop(buffered_iopage_t *buffered_iopage, size_t vcpu_count,
     size_t i;
     int ret;
     struct pollfd pollfd;
-    evtchn_port_t port;
+    xc_evtchn_port_or_error_t port;
 
     pollfd.fd = xenevtchn_fd(xce);
     pollfd.events = POLLIN | POLLERR | POLLHUP;
@@ -634,7 +634,8 @@ int main(int argc, char **argv)
             break;
 
         case 'd':
-            domid = atoi(optarg);
+            if (optarg)
+                domid = atoi(optarg);
             break;
 
         case 'r':
@@ -650,18 +651,23 @@ int main(int argc, char **argv)
             break;
 
         case 'u':
-            uid = (uid_t)strtol(optarg, &end, 0);
-            if (*end != '\0') {
-                fprintf(stderr, "invalid uid '%s'\n", optarg);
-                exit(1);
+            if (optarg) {
+                uid = (uid_t)strtol(optarg, &end, 0);
+
+                if (*end != '\0') {
+                    fprintf(stderr, "invalid uid '%s'\n", optarg);
+                    exit(1);
+                }
             }
             break;
 
         case 'g':
-            gid = (gid_t)strtol(optarg, &end, 0);
-            if (*end != '\0') {
-                fprintf(stderr, "invalid uid '%s'\n", optarg);
-                exit(1);
+            if (optarg) {
+                gid = (gid_t)strtol(optarg, &end, 0);
+                if (*end != '\0') {
+                    fprintf(stderr, "invalid uid '%s'\n", optarg);
+                    exit(1);
+                }
             }
             break;
 
@@ -705,7 +711,6 @@ int main(int argc, char **argv)
     if (!xc_handle) {
         ERROR("Failed to open xc_interface handle: %d, %s\n", errno,
               strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -713,7 +718,6 @@ int main(int argc, char **argv)
     ret = xc_domain_getinfo(xc_handle, domid, 1, &domain_info);
 
     if (ret < 0) {
-        ret = errno;
         ERROR("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno,
               strerror(errno));
         goto err;
@@ -723,7 +727,6 @@ int main(int argc, char **argv)
 
     /* Verify the requested domain == the returned domain */
     if (domid != domain_info.domid) {
-        ret = errno;
         ERROR("Domid %u does not match expected %u\n", domain_info.domid,
               domid);
         goto err;
@@ -756,7 +759,6 @@ int main(int argc, char **argv)
     if (!dmod) {
         ERROR("Failed to open xendevicemodel handle: %d, %s\n", errno,
               strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -766,7 +768,6 @@ int main(int argc, char **argv)
     if (!fmem) {
         ERROR("Failed to open xenforeignmemory handle: %d, %s\n", errno,
               strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -775,7 +776,6 @@ int main(int argc, char **argv)
 
     if (!xce) {
         ERROR("Failed to open evtchn handle: %d, %s\n", errno, strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -785,7 +785,6 @@ int main(int argc, char **argv)
     if (ret < 0) {
         ERROR("Failed to restrict Xen handles: %d, %s\n", errno,
               strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -799,7 +798,6 @@ int main(int argc, char **argv)
     if (ret < 0) {
         ERROR("Failed to create ioreq server: %d, %s\n", errno,
               strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -816,7 +814,6 @@ int main(int argc, char **argv)
     if (ret < 0) {
         ERROR("Failed to get ioreq server info: %d, %s\n", errno,
               strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -826,7 +823,6 @@ int main(int argc, char **argv)
     if (ret < 0) {
         ERROR("Failed to enable ioreq server: %d, %s\n", errno,
               strerror(errno));
-        ret = errno;
         goto err;
     }
 
@@ -836,7 +832,6 @@ int main(int argc, char **argv)
 
     if (!ioreq_local_ports) {
         ERROR("Failed to alloc ioreq_local_ports\n");
-        ret = -ENOMEM;
         goto err;
     }
 

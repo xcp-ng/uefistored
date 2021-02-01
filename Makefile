@@ -12,6 +12,7 @@ LIB_DEPS :=				\
 	crypto				\
 	xml2
 
+CC ?= gcc
 LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 INC := -Iinc/ -Ilibs/ -I/usr/include/libxml2
@@ -25,15 +26,15 @@ all: uefistored uefistored-debug
 
 uefistored: ## Build uefistored
 uefistored: src/main.c $(OBJS)
-	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
+	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 uefistored-debug: CFLAGS += -g -grecord-gcc-switches
 uefistored-debug: ## Build uefistored with debug symbols
 uefistored-debug: src/main.c $(OBJS)
-	gcc -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
+	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
-	gcc -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
+	$(CC) -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
 
 .PHONY: clean
 clean:
