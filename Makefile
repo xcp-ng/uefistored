@@ -1,24 +1,25 @@
 include Common.mk
 
-LIB_DEPS :=				\
-	xenstore			\
-	xenctrl				\
-	xenforeignmemory	\
-	xendevicemodel		\
-	xenevtchn			\
-	xentoolcore			\
-	seccomp				\
-	ssl				    \
-	crypto				\
-	xml2
-
 CC ?= gcc
-LIBS := $(foreach lib,$(LIB_DEPS),-l$(lib))
-OBJS := $(patsubst %.c,%.o,$(SRCS))
-INC := -Iinc/ -Ilibs/ -I/usr/include/libxml2
 
+LIBS :=						\
+	-lxenstore				\
+	-lxenctrl				\
+	-lxenforeignmemory		\
+	-lxendevicemodel		\
+	-lxenevtchn				\
+	-lxentoolcore			\
+	-lseccomp				\
+	-lssl				    \
+	-lcrypto				\
+	$$(pkg-config --libs libxml-2.0)
+
+OBJS := $(patsubst %.c,%.o,$(SRCS))
+
+CFLAGS = -I$(PWD)/inc
 CFLAGS += -Wall -Werror -Wextra -fshort-wchar -fstack-protector -O2 \
 		  -fstack-clash-protection
+CFLAGS += $$(pkg-config --cflags libxml-2.0)
 
 all:        ## Build uefistored (same as uefistored target)
 all: uefistored uefistored-debug
