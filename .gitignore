@@ -1,4 +1,5 @@
 *.o
+*.d
 uefistored
 uefistored-debug
 tests/*
