@@ -76,4 +76,8 @@ help:
 	@fgrep -h "##" Makefile Env.mk | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 	@printf "\n"
 
-include Env.mk
+
+print-%:
+	@:$(info $($*))
+
+include Docker.mk
