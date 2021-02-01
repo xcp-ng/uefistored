@@ -1,5 +1,6 @@
 include Common.mk
 
+TARGET := uefistored
 CC ?= gcc
 
 LIBS :=						\
@@ -21,17 +22,17 @@ CFLAGS += -Wall -Werror -Wextra -fshort-wchar -fstack-protector -O2 \
 		  -fstack-clash-protection
 CFLAGS += $$(pkg-config --cflags libxml-2.0)
 
-all:        ## Build uefistored (same as uefistored target)
-all: uefistored uefistored-debug
 
+all:        ## Build uefistored (same as uefistored target)
+all: $(TARGET) $(TARGET)-debug
 
 uefistored: ## Build uefistored
-uefistored: src/main.c $(OBJS)
+$(TARGET): src/main.c $(OBJS)
 	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
-uefistored-debug: CFLAGS += -g -grecord-gcc-switches
 uefistored-debug: ## Build uefistored with debug symbols
-uefistored-debug: src/main.c $(OBJS)
+$(TARGET)-debug: CFLAGS += -g -grecord-gcc-switches
+$(TARGET)-debug: src/main.c $(OBJS)
 	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
@@ -39,7 +40,7 @@ uefistored-debug: src/main.c $(OBJS)
 
 .PHONY: clean
 clean:
-	rm -f uefistored $(OBJS)
+	rm -f $(TARGET) $(OBJS)
 
 .PHONY: clean-test
 clean-test:
