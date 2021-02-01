@@ -29,12 +29,12 @@ all:        ## Build uefistored (same as uefistored target)
 all: $(TARGET) $(TARGET)-debug
 
 uefistored: ## Build uefistored
-$(TARGET): src/main.c $(OBJS)
+$(TARGET): src/$(TARGET).c $(OBJS)
 	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 uefistored-debug: ## Build uefistored with debug symbols
 $(TARGET)-debug: CFLAGS += -g -grecord-gcc-switches
-$(TARGET)-debug: src/main.c $(OBJS)
+$(TARGET)-debug: src/$(TARGET).c $(OBJS)
 	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
