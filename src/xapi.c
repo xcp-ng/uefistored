@@ -1036,7 +1036,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
     int ret;
     char session_id[SESSION_ID_SIZE];
     uint8_t plaintext[MSG_SIZE];
-    char b64[MSG_SIZE];
+    char b64[MSG_SIZE] = {0};
 
     if (session_login_retry(session_id, SESSION_ID_SIZE) < 0) {
         ERROR("failed to login session\n");
