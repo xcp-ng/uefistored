@@ -5,6 +5,7 @@
 #include <limits.h>
 
 #include "common.h"
+#include "barrier.h"
 #include "storage.h"
 #include "log.h"
 #include "serializer.h"
@@ -107,6 +108,7 @@ uint64_t unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
 {
     uint64_t ret;
 
+    barrier();
     memcpy(&ret, *ptr, sizeof(ret));
     *ptr += sizeof(ret);
 
@@ -114,6 +116,7 @@ uint64_t unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
 
     memcpy(buf, *ptr, ret);
     *ptr += ret;
+    barrier();
 
     return ret;
 }
@@ -187,13 +190,15 @@ uint64_t unserialize_namesz(const uint8_t **ptr)
 EFI_STATUS unserialize_result(const uint8_t **ptr)
 {
     EFI_STATUS status;
+    const EFI_STATUS *p = (const EFI_STATUS *)ptr;;
 
-    memcpy(&status, *ptr, sizeof status);
+    status = *READ_ONCE(p);
     *ptr += sizeof(status);
 
     return status;
 }
 
+/* For XAPI, not used for shared memory */
 void unserialize_variable_list_header(const uint8_t **ptr,
                                       struct variable_list_header *hdr)
 {
@@ -201,6 +206,7 @@ void unserialize_variable_list_header(const uint8_t **ptr,
     *ptr += sizeof(*hdr);
 }
 
+/* For XAPI, not used for shared memory */
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 {
     uint8_t cert[32];
