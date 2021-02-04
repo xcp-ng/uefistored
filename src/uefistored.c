@@ -36,8 +36,7 @@
 #include "xapi.h"
 #include "xen_variable_server.h"
 #include "depriv.h"
-
-#define mb() asm volatile("" : : : "memory")
+#include "barrier.h"
 
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
@@ -331,14 +330,14 @@ static void handle_shared_iopage(shared_iopage_t *shared_iopage,
         return;
     }
 
-    mb();
+    barrier();
     ioreq->state = STATE_IOREQ_INPROCESS;
 
     handle_ioreq(ioreq);
-    mb();
+    barrier();
 
     ioreq->state = STATE_IORESP_READY;
-    mb();
+    barrier();
 
     xenevtchn_notify(xce, port);
 }
@@ -386,11 +385,11 @@ static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
             }
 
             handle_ioreq(&ioreq);
-            mb();
+            barrier();
         }
 
         buffered_iopage->read_pointer = read_pointer;
-        mb();
+        barrier();
     }
 }
 
