@@ -22,11 +22,6 @@ static inline bool compare_guid(EFI_GUID *guid1, EFI_GUID *guid2)
     return memcmp(guid1, guid2, sizeof(EFI_GUID)) == 0;
 }
 
-static inline void WriteUnaligned32(uint32_t *dest, uint32_t val)
-{
-    memcpy(dest, &val, sizeof(*dest));
-}
-
 static inline uint32_t ReadUnaligned32(uint32_t *src)
 {
     uint32_t val;
