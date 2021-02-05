@@ -19,37 +19,48 @@ struct variable_list {
     struct variable_list *next;
 };
 
+#define WRITE_ONCE_CAST(ptr, data) \
+    WRITE_ONCE((*(typeof(data)*)ptr), data)
+
 void serialize_name(uint8_t **ptr, const UTF16 *name, size_t namesz)
 {
-    memcpy(*ptr, &namesz, sizeof namesz);
+    WRITE_ONCE_CAST(*ptr, namesz);
     *ptr += sizeof namesz;
-    memcpy(*ptr, name, namesz);
+
+    barrier();
+    __builtin_memcpy(*ptr, name, namesz);
+    barrier();
+
     *ptr += namesz;
 }
 
 void serialize_data(uint8_t **ptr, const void *data, uint64_t datasz)
 {
-    memcpy(*ptr, &datasz, sizeof datasz);
+    WRITE_ONCE_CAST(*ptr, datasz);
     *ptr += sizeof datasz;
-    memcpy(*ptr, data, datasz);
+
+    barrier();
+    __builtin_memcpy(*ptr, data, datasz);
+    barrier();
+
     *ptr += datasz;
 }
 
 void serialize_uint16(uint8_t **ptr, uint16_t var)
 {
-    memcpy(*ptr, &var, sizeof(var));
+    WRITE_ONCE_CAST(*ptr, var);
     *ptr += sizeof(var);
 }
 
 void serialize_uint8(uint8_t **ptr, uint8_t var)
 {
-    memcpy(*ptr, &var, sizeof(var));
+    WRITE_ONCE_CAST(*ptr, var);
     *ptr += sizeof(var);
 }
 
 void serialize_uint64(uint8_t **ptr, uint64_t var)
 {
-    memcpy(*ptr, &var, sizeof(var));
+    WRITE_ONCE_CAST(*ptr, var);
     *ptr += sizeof(var);
 }
 
@@ -60,19 +71,22 @@ void serialize_uintn(uint8_t **ptr, uint64_t var)
 
 void serialize_uint32(uint8_t **ptr, uint32_t var)
 {
-    memcpy(*ptr, &var, sizeof var);
+    WRITE_ONCE_CAST(*ptr, var);
     *ptr += sizeof var;
 }
 
 void serialize_boolean(uint8_t **ptr, bool var)
 {
-    memcpy(*ptr, &var, sizeof var);
+    WRITE_ONCE_CAST(*ptr, var);
     *ptr += sizeof var;
 }
 
 void serialize_cert(uint8_t **ptr, const uint8_t cert[SHA256_DIGEST_SIZE])
 {
-    memcpy(*ptr, cert, SHA256_DIGEST_SIZE);
+    barrier();
+    __builtin_memcpy(*ptr, cert, SHA256_DIGEST_SIZE);
+    barrier();
+
     *ptr += SHA256_DIGEST_SIZE;
 }
 
@@ -83,13 +97,19 @@ void serialize_command(uint8_t **ptr, command_t cmd)
 
 void serialize_guid(uint8_t **ptr, const EFI_GUID *guid)
 {
-    memcpy(*ptr, guid, 16);
-    *ptr += 16;
+    barrier();
+    __builtin_memcpy(*ptr, guid, 16);
+    barrier();
+
+    *ptr += sizeof(*guid);;
 }
 
 void serialize_result(uint8_t **ptr, EFI_STATUS status)
 {
-    memcpy(*ptr, &status, sizeof(status));
+    barrier();
+    __builtin_memcpy(*ptr, &status, sizeof(status));
+    barrier();
+
     *ptr += sizeof(status);
 }
 
@@ -110,13 +130,17 @@ uint64_t unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
 
     barrier();
     memcpy(&ret, *ptr, sizeof(ret));
-    *ptr += sizeof(ret);
+    barrier();
 
     assert(ret < buflen && ret < INT_MAX);
 
-    memcpy(buf, *ptr, ret);
-    *ptr += ret;
+    *ptr += sizeof(ret);
+
     barrier();
+    memcpy(buf, *ptr, ret);
+    barrier();
+
+    *ptr += ret;
 
     return ret;
 }
@@ -125,7 +149,7 @@ uint8_t unserialize_uint8(const uint8_t **ptr)
 {
     uint8_t ret;
 
-    memcpy(&ret, *ptr, sizeof ret);
+    ret = READ_ONCE(**ptr);
     *ptr += sizeof ret;
 
     return ret;
@@ -135,7 +159,7 @@ uint16_t unserialize_uint16(const uint8_t **ptr)
 {
     uint16_t ret;
 
-    memcpy(&ret, *ptr, sizeof ret);
+    ret = READ_ONCE(**(uint16_t**)ptr);
     *ptr += sizeof ret;
 
     return ret;
@@ -145,7 +169,7 @@ uint32_t unserialize_uint32(const uint8_t **ptr)
 {
     uint32_t ret;
 
-    memcpy(&ret, *ptr, sizeof ret);
+    ret = READ_ONCE(**(uint32_t**)ptr);
     *ptr += sizeof ret;
 
     return ret;
@@ -155,7 +179,7 @@ uint64_t unserialize_uint64(const uint8_t **ptr)
 {
     uint64_t ret;
 
-    memcpy(&ret, *ptr, sizeof ret);
+    ret = READ_ONCE(**(uint64_t**)ptr);
     *ptr += sizeof ret;
 
     return ret;
@@ -168,18 +192,21 @@ uint64_t unserialize_uintn(const uint8_t **ptr)
 
 void unserialize_guid(const uint8_t **ptr, EFI_GUID *guid)
 {
+    barrier();
     memcpy(guid, *ptr, sizeof(EFI_GUID));
+    barrier();
+
     *ptr += sizeof(EFI_GUID);
 }
 
 bool unserialize_boolean(const uint8_t **ptr)
 {
-    bool val;
+    bool ret;
 
-    memcpy(&val, *ptr, sizeof val);
-    *ptr += sizeof(val);
+    ret = READ_ONCE(**(const bool**)ptr);
+    *ptr += sizeof(ret);
 
-    return val;
+    return ret;
 }
 
 uint64_t unserialize_namesz(const uint8_t **ptr)
@@ -187,18 +214,26 @@ uint64_t unserialize_namesz(const uint8_t **ptr)
     return unserialize_uint64(ptr);
 }
 
+void unserialize_cert(const uint8_t **ptr, uint8_t cert[SHA256_DIGEST_SIZE])
+{
+    barrier();
+    __builtin_memcpy(cert, *ptr, SHA256_DIGEST_SIZE);
+    barrier();
+
+    *ptr += SHA256_DIGEST_SIZE;
+}
+
 EFI_STATUS unserialize_result(const uint8_t **ptr)
 {
     EFI_STATUS status;
-    const EFI_STATUS *p = (const EFI_STATUS *)ptr;;
 
-    status = *READ_ONCE(p);
+    status = READ_ONCE(**(const EFI_STATUS **)ptr);
     *ptr += sizeof(status);
 
     return status;
 }
 
-/* For XAPI, not used for shared memory */
+/* For XAPI, do NOT use for shared memory */
 void unserialize_variable_list_header(const uint8_t **ptr,
                                       struct variable_list_header *hdr)
 {
@@ -206,7 +241,7 @@ void unserialize_variable_list_header(const uint8_t **ptr,
     *ptr += sizeof(*hdr);
 }
 
-/* For XAPI, not used for shared memory */
+/* For XAPI, do NOT use for shared memory */
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
 {
     uint8_t cert[32];
@@ -245,10 +280,10 @@ int unserialize_var_cached(const uint8_t **ptr, variable_t *var)
     unserialize_guid(ptr, &guid);
     attrs = unserialize_uint32(ptr);
     unserialize_timestamp(ptr, &timestamp);
-    unserialize_value(ptr, cert);
+    unserialize_cert(ptr, cert);
 
     ret = variable_create_noalloc(var, name, namesz, data, datasz, &guid, attrs,
-                                  &timestamp);
+                                  &timestamp, cert);
 
     free(data);
 
@@ -285,7 +320,7 @@ void serialize_timestamp(uint8_t **p, const EFI_TIME *timestamp)
     serialize_uint8(p, timestamp->Minute);
     serialize_uint8(p, timestamp->Second);
 
-    /* These should alqays all be zero, but serialize anyway in
+    /* These should always all be zero, but serialize anyway in
      * case the spec advances and changes */
     serialize_uint8(p, timestamp->Pad1);
     serialize_uint32(p, timestamp->Nanosecond);
@@ -331,6 +366,7 @@ static uint64_t payload_size(const variable_t *var, size_t n)
     return sum;
 }
 
+/* For XAPI, do NOT use on shared memory */
 static void serialize_variable_list_header(uint8_t **ptr, const variable_t *var,
                                            size_t n)
 {

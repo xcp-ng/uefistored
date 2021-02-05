@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "uefi/types.h"
+#include "barrier.h"
 #include "common.h"
 #include "variable.h"
 
@@ -39,15 +40,19 @@ void unserialize_variable_list_header(const uint8_t **ptr,
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var);
 void unserialize_timestamp(const uint8_t **p, EFI_TIME *timestamp);
 
-#define unserialize_value(p, field)                                              \
+#define unserialize_value(p, field)                                            \
     do {                                                                       \
+        barrier();                                                             \
         memcpy(&field, *p, sizeof(field));                                     \
+        barrier();                                                             \
         *p += sizeof(field);                                                   \
     } while (0)
 
 #define serialize_value(p, field)                                              \
     do {                                                                       \
+        barrier();                                                             \
         memcpy(*p, &field, sizeof(field));                                     \
+        barrier();                                                             \
         *p += sizeof(field);                                                   \
     } while (0)
 
