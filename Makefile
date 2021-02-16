@@ -3,26 +3,23 @@ include Common.mk
 TARGET := uefistored
 CC ?= gcc
 
-LIBS :=						\
-	-lxenstore				\
-	-lxenctrl				\
-	-lxenforeignmemory		\
-	-lxendevicemodel		\
-	-lxenevtchn				\
-	-lxentoolcore			\
-	-lseccomp				\
-	-lssl				    \
-	-lcrypto				\
-	$$(pkg-config --libs libxml-2.0)
-
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
-CFLAGS = -I$(PWD)/inc
-CFLAGS += -Wall -Werror -Wextra -fshort-wchar -fstack-protector -O2 \
-		  -fstack-clash-protection
-CFLAGS += $$(pkg-config --cflags libxml-2.0)
+LDFLAGS := $$(pkg-config --libs libxml-2.0)		\
+			-lxenstore							\
+			-lxenctrl							\
+			-lxenforeignmemory					\
+			-lxendevicemodel					\
+			-lxenevtchn							\
+			-lxentoolcore						\
+			-lseccomp							\
+			-lssl				    			\
+			-lcrypto							\
 
+CFLAGS = -I$(PWD)/inc $$(pkg-config --cflags libxml-2.0)
+CFLAGS += -fshort-wchar -fstack-protector -O2
 CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
+
 DEPS     = ./.*.d src/.*.d
 
 all:        ## Build uefistored (same as uefistored target)
@@ -30,15 +27,15 @@ all: $(TARGET) $(TARGET)-debug
 
 uefistored: ## Build uefistored
 $(TARGET): src/$(TARGET).c $(OBJS)
-	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
+	$(CC) -o $@ $< $(LDFLAGS) $(CFLAGS) $(OBJS) $(INC)
 
 uefistored-debug: ## Build uefistored with debug symbols
 $(TARGET)-debug: CFLAGS += -g -grecord-gcc-switches
 $(TARGET)-debug: src/$(TARGET).c $(OBJS)
-	$(CC) -o $@ $< $(LIBS) $(CFLAGS) $(OBJS) $(INC)
+	$(CC) -o $@ $< $(LDFLAGS) $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
-	$(CC) -o $@ -c $< $(LIBS) $(CFLAGS) $(INC)
+	$(CC) -o $@ -c $< $(CFLAGS) $(INC)
 
 .PHONY: clean
 clean:
