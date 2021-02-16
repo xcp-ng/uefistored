@@ -303,7 +303,9 @@ void handle_ioreq(struct ioreq *ioreq)
     }
 
     /* Now that we have mapped in the XenVariable command, let's process it. */
+    smp_mb();
     xen_variable_server_handle_request(shmem);
+    smp_mb();
 
     /* Free up mappable space */
     xenforeignmemory_unmap(_fmem, shmem, SHMEM_PAGES);
