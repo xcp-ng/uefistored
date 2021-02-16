@@ -512,7 +512,7 @@ static void printargs(int argc, char **argv)
 /*
  * Store the uefistored pid in XenStore to signal to XAPI that uefistored is alive
  */
-static int write_pid()
+static int write_pid(void)
 {
     char pidstr[21];
     char pidalive[0x80];
@@ -906,7 +906,7 @@ int main(int argc, char **argv)
         assert(status == EFI_SUCCESS);
     }
 
-    if (write_pid(xsh) < 0)
+    if (write_pid() < 0)
         goto err;
 
     handler_loop(buffered_iopage, vcpu_count, shared_iopage);
