@@ -489,10 +489,8 @@ void xen_variable_server_handle_request(void *comm_buf)
         break;
     case COMMAND_NOTIFY_SB_FAILURE:
         if (xapi_sb_notify() < 0) {
-            DDEBUG("xapi_sb_notify() error\n");
             serialize_result(&outptr, EFI_DEVICE_ERROR);
         } else {
-            DDEBUG("xapi_sb_notify() success\n");
             serialize_result(&outptr, EFI_SUCCESS);
         }
         break;
@@ -500,9 +498,4 @@ void xen_variable_server_handle_request(void *comm_buf)
         ERROR("cmd: unknown, 0x%x\n", command);
         break;
     }
-
-#if DEBUG
-    const uint8_t *dbg_ptr = comm_buf;
-    DDEBUG("result: 0x%02lx\n", unserialize_result(&dbg_ptr));
-#endif
 }
