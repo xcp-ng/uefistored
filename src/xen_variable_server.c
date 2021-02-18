@@ -289,6 +289,35 @@ static bool is_ro(UTF16 *name, uint64_t namesz, EFI_GUID *guid)
     return false;
 }
 
+/* throttling scheme from varstored */
+#define MAX_CREDIT        100
+#define CREDIT_PER_SECOND 2
+#define NS_PER_CREDIT (1000000000 / CREDIT_PER_SECOND)
+static time_t last_time; /* Time of the last send. */
+static unsigned int send_credit = MAX_CREDIT; /* Number of allowed fast sends. */
+
+static void throttle(void)
+{
+    time_t cur_time, diff_time;
+
+    cur_time = time(NULL);
+    diff_time = cur_time - last_time;
+    last_time = cur_time;
+    send_credit += diff_time * CREDIT_PER_SECOND;
+    if (send_credit > MAX_CREDIT)
+        send_credit = MAX_CREDIT;
+
+    if (send_credit > 0) {
+        send_credit--;
+    } else {
+        /* If no credit, wait the correct amount of time to get a credit. */
+        struct timespec ts = {0, NS_PER_CREDIT};
+
+        nanosleep(&ts, NULL);
+        last_time = time(NULL);
+    }
+}
+
 static void handle_set_variable(void *comm_buf)
 {
     uint8_t *ptr = comm_buf;
@@ -343,6 +372,7 @@ static void handle_set_variable(void *comm_buf)
     }
 
     if (status == EFI_SUCCESS && request->attrs & EFI_VARIABLE_NON_VOLATILE) {
+        throttle();
         if(xapi_set_efi_vars() < 0) {
             ERROR("Failed to set EFI vars\n");
 	}
