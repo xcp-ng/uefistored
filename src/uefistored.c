@@ -99,7 +99,7 @@ static unsigned long io_port_addr;
 
 #define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)                          \
     {                                                                          \
-        .path = "/usr/share/varstored/" fname,                                 \
+        .path = "/usr/share/uefistored/" fname,                                 \
         .var = {                                                               \
             .name = _name,                                                     \
             .namesz = sizeof_wchar(_name),                                           \
