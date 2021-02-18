@@ -21,6 +21,7 @@
 #include <libxml/xpath.h>
 #include <libxml/parser.h>
 
+#include "backend.h"
 #include "base64.h"
 #include "common.h"
 #include "storage.h"
@@ -47,8 +48,8 @@
 static char *vm_uuid;
 extern char root_path[PATH_MAX];
 static char *socket_path;
-static char *xapi_save_path;
-static char *xapi_resume_path;
+static char *save_path;
+static char *resume_path;
 
 /* The maximum number of digits in the Content-Length HTTP field */
 #define MAX_CONTENT_LENGTH_DIGITS 16
@@ -128,24 +129,17 @@ int xapi_parse_arg(char *arg)
     if ((p = strstr(arg, "socket:")) != NULL) {
         p += sizeof("socket:") - 1;
         socket_path = strdup(p);
-
-        return 0;
-
     } else if ((p = strstr(arg, "uuid:")) != NULL) {
         p += sizeof("uuid:") - 1;
         vm_uuid = strstrip(strdup(p));
-
-        return 0;
     } else if ((p = strstr(arg, "save:")) != NULL) {
         p += sizeof("save:") - 1;
-        xapi_save_path = strdup(p);
-
-        return 0;
+        save_path = strdup(p);
     } else if ((p = strstr(arg, "resume:")) != NULL) {
         p += sizeof("resume:") - 1;
-        xapi_resume_path = strdup(p);
-
-        return 0;
+        resume_path = strdup(p);
+    } else {
+        return -1;
     }
 
     return 0;
@@ -527,15 +521,46 @@ out:
     return ret;
 }
 
+/* throttling scheme from varstored */
+#define MAX_CREDIT        100
+#define CREDIT_PER_SECOND 2
+#define NS_PER_CREDIT (1000000000 / CREDIT_PER_SECOND)
+static time_t last_time; /* Time of the last send. */
+static unsigned int send_credit = MAX_CREDIT; /* Number of allowed fast sends. */
+
+static void throttle(void)
+{
+    time_t cur_time, diff_time;
+
+    cur_time = time(NULL);
+    diff_time = cur_time - last_time;
+    last_time = cur_time;
+    send_credit += diff_time * CREDIT_PER_SECOND;
+    if (send_credit > MAX_CREDIT)
+        send_credit = MAX_CREDIT;
+
+    if (send_credit > 0) {
+        send_credit--;
+    } else {
+        /* If no credit, wait the correct amount of time to get a credit. */
+        struct timespec ts = {0, NS_PER_CREDIT};
+
+        nanosleep(&ts, NULL);
+        last_time = time(NULL);
+    }
+}
+
 /**
- * Save vars to XAPI database.
+ * Set vars in XAPI database.
  *
  * Returns 0 on success, otherwise -1.
  */
-int xapi_set_efi_vars(void)
+int xapi_set(void)
 {
     char buffer[MSG_SIZE];
     int ret;
+
+    throttle();
 
     ret = build_set_efi_vars_message(buffer, MSG_SIZE);
 
@@ -1092,7 +1117,7 @@ int xapi_init(bool resume)
 
     if (resume) {
         ret = xapi_variables_read_file(variables, MAX_VAR_COUNT,
-                                       xapi_resume_path);
+                                       resume_path);
     } else {
         ret = xapi_variables_request(variables, MAX_VAR_COUNT);
     }
@@ -1136,16 +1161,16 @@ out:
  *
  * Return 0 on success, otherwise -1.
  */
-int xapi_write_save_file(void)
+int xapi_save(void)
 {
     FILE *file;
     uint8_t *bytes;
     size_t size = 0, ret = 0;
 
-    if (!xapi_save_path)
+    if (!save_path)
         return -1;
 
-    file = fopen(xapi_save_path, "w");
+    file = fopen(save_path, "w");
 
     if (!file)
         return -1;
@@ -1169,15 +1194,15 @@ void xapi_cleanup(void)
 {
     if (socket_path)
         free(socket_path);
-    if (xapi_save_path)
-        free(xapi_save_path);
-    if (xapi_resume_path)
-        free(xapi_resume_path);
+    if (save_path)
+        free(save_path);
+    if (resume_path)
+        free(resume_path);
     if (vm_uuid)
         free(vm_uuid);
 }
 
-int xapi_sb_notify(void)
+int xapi_notify(void)
 {
     char session_id[SESSION_ID_SIZE];
     char response[MAX_RESPONSE_SIZE];
@@ -1200,3 +1225,12 @@ int xapi_sb_notify(void)
 
     return ret;
 }
+
+struct backend xapidb = {
+    .init = xapi_init,
+    .notify = xapi_notify,
+    .cleanup = xapi_cleanup,
+    .parse_arg = xapi_parse_arg,
+    .save = xapi_save,
+    .set = xapi_set,
+};

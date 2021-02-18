@@ -33,16 +33,16 @@
 #include "uefi/image_authentication.h"
 #include "uefi/types.h"
 #include "uefi/guids.h"
-#include "xapi.h"
+#include "backend.h"
 #include "xen_variable_server.h"
 #include "depriv.h"
 #include "barrier.h"
 
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
+struct backend *backend = NULL;
+struct backend xapidb;
 static bool resume;
-
-extern char *xapi_resume_path;
 
 static xc_evtchn_port_or_error_t bufioreq_local_port;
 static xc_evtchn_port_or_error_t *ioreq_local_ports;
@@ -399,12 +399,9 @@ static void signal_handler(int sig)
 {
     INFO("uefistored received signal: %s\n", strsignal(sig));
 
-    if (xapi_write_save_file() < 0)
-        ERROR("Writing save file failed\n");
 
-    if (xapi_set_efi_vars() < 0)
-        ERROR("Setting EFI vars in XAPI DB failed\n");
-
+    backend_set();
+    backend_save();
     storage_destroy();
 
     if (fmem && fmem_resource)
@@ -435,7 +432,7 @@ static void signal_handler(int sig)
     if (pidfile)
         free(pidfile);
 
-    xapi_cleanup();
+    backend_cleanup();
 
     signal(sig, SIG_DFL);
     raise(sig);
@@ -682,14 +679,17 @@ int main(int argc, char **argv)
 
         case 'b':
             /* We currently only support the xapidb backend */
-            if (strcmp(optarg, "xapidb") != 0) {
+            if (!strcmp(optarg, "xapidb")) {
+                backend = &xapidb;
+            } else {
                 fprintf(stderr, "Invalid backend '%s'\n", optarg);
                 fprintf(stderr, USAGE);
             }
             break;
 
         case 'a': {
-            xapi_parse_arg(optarg);
+            if (backend_parse_arg(optarg) < 0)
+                exit(1);
             break;
         }
 
@@ -894,10 +894,10 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    ret = xapi_init(resume);
 
-    if (ret < 0)
+    if (backend_init(resume) < 0) {
         goto err;
+    }
 
     status = auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
 

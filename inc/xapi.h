@@ -2,6 +2,7 @@
 #define __H_XAPI_
 
 #include "common.h"
+#include "variable.h"
 #include <stdint.h>
 
 int xapi_init(bool);
