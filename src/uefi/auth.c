@@ -885,14 +885,14 @@ static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                          (sizeof(EFI_SIGNATURE_DATA) - 1));
 
     if (!trusted_cert) {
-        DDEBUG("No trusted cert found\n");
+        DBG("No trusted cert found\n");
         return false;
     }
 
     pkcs7 = pkcs7_from_auth(efi_auth);
 
     if (!pkcs7) {
-        DDEBUG("Failed to parse pkcs7 from auth2\n");
+        DBG("Failed to parse pkcs7 from auth2\n");
         return false;
     }
 
@@ -909,7 +909,7 @@ static EFI_STATUS sha256_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
     pkcs7 = pkcs7_from_auth(efi_auth);
     if (!pkcs7) {
-        DDEBUG("Failed to parse pkcs7 from auth2\n");
+        DBG("Failed to parse pkcs7 from auth2\n");
         return EFI_SECURITY_VIOLATION;
     }
 
@@ -964,7 +964,7 @@ static bool verify_priv(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
     pkcs7 = pkcs7_from_auth(efi_auth);
     if (!pkcs7) {
-        DDEBUG("Failed to parse pkcs7 from auth2\n");
+        DBG("Failed to parse pkcs7 from auth2\n");
         return false;
     }
 
@@ -1040,14 +1040,14 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     pkcs7 = pkcs7_from_auth(efi_auth);
 
     if (!pkcs7) {
-        DDEBUG("Failed to parse pkcs7 from auth2\n");
+        DBG("Failed to parse pkcs7 from auth2\n");
         return false;
     }
 
     top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
 
     if (!top_cert_der) {
-        DDEBUG("No top cert found\n");
+        DBG("No top cert found\n");
         return false;
     }
 
@@ -1056,7 +1056,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                          (void *)&old_esl, &old_esl_size);
 
     if (status != EFI_SUCCESS) {
-        DDEBUG("No PK found\n");
+        DBG("No PK found\n");
         return false;
     }
 
@@ -1065,7 +1065,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
      * the top and only cert.
      */
     if (!cert_equals_esl(top_cert_der, top_cert_der_size, old_esl)) {
-        DDEBUG("PKCS7 SignedData cert not equal old PK!\n");
+        DBG("PKCS7 SignedData cert not equal old PK!\n");
         return false;
     }
 
@@ -1101,14 +1101,14 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
             &gEfiGlobalVariableGuid, &kek, &kek_size);
 
     if (status != EFI_SUCCESS) {
-        DDEBUG("No KEK found!\n");
+        DBG("No KEK found!\n");
         return false;
     }
 
     pkcs7 = pkcs7_from_auth(efi_auth);
 
     if (!pkcs7) {
-        DDEBUG("Failed to parse pkcs7 from auth2\n");
+        DBG("Failed to parse pkcs7 from auth2\n");
         return false;
     }
 
@@ -1132,7 +1132,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                         X509_from_sig_data(cert, cert_list->SignatureSize);
 
                 if (!trusted_cert) {
-                    DDEBUG("no trusted cert found\n");
+                    DBG("no trusted cert found\n");
                     continue;
                 }
 
@@ -1143,7 +1143,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                              new_data_size);
 
                 if (verify_status) {
-                    DDEBUG("pkcs7_verify() failed\n");
+                    DBG("pkcs7_verify() failed\n");
                     goto err;
                 }
 
@@ -1315,7 +1315,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
         verify_status = verify_priv(efi_auth, name, namesz, guid,
                                     new_data, new_data_size);
     } else {
-        DDEBUG("Invalid auth type: %u\n", auth_var_type);
+        DBG("Invalid auth type: %u\n", auth_var_type);
         verify_status = false;
     }
 
@@ -1382,7 +1382,7 @@ verify_time_based_payload_and_update(UTF16 *name, size_t namesz, EFI_GUID *guid,
                                        &payload_ptr, &payload_size);
 
     if (status != EFI_SUCCESS) {
-        DDEBUG("error=%s (0x%02lx)\n", efi_status_str(status), status);
+        DBG("error=%s (0x%02lx)\n", efi_status_str(status), status);
         return status;
     }
 
@@ -1452,7 +1452,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, size_t namesz, EFI_GUID *guid,
          * PK, KEK and db/dbx/dbt should set EFI_VARIABLE_NON_VOLATILE
          * attribute and should be a time-based authenticated variable.
          */
-        DDEBUG("Wrong attrs\n");
+        DBG("Wrong attrs\n");
         return EFI_INVALID_PARAMETER;
     }
 
@@ -1478,7 +1478,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, size_t namesz, EFI_GUID *guid,
                                                  payload_size);
 
             if (status) {
-                DDEBUG("check_signature_list_format() = 0x%02lx\n", status);
+                DBG("check_signature_list_format() = 0x%02lx\n", status);
                 return status;
             }
 
@@ -1487,7 +1487,7 @@ EFI_STATUS process_var_with_pk(UTF16 *name, size_t namesz, EFI_GUID *guid,
                     &((EFI_VARIABLE_AUTHENTICATION_2 *)data)->TimeStamp);
 
             if (status) {
-                DDEBUG("auth_internal_update_variable_with_timestamp() = 0x%02lx\n", status);
+                DBG("auth_internal_update_variable_with_timestamp() = 0x%02lx\n", status);
                 return status;
             }
         }

@@ -297,7 +297,7 @@ uint64_t variable_size(const variable_t *var)
     /* UEFI TimeStamp Value */
     sum += sizeof(var->timestamp);
 
-    /* unknown field serialized in legacy varstored */
+    /* Cert */
     sum += sizeof(var->cert);
 
     return sum;

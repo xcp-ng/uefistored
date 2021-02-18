@@ -122,7 +122,7 @@ static void load_auth_files(struct auth_data *auths, size_t n)
                                                var->datasz, var->attrs);
 
             if (status != EFI_SUCCESS) {
-                DDEBUG("Failed to set SB variable from %s (attrs=0x%02x), status=%s (0x%02lx)\n",
+                DBG("Failed to set SB variable from %s (attrs=0x%02x), status=%s (0x%02lx)\n",
                        auths[i].path, var->attrs, efi_status_str(status), status);
             } else {
                 INFO("Successfuly set SB variable from %s (attrs=0x%02x)\n",

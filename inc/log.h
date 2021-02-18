@@ -22,7 +22,7 @@
     } while (0)
 
 #ifdef DEBUG
-#define DDEBUG(...)                                                            \
+#define DBG(...)                                                            \
     do {                                                                       \
         fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);       \
         fprintf(stdout, __VA_ARGS__);                                          \
@@ -59,7 +59,7 @@ void _dprint_variable_list(const variable_t *vars, size_t n);
 void _dprint_name(const UTF16 *name, size_t namesz);
 
 #else
-#define DDEBUG(...) do { } while(0)
+#define DBG(...) do { } while(0)
 #define DPRINTF(...) do { } while(0)
 #define dprint_data(...) do { } while(0)
 #define dprint_variable_list(...) do { } while(0)

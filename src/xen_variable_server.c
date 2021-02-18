@@ -80,7 +80,7 @@ EFI_STATUS evaluate_attrs(uint32_t attrs)
     else if (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS)
         return EFI_SECURITY_VIOLATION;
     else if (attrs & EFI_VARIABLE_APPEND_WRITE)
-        DDEBUG("attrs & EFI_VARIABLE_APPEND_WRITE");
+        DBG("attrs & EFI_VARIABLE_APPEND_WRITE");
 
     return EFI_SUCCESS;
 }

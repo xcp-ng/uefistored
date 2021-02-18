@@ -85,7 +85,7 @@ EFI_STATUS storage_get(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
     }
 
     if (rt_deny_access(var->attrs)) {
-        DDEBUG("Found, but inaccessible at runtime\n");
+        DBG("Found, but inaccessible at runtime\n");
         return EFI_NOT_FOUND;
     }
 
@@ -357,7 +357,7 @@ void storage_print_all(void)
     size_t i;
     variable_t *var;
 
-    DDEBUG("All UEFI Variables:\n");
+    DBG("All UEFI Variables:\n");
     for_each_variable(variables, var, i)
     {
         DPRINTF("%lu: ", i);

@@ -540,7 +540,7 @@ int xapi_set_efi_vars(void)
     ret = build_set_efi_vars_message(buffer, MSG_SIZE);
 
     if (ret < 0) {
-        DDEBUG("Failed to build VM.set_NVRAM_EFI_variables message, ret=%d\n", ret);
+        DBG("Failed to build VM.set_NVRAM_EFI_variables message, ret=%d\n", ret);
         return ret;
     }
 
@@ -943,7 +943,7 @@ int base64_from_response_body(char *buffer, size_t n, char *body)
 
     string = xmlNodeGetContent((xmlNodePtr)obj->nodesetval->nodeTab[0]);
     if (memcmp(string, "Success", 8) != 0) {
-        DDEBUG("xapi response, no success!\n");
+        DBG("xapi response, no success!\n");
         free(doc);
         xmlXPathFreeContext(context);
         xmlXPathFreeObject(obj);
@@ -961,7 +961,7 @@ int base64_from_response_body(char *buffer, size_t n, char *body)
     if (!obj || !obj->nodesetval) {
         free(doc);
         free(context);
-        DDEBUG("EFI-vars not found in response\n");
+        DBG("EFI-vars not found in response\n");
         return -1;
     }
 
