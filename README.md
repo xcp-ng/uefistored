@@ -5,21 +5,19 @@ This project aims to support UEFI Secure Boot in guest VMs on XCP-ng.
 ## Overview
 
 uefistored is a service that runs in dom0 userspace for servicing port IO RPC
-requests from the OVMF XenVariable module, thus providing a protected UEFI
+requests from the OVMF XenVariable module, therefore providing a protected UEFI
 Variables Service implementation.
-
-uefistored (the executable is simply `uefistored`) is started by the XAPI
-stack upon running a VM.  One running uefistored process exists per HVM
-domain start via XAPI.
-
-uefistored uses Xen's libxen to register itself as a device emulator for the
-HVM domU that XAPI has started.  XenVariable, found in OVMF, knows how to
-communicate with uefistored using the device emulation protocol.  See [OVMF
-and uefistored] for more details.
 
 ## Building
 
-Use `make help` to see make targets.
+To build uefistored:
+
+```
+make all
+
+```
+
+Use `make help` to see make targets:
 
 ```
 $ make help
@@ -31,24 +29,33 @@ uefistored:   Build uefistored
 test:        Run uefistored unit tests with address sanitizers
 test-nosan:  Run uefistored unit tests without address sanitizers
 install: uefistored    Install uefistored
-deploy:      Deploy uefistored to a XCP-ng host
+deploy:      Deploy uefistored to a host
 
 
 ```
 
-## Executable
-
-XAPI looks for an executable called varstored, so uefistored must be linked to
-or renamed to varstored.  This is a requirement of XAPI.
-
-## Deployment in Test
+## Deployment during Test
 
 If you just want to deploy to a known host:
 
 ```
 $ make all
-$ HOST=192.168.0.17 make deploy
+$ HOST=$HOSTNAME_OR_IP make deploy
 ```
+
+## Backends
+
+uefistored supports the implementation of alternative backends for the
+persistent storage of variables.
+
+Currently, the only implemented backend is for XAPI.
+
+### The XAPI backend
+
+uefistored uses Xen's libxen to register itself as a device emulator for the
+HVM domU that XAPI has started.  XenVariable, found in OVMF, knows how to
+communicate with uefistored using the device emulation protocol.  See [OVMF
+and uefistored] for more details.
 
 ## OVMF and uefistored
 
@@ -70,30 +77,26 @@ GetVariable request has been served and the response is ready for processing.
     the location of this page to uefistored using port IO caught by
     an IOREQ server initialized by uefistored.
 
-## UEFI Notes
+# Contributing
 
-### Authenticated Variables
-
-When a variable is to be authenticated using `EFI_VARIABLE_AUTHENTICATION_2` it
-must be packaged into an `EFI_VARIABLE_AUTHENTICATION_2` decriptor (define by
-the `C` struct of the same name).  It's timestamp must be set and its CertType
-must be set to `EFI_CERT_TYPE_PKCS7_GUID`.  The variable name, guid,
-attributes, timestamp, and new value must be hashed with the SHA256 algorithm
-and then the hash must be signed with an RSA 2048-bit key.  A DER-encoded
-PKCS#7 v1.5 SignedData must be constructed according to UEFI 2.3.1 Errata C
-section 7.2.1[1] which contains the signed hash and the crypto algorithms used.
-It _will not_ contain the actual variable data.  This PKCS#7 v1.5 SignedData
-must be assigned to the `AuthInfo.CertData` member of the
-`EFI_VARIABLE_AUTHENTICATION_2` descriptor.  Concatenate this discriptor with
-the new variable data and pass it as the `Data` parameter to `SetVariable()`.
-
-
-[1] https://uefi.org/sites/default/files/resources/UEFI_2_3_1_C.pdf
-
+Contributions are welcome and may be submittedd as PRs to [](https://github.com/xcp-ng/uefistored).
 
 # Reporting bugs
 
 Bugs may be reported on [](https://github.com/xcp-ng/uefistored/issues).
-Please include the output from `cat /var/log/daemon.log | grep uefistored`
-(if on XCP-ng) or from  uefistored stdout/stderr.  Screens from the guest
-bootloader are also helpful if relevant.
+
+Some helpful information may include:
+
+* The output from `cat /var/log/daemon.log | grep uefistored` (if
+  on XCP-ng) or from  uefistored stdout/stderr.
+* Screenshots or text from the guest.
+
+# Maintainers 
+
+* Bob Eshleman bobby.eshleman@gmail.com
+
+# Acknowledgements
+
+The overall design of this solution and some of the code comes from the
+[varstored](https://github.com/xapi-project/varstored).  Some of the code is
+also derived from [edk2](https://github.com/tianocore/edk2).
