@@ -22,10 +22,10 @@ CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
 
 DEPS     = ./.*.d src/.*.d
 
-all:        ## Build uefistored (same as uefistored target)
+all:              ## Build uefistored (same as uefistored target)
 all: $(TARGET) $(TARGET)-debug
 
-uefistored: ## Build uefistored
+uefistored:       ## Build uefistored
 $(TARGET): src/$(TARGET).c $(OBJS)
 	$(CC) -o $@ $< $(LDFLAGS) $(CFLAGS) $(OBJS) $(INC)
 
@@ -52,30 +52,30 @@ tools:
 	$(MAKE) -C tools
 
 .PHONY: test
-test:       ## Run uefistored unit tests with address sanitizers
+test:             ## Run uefistored unit tests with address sanitizers
 	$(MAKE) -C tests/
 	cd tests && ./$@
 
 .PHONY: test-nosan
-test-nosan: ## Run uefistored unit tests without address sanitizers
+test-nosan:       ## Run uefistored unit tests without address sanitizers
 	$(MAKE) test-nosan -C tests/
 	cd tests && ./$@
 
 .PHONY: install
 install: uefistored
 
-install:    ## Install uefistored
+install:          ## Install uefistored
 	mkdir -p $(DESTDIR)/usr/sbin/
 	cp $< $(DESTDIR)/usr/sbin/$<
 
 .PHONY: deploy
-deploy:     ## Deploy uefistored to a XCP-ng host
+deploy:           ## Deploy uefistored to a host
 	scripts/deploy.sh
 
 .PHONY: help
-help:
-	@printf "\nuefistored - UEFI Secure Boot support for Guest VMs\n\n"
-	@fgrep -h "##" Makefile Env.mk | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
+help:             ## Display this help
+	@printf "\nuefistored - UEFI Secure Boot Support for Xen Guest VMs\n\n"
+	@grep -Fh "##" Makefile Docker.mk | grep -Fv grep | sed -e 's/\\$$//' | sed -e 's/##//'
 	@printf "\n"
 
 
