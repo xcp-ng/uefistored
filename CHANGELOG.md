@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.4.0] - 2020-03-03
+### Security
+- Use compiler barriers to prevent unsafe optimizations on shared memory data
+- Use SMP memory barriers to ensure cross-CPU synchronicity of shared memory
+  access
+- Throttle requests to XAPI to prevent DoS of XAPI by guest
+- Fix memory leaks
+
+### Added
+- scripts/secureboot-certs to automate Microsoft cert installation for users
+- Better docs in README.md
+- Load arbitrary certs (no trust chain required) from dom0 via auth files
+
+### Changed
+- Change .auth path to /usr/share/uefistored/ instead of /usr/share/varstored/
+- Abstract backend interface to support various (or no) backend
+- Remove hardcoded XAPI dependency (XAPI not used if --backend does not equal
+  xapidb)
+- The unit tests are no longer bitrotted and now use ASAN
+- Major code cleanup
+
 ## [0.3.1] - 2020-01-11
 ### Changed
 - Increased max variable data size to 32KB (required by Microsoft)
