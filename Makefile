@@ -16,7 +16,7 @@ LDFLAGS := $$(pkg-config --libs libxml-2.0)		\
 			-lssl				    			\
 			-lcrypto							\
 
-CFLAGS = -I$(PWD)/inc $$(pkg-config --cflags libxml-2.0)
+CFLAGS = -I$(shell pwd)/inc $$(pkg-config --cflags libxml-2.0)
 CFLAGS += -fshort-wchar -fstack-protector -O2
 CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
 
