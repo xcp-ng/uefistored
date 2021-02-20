@@ -90,7 +90,7 @@ XenGetVariableLocked(char16_t *VariableName, EFI_GUID *VendorGuid,
     ptr = comm_buf;
     serialize_uint32(&ptr, 1); /* version */
     serialize_command(&ptr, COMMAND_GET_VARIABLE);
-    serialize_name(&ptr, VariableName);
+    serialize_name(&ptr, VariableName, strsize16(VariableName));
     serialize_guid(&ptr, VendorGuid);
     serialize_uintn(&ptr, *DataSize);
     serialize_boolean(&ptr, EfiAtRuntime());
@@ -135,7 +135,7 @@ XenGetNextVariableNameLocked(uint64_t *VariableNameSize, char16_t *VariableName,
     serialize_uint32(&ptr, 1); /* version */
     serialize_command(&ptr, COMMAND_GET_NEXT_VARIABLE);
     serialize_uintn(&ptr, *VariableNameSize);
-    serialize_name(&ptr, VariableName);
+    serialize_name(&ptr, VariableName, strsize16(VariableName));
     serialize_guid(&ptr, VendorGuid);
     serialize_boolean(&ptr, EfiAtRuntime());
 
@@ -187,7 +187,7 @@ XenSetVariableLocked(char16_t *VariableName, EFI_GUID *VendorGuid,
     ptr = comm_buf;
     serialize_uint32(&ptr, 1); /* version */
     serialize_command(&ptr, COMMAND_SET_VARIABLE);
-    serialize_name(&ptr, VariableName);
+    serialize_name(&ptr, VariableName, strsize16(VariableName));
     serialize_guid(&ptr, VendorGuid);
     serialize_data(&ptr, Data, DataSize);
     serialize_uint32(&ptr, Attributes);

@@ -7,6 +7,22 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)                          \
+    {                                                                          \
+        .path = fname,                                                         \
+        .var = {                                                               \
+            .name = _name,                                                     \
+            .namesz = sizeof_wchar(_name),                                           \
+            .guid = _guid,                                                     \
+            .attrs = _attrs,                                                   \
+        },                                                                     \
+    }
+
+#define AT_ATTRS                                                               \
+    EFI_VARIABLE_NON_VOLATILE |                                                \
+            EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS |               \
+            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS
+
 #define _DEFAULT_ATTRS                                               \
     (EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS |   \
      EFI_VARIABLE_RUNTIME_ACCESS)
@@ -21,10 +37,10 @@ EFI_STATUS testutil_query_variable_info(uint32_t Attributes,
                                    uint64_t *RemainingVariableStorageSize,
                                    uint64_t *MaximumVariableSize);
 
-EFI_STATUS testutil_set_variable(wchar_t *name, EFI_GUID *guid,
+EFI_STATUS testutil_set_variable(wchar_t *name, size_t namesz, EFI_GUID *guid,
                                  uint32_t attr, size_t datasize, void *data);
 
-EFI_STATUS testutil_get_variable(UTF16 *variable, EFI_GUID *guid,
+EFI_STATUS testutil_get_variable(wchar_t *variable, size_t namesz, EFI_GUID *guid,
                                  uint32_t *attrs, size_t *size,
                                  void *data);
 

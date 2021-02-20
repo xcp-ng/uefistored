@@ -1,6 +1,8 @@
 #ifndef __H_AUTHLIB_UEFI_
 #define __H_AUTHLIB_UEFI_
 
+#include <limits.h>
+#include "variable.h"
 #include "uefi/types.h"
 
 struct auth_data {

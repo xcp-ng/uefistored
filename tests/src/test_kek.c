@@ -16,6 +16,10 @@
 
 #include "munit.h"
 
+static struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("data/certs/PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+};
+
 #define BUF_SIZE 4096
 
 #define KEK_ATTRS (EFI_VARIABLE_RUNTIME_ACCESS | \
@@ -23,10 +27,13 @@
                    EFI_VARIABLE_NON_VOLATILE | \
                    EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
 
+extern EFI_GUID gEfiGlobalVariableGuid;
+
 static inline EFI_STATUS util_set_kek(void *data, size_t n)
 {
-    return auth_lib_process_variable((UTF16*)L"KEK", &gEfiGlobalVariableGuid,
-                                       data, n, KEK_ATTRS);
+    return auth_lib_process_variable(L"KEK", sizeof(L"KEK"),
+                                     &gEfiGlobalVariableGuid,
+                                     data, n, KEK_ATTRS);
 }
 
 static MunitResult test_valid_first_kek(const MunitParameter params[], void *testdata)
@@ -47,15 +54,14 @@ static MunitResult test_valid_first_kek(const MunitParameter params[], void *tes
 
 static void *kek_setup(const MunitParameter params[], void* user_data)
 {
-    storage_init();
-    auth_lib_load("data/certs/PK.auth");
-    auth_lib_initialize();
+    auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
+    auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
     return NULL;
 }
 
 static void kek_tear_down(void* fixture)
 {
-    storage_deinit();
+    storage_destroy();
 }
 
 MunitTest kek_tests[] = {

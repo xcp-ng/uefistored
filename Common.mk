@@ -16,3 +16,13 @@ SRCS :=                                                         \
         src/xapi.c                                              \
         src/xen_variable_server.c
 
+LDFLAGS := $$(pkg-config --libs libxml-2.0)		\
+			-lxenstore							\
+			-lxenctrl							\
+			-lxenforeignmemory					\
+			-lxendevicemodel					\
+			-lxenevtchn							\
+			-lxentoolcore						\
+			-lseccomp							\
+			-lssl				    			\
+			-lcrypto							\

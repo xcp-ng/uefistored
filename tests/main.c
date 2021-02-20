@@ -5,6 +5,8 @@
 #include "munit/munit.h"
 #include "test_suites.h"
 
+struct backend *backend = NULL;
+
 #define ARRAY_SIZE(arr) (sizeof(arr)/(sizeof(arr[0])))
 
 MunitSuite other_suites[] = {

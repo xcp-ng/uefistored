@@ -19,13 +19,11 @@ static void *comm_buf = comm_buf_phys;
 
 static void pre_test(void)
 {
-    storage_init();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }
 
 static void post_test(void)
 {
-    storage_deinit();
     storage_destroy();
     memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
 }

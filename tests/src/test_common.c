@@ -20,7 +20,7 @@ static inline void exec_command(void *p)
     xen_variable_server_handle_request(p);
 }
 
-EFI_STATUS testutil_set_variable(wchar_t *name, EFI_GUID *guid,
+EFI_STATUS testutil_set_variable(wchar_t *name, size_t namesz, EFI_GUID *guid,
                                  uint32_t attr, size_t data_size, void *data)
 {
     EFI_STATUS status;
@@ -30,7 +30,7 @@ EFI_STATUS testutil_set_variable(wchar_t *name, EFI_GUID *guid,
     ptr = comm_buf;
     serialize_uint32(&ptr, 1); /* version */
     serialize_command(&ptr, COMMAND_SET_VARIABLE);
-    serialize_name(&ptr, name);
+    serialize_name(&ptr, name, namesz);
     serialize_guid(&ptr, guid);
     serialize_data(&ptr, data, data_size);
     serialize_uint32(&ptr, attr);
@@ -81,7 +81,7 @@ EFI_STATUS testutil_query_variable_info(uint32_t attr,
     return status;
 }
 
-EFI_STATUS testutil_get_variable(UTF16 *variable, EFI_GUID *guid,
+EFI_STATUS testutil_get_variable(wchar_t *variable, size_t namesz, EFI_GUID *guid,
                                  uint32_t *attrs, size_t *size,
                                  void *data)
 {
@@ -96,7 +96,7 @@ EFI_STATUS testutil_get_variable(UTF16 *variable, EFI_GUID *guid,
     ptr = comm_buf;
     serialize_uint32(&ptr, 1); /* version */
     serialize_command(&ptr, COMMAND_GET_VARIABLE);
-    serialize_name(&ptr, variable);
+    serialize_name(&ptr, variable, namesz);
     serialize_guid(&ptr, guid);
     serialize_uintn(&ptr, *size);
     serialize_boolean(&ptr, EFI_AT_RUNTIME);

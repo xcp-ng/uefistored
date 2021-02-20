@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "config.h"
+#include "common.h"
 #include "uefi/types.h"
 
 #define SHA256_DIGEST_SIZE 32
@@ -34,8 +35,6 @@ typedef struct variable {
     /* SHA-256 digest of signer's CN and top-level tbs cert */
     uint8_t cert[SHA256_DIGEST_SIZE];
 } variable_t;
-
-#define ARRAY_SIZE(array) (sizeof((array)) / sizeof((array)[0]))
 
 #define for_each_variable(vars, var, __i)                              \
         for (__i=0; __i<ARRAY_SIZE(vars) && ((var = &vars[__i]) || true); __i++)

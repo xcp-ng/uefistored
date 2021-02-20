@@ -1,4 +1,6 @@
 /** @file
+ *
+ * Taken UEFI tests with license:
 
   Copyright 2006 - 2013 Unified EFI, Inc.<BR>
   Copyright (c) 2010 - 2013, Intel Corporation. All rights reserved.<BR>
@@ -12,21 +14,13 @@
   WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
  
 **/
-/*++
-
-Module Name:
-  AuthVariableServicesBBTestFunction.c
-
-Abstract:
-  Auth Variable Black-Box Function Test.
-
---*/
 
 #include "munit/munit.h"
 
 #include "uefi/authlib.h"
 #include "uefi/types.h"
 #include "storage.h"
+#include "uefi/guids.h"
 #include "test_common.h"
 
 static uint8_t mAuthVarDERCreateKey0[] = {
@@ -594,6 +588,7 @@ void test_auth_DER_func(void)
   //Call SetVariable to create the auth variable 
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey0), 
@@ -605,6 +600,7 @@ void test_auth_DER_func(void)
   DataSize = 50;
   Status = testutil_get_variable(
                  L"AuthVarDER01",
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid,
                  &Attr,
                  &DataSize,
@@ -622,6 +618,7 @@ void test_auth_DER_func(void)
   //The 2nd Call SetVariable with the same Data, the return status should be EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey0), 
@@ -633,6 +630,7 @@ void test_auth_DER_func(void)
   //Modify the auth info in Data, then call SetVariable, the expect status should be EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERModifyKey0), 
@@ -644,6 +642,7 @@ void test_auth_DER_func(void)
   //SetVariable to new value by using the same key but a new timestamp, it should succeed. 
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERNewValueKey0), 
@@ -655,6 +654,7 @@ void test_auth_DER_func(void)
   DataSize = 50;
   Status = testutil_get_variable(
                  L"AuthVarDER01",
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid,
                  &Attr,
                  &DataSize,
@@ -668,6 +668,7 @@ void test_auth_DER_func(void)
   //SetVariable with the old data and one old timestamp, the expect status should be EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey0), 
@@ -679,6 +680,7 @@ void test_auth_DER_func(void)
   //SetVariable with one existing variable but Data area is changed due to different key and valid, the call should return EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERKey1), 
@@ -690,6 +692,7 @@ void test_auth_DER_func(void)
   //SetVariable to execute the normal append operation
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr | EFI_VARIABLE_APPEND_WRITE, 
                  sizeof(mAuthVarDERAppendKey0), 
@@ -702,6 +705,7 @@ void test_auth_DER_func(void)
     DataSize = 50;
     Status = testutil_get_variable(
                    L"AuthVarDER01",
+                 sizeof(L"AuthVarDER01"), 
                    &mVarVendorGuid,
                    &Attr,
                    &DataSize,
@@ -719,6 +723,7 @@ void test_auth_DER_func(void)
   //SetVariable to execute the normal delete operation, and call GetVariable to ensure the auth variable is not found.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERDelKey0), 
@@ -731,6 +736,7 @@ void test_auth_DER_func(void)
   
   Status = testutil_get_variable(
                  L"AuthVarDER01",
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid,
                  &Attr,
                  &DataSize,
@@ -742,6 +748,7 @@ void test_auth_DER_func(void)
   //SetVariable with one different key after the variable is deleted
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey1), 
@@ -753,6 +760,7 @@ void test_auth_DER_func(void)
   //SetVariable to one existing variable with EFI_VARIABLE_APPEND_WRITE attribute and new data
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr | EFI_VARIABLE_APPEND_WRITE, 
                  sizeof(mAuthVarDERAppendKey1), 
@@ -765,6 +773,7 @@ void test_auth_DER_func(void)
     //SetVariable with one old timestamp, the return status should be EFI_SECURITY_VIOLATION
     Status = testutil_set_variable(
                    L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                    &mVarVendorGuid, 
                    Attr, 
                    sizeof(mAuthVarDERUpdateKey1), 
@@ -777,6 +786,7 @@ void test_auth_DER_func(void)
   //SetVariable to delete
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
+                 sizeof(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERDelKey1), 
@@ -786,10 +796,14 @@ void test_auth_DER_func(void)
   munit_assert(Status == EFI_SUCCESS);
 }
 
+struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("data/certs/PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+};
+
 void test_auth_func(void)
 {
-    auth_lib_load("data/certs/PK.auth");
-    auth_lib_initialize();
+    auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
+    auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
     test_auth_DER_func();
-    storage_deinit();
+    storage_destroy();
 }

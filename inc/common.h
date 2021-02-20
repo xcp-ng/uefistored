@@ -10,6 +10,8 @@
 
 #include "uefi/types.h"
 
+#define ARRAY_SIZE(array) (sizeof((array)) / sizeof((array)[0]))
+
 #define MAX_SHARED_OVMF_MEM (SHMEM_PAGES * PAGE_SIZE)
 
 #define PTR_DIFF(p1, p2) (((unsigned long)p1) - ((unsigned long)p2))

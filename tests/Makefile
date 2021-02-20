@@ -47,14 +47,16 @@ all: test-nosan test
 	./$<
 
 test: main.c $(OBJS) $(TEST_OBJS) keys/.done $(HDRS)
-	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(SANITIZERS)
+	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
+		$(TEST_OBJS) $(CFLAGS) $(SANITIZERS) \
+		$(LDFLAGS)
 
 
 run-test: test
     $<
 
 test-nosan: main.c $(TEST_OBJS) $(OBJS) keys $(HDRS)
-	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS)
+	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS) $(LDFLAGS)
 
 run-test-nosan: test-nosan
     $<

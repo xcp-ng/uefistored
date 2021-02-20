@@ -18,22 +18,20 @@
 #include "munit.h"
 
 #define BUF_SIZE 4096
-
-#define AT_ATTRS (EFI_VARIABLE_RUNTIME_ACCESS | \
-                   EFI_VARIABLE_BOOTSERVICE_ACCESS | \
-                   EFI_VARIABLE_NON_VOLATILE | \
-                   EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
+extern EFI_GUID gEfiGlobalVariableGuid;
 
 static inline EFI_STATUS util_set_kek(void *data, size_t n)
 {
-    return auth_lib_process_variable((UTF16*)L"KEK", &gEfiGlobalVariableGuid,
-                                       data, n, AT_ATTRS);
+    return auth_lib_process_variable(L"KEK", sizeof(L"KEK"),
+                                     &gEfiGlobalVariableGuid,
+                                     data, n, AT_ATTRS);
 }
 
 static inline EFI_STATUS util_set_db(void *data, size_t n)
 {
-    return auth_lib_process_variable((UTF16*)L"db", &gEfiImageSecurityDatabaseGuid,
-                                       data, n, AT_ATTRS);
+    return auth_lib_process_variable(L"db", sizeof(L"db"),
+                                     &gEfiImageSecurityDatabaseGuid,
+                                     data, n, AT_ATTRS);
 }
 
 static MunitResult test_db_signed_by_pk(const MunitParameter params[], void *testdata)
@@ -68,15 +66,18 @@ static MunitResult test_db_signed_by_kek(const MunitParameter params[], void *te
     return MUNIT_OK;
 }
 
+static struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("data/certs/PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+};
+
 static void *db_setup(const MunitParameter params[], void* user_data)
 {
     EFI_STATUS status;
     uint8_t kek[BUF_SIZE];
     int ret;
 
-    storage_init();
-    auth_lib_load("data/certs/PK.auth");
-    auth_lib_initialize();
+    auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
+    auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
 
     if ((ret = file_to_buf("data/certs/KEK.auth", kek, BUF_SIZE)) < 0) {
         fprintf(stderr, "failed to open data/KEK.auth: %d\n", ret);
@@ -93,7 +94,7 @@ static void *db_setup(const MunitParameter params[], void* user_data)
 
 static void db_tear_down(void* fixture)
 {
-    storage_deinit();
+    storage_destroy();
 }
 
 MunitTest db_tests[] = {

@@ -7,10 +7,11 @@
 #include <stdint.h>
 
 #include "munit/munit.h"
-
 #include "uefi/authlib.h"
+#include "uefi/guids.h"
 #include "uefi/types.h"
 #include "storage.h"
+#include "common.h"
 #include "test_common.h"
 
 static uint8_t invalid_der[] = {
@@ -208,8 +209,9 @@ static void test_auth_variable_DER_conf(void)
            EFI_VARIABLE_BOOTSERVICE_ACCESS |
            EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
 
-    status = testutil_set_variable(L"AuthVarDER", &mVarVendorGuid, attr,
-                         sizeof(invalid_der), (void *)invalid_der);
+    status = testutil_set_variable(L"AuthVarDER", sizeof(L"AuthVarDER"),
+                                   &mVarVendorGuid, attr, sizeof(invalid_der),
+                                   (void *)invalid_der);
 
     munit_assert(status == EFI_SECURITY_VIOLATION);
 
@@ -218,15 +220,16 @@ static void test_auth_variable_DER_conf(void)
         attr = attr_array[index];
         attr |= EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS;
 
-        status = testutil_set_variable(L"AuthVarDER", &mVarVendorGuid, attr,
+        status = testutil_set_variable(L"AuthVarDER", sizeof(L"AuthVarDER"), &mVarVendorGuid, attr,
                              sizeof(valid_der), (void *)valid_der);
 
         printf("%s:fail: index=%lu\n", __func__, index);
         printf("status=%s\n", efi_status_str(status));
         munit_assert(status == EFI_UNSUPPORTED);
 
-        status = testutil_set_variable(L"AuthVarDER", &mVarVendorGuid, attr,
-                             sizeof(invalid_der), (void *)invalid_der);
+        status = testutil_set_variable(L"AuthVarDER", sizeof(L"AuthVarDER"),
+                                       &mVarVendorGuid, attr,
+                                       sizeof(invalid_der), (void*)invalid_der);
 
         munit_assert(status == EFI_UNSUPPORTED);
 
@@ -238,10 +241,14 @@ static void test_auth_variable_DER_conf(void)
     }
 }
 
+static struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("data/certs/PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+};
+
 void test_auth(void)
 {
-    auth_lib_load("data/certs/PK.auth");
-    auth_lib_initialize();
+    auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
+    auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
     test_auth_variable_DER_conf();
-    storage_deinit();
+    storage_destroy();
 }

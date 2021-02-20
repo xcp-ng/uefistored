@@ -43,6 +43,7 @@
 
 #include "log.h"
 #include "depriv.h"
+#include "common.h"
 
 /* This blacklist is based on the one used by QEMU. */
 static const int seccomp_blacklist[] = {

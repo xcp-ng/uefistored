@@ -16,20 +16,10 @@
 #include "munit.h"
 #include "test_suites.h"
 
-#define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)   \
-    {                                                   \
-        .path = "data/certs/" fname,          \
-        .var = {                                        \
-            .name = L"name",                            \
-            .namesz = sizeof(L"name"),                  \
-            .guid = _guid,                              \
-            .attrs = _attrs,                            \
-        },                                              \
-    }
+extern EFI_GUID gEfiGlobalVariableGuid;
 
-
-struct auth_data auth_files[] = {
-    DEFINE_AUTH_FILE("PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+static struct auth_data auth_files[] = {
+    DEFINE_AUTH_FILE("data/certs/PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
 };
 
 #define BUF_SIZE 4096
@@ -42,8 +32,8 @@ static uint8_t DEFAULT_PK[BUF_SIZE];
 
 static inline EFI_STATUS util_set_pk(void *data, size_t n)
 {
-    return auth_lib_process_variable((UTF16*)L"PK",&gEfiGlobalVariableGuid,
-                                       data, n, PK_ATTRS);
+    return auth_lib_process_variable(L"PK", sizeof(L"PK"), &gEfiGlobalVariableGuid,
+                                     data, n, PK_ATTRS);
 }
 
 static MunitResult test_parsing_pkcs7(const MunitParameter params[], void *testdata)
@@ -106,13 +96,7 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
     uint64_t old_esl_size;
     EFI_STATUS status;
 
-    storage_init();
-
-    auth_lib_load("data/certs/PK.auth");
-
-    if (auth_lib_load(auth_files, ARRAY_SIZE(auth_files)) < 0) {
-        return MUNIT_ERROR;
-    }
+    auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
 
     if (auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files)) != EFI_SUCCESS) {
 
@@ -139,22 +123,20 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
 
     PKCS7_free(pkcs7);
     free(top_cert_der);
-    storage_deinit();
 
     return MUNIT_OK;
 }
 
 static void *pk_setup(const MunitParameter params[], void* user_data)
 {
-    storage_init();
-    auth_lib_load("data/certs/PK.auth");
-    auth_lib_initialize();
+    auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
+    auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
     return NULL;
 }
 
 static void pk_tear_down(void* fixture)
 {
-    storage_deinit();
+    storage_destroy();
 }
 
 static MunitResult test_null_pk(const MunitParameter params[], void *testdata)

@@ -5,17 +5,6 @@ CC ?= gcc
 
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
-LDFLAGS := $$(pkg-config --libs libxml-2.0)		\
-			-lxenstore							\
-			-lxenctrl							\
-			-lxenforeignmemory					\
-			-lxendevicemodel					\
-			-lxenevtchn							\
-			-lxentoolcore						\
-			-lseccomp							\
-			-lssl				    			\
-			-lcrypto							\
-
 CFLAGS = -I$(shell pwd)/inc $$(pkg-config --cflags libxml-2.0)
 CFLAGS += -fshort-wchar -fstack-protector -O2
 CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
