@@ -19,8 +19,8 @@
 extern bool efi_at_runtime;
 
 static variable_t variables[MAX_VAR_COUNT];
-static size_t total = 0;
-static uint64_t used = 0;
+static size_t total;
+static uint64_t used;
 
 static inline bool is_delete(uint32_t attrs, size_t datasz)
 {
