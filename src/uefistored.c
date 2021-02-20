@@ -886,8 +886,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    storage_init();
-
     auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
 
     if (!drop_privileges(root_path, depriv, gid, uid)) {

@@ -8,9 +8,7 @@
 #include "common.h"
 #include "uefi/types.h"
 
-void storage_init(void);
 size_t storage_count(void);
-void storage_deinit(void);
 EFI_STATUS storage_get(const UTF16 *name, size_t namesz, const EFI_GUID *guid, uint32_t *attrs, void *data, size_t *data_size);
 EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid, const void *val,
                        size_t len, uint32_t attrs);

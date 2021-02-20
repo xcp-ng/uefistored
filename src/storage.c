@@ -27,19 +27,9 @@ static inline bool is_delete(uint32_t attrs, size_t datasz)
     return datasz == 0 || attrs == 0;
 }
 
-void storage_init(void)
-{
-    storage_destroy();
-}
-
 size_t storage_count(void)
 {
     return total;
-}
-
-void storage_deinit(void)
-{
-    storage_destroy();
 }
 
 void storage_destroy(void)
