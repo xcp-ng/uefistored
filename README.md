@@ -22,15 +22,17 @@ Use `make help` to see make targets:
 ```
 $ make help
 
-uefistored - UEFI Secure Boot support for Guest VMs
+uefistored - UEFI Secure Boot Support for Xen Guest VMs
 
-all:         Build uefistored (same as uefistored target)
-uefistored:   Build uefistored
-test:        Run uefistored unit tests with address sanitizers
-test-nosan:  Run uefistored unit tests without address sanitizers
-install: uefistored    Install uefistored
-deploy:      Deploy uefistored to a host
-
+all:               Build uefistored (same as uefistored target)
+uefistored:        Build uefistored
+uefistored-debug:  Build uefistored with debug symbols
+test:              Run uefistored unit tests with address sanitizers
+test-nosan:        Run uefistored unit tests without address sanitizers
+install:           Install uefistored
+deploy:            Deploy uefistored to a host
+help:              Display this help
+scan-build:        Use scan-build for static analysis
 
 ```
 

@@ -9,7 +9,7 @@ CFLAGS = -I$(shell pwd)/inc $$(pkg-config --cflags libxml-2.0)
 CFLAGS += -fshort-wchar -fstack-protector -O2
 CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
 
-DEPS     = ./.*.d src/.*.d
+DEPS     = ./.*.d src/.*.d src/uefi/.*.d
 
 all:              ## Build uefistored (same as uefistored target)
 all: $(TARGET) $(TARGET)-debug
@@ -70,6 +70,10 @@ help:             ## Display this help
 
 print-%:
 	@:$(info $($*))
+
+.PHONY: scan-build
+scan-build:       ## Use scan-build for static analysis
+	scan-build make all -j$(shell nproc)
 
 -include $(DEPS)
 include Docker.mk
