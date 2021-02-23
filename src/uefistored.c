@@ -40,6 +40,8 @@
 
 #define IOREQ_BUFFER_SLOT_NUM 511 /* 8 bytes each, plus 2 4-byte indexes */
 
+const enum loglevel loglevel = LOGLEVEL_INFO;
+
 struct backend *backend = NULL;
 struct backend xapidb;
 static bool resume;

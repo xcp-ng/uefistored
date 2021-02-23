@@ -6,30 +6,54 @@
 #include "common.h"
 #include "variable.h"
 
+enum loglevel {
+    LOGLEVEL_ERROR,
+    LOGLEVEL_WARNING,
+    LOGLEVEL_INFO,
+    LOGLEVEL_DEBUG,
+};
+
+extern const enum loglevel loglevel;
+
 #define ERROR(...)                                                             \
     do {                                                                       \
-        fprintf(stderr, "uefistored:ERROR: " __VA_ARGS__);                     \
+        if (loglevel >= LOGLEVEL_ERROR) {                                      \
+            fprintf(stderr, "uefistored:ERROR: " __VA_ARGS__);                 \
+            fflush(stderr);                                                    \
+        }                                                                      \
     } while (0)
 
 #define WARNING(...)                                                           \
     do {                                                                       \
-        fprintf(stderr, "uefistored:WARNING: " __VA_ARGS__);                   \
+        if (loglevel >= LOGLEVEL_WARNING) {                                    \
+            fprintf(stderr, "uefistored:WARNING: " __VA_ARGS__);               \
+            fflush(stderr);                                                    \
+        }                                                                      \
     } while (0)
 
 #define INFO(...)                                                              \
     do {                                                                       \
-        fprintf(stdout, "uefistored:INFO: " __VA_ARGS__);                      \
+        if (loglevel >= LOGLEVEL_INFO) {                                       \
+            fprintf(stdout, "uefistored:INFO: " __VA_ARGS__);                  \
+            fflush(stdout);                                                    \
+        }                                                                      \
     } while (0)
 
 #ifdef DEBUG
-#define DBG(...)                                                            \
+#define DBG(...)                                                               \
     do {                                                                       \
-        fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);       \
-        fprintf(stdout, __VA_ARGS__);                                          \
+        if (loglevel >= LOGLEVEL_DEBUG) {                                      \
+            fprintf(stdout, "uefistored:DEBUG:%s:%d: ", __func__, __LINE__);   \
+            fprintf(stdout, __VA_ARGS__);                                      \
+            fflush(stdout);                                                    \
+        }                                                                      \
     } while (0)
 
 #define DPRINTF(...)                                                           \
-        fprintf(stdout, __VA_ARGS__)                                \
+        if (loglevel >= LOGLEVEL_DEBUG) {                                      \
+            fprintf(stdout, __VA_ARGS__)                                       \
+            fflush(stdout);                                                    \
+        }                                                                      \
 
 static inline void _dprint_data(const void *data, size_t datasz)
 {
