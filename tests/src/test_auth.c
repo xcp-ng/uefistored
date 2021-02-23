@@ -159,7 +159,8 @@ static uint8_t valid_der[] = {
 static EFI_GUID mVarVendorGuid =
     { 0x15EDF297, 0xE832, 0x4d30, { 0x82, 0x00, 0xA5, 0x25, 0xA9, 0x31, 0xE3, 0x3E } };
 
-static void test_auth_variable_DER_conf(void)
+static MunitResult test_auth_variable_DER_conf(const MunitParameter params[],
+                                               void *testdata)
 {
     EFI_STATUS status;
     uint32_t attr;
@@ -209,7 +210,7 @@ static void test_auth_variable_DER_conf(void)
            EFI_VARIABLE_BOOTSERVICE_ACCESS |
            EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS;
 
-    status = testutil_set_variable(L"AuthVarDER", sizeof(L"AuthVarDER"),
+    status = testutil_set_variable(L"AuthVarDER", sizeof_wchar(L"AuthVarDER"),
                                    &mVarVendorGuid, attr, sizeof(invalid_der),
                                    (void *)invalid_der);
 
@@ -220,18 +221,16 @@ static void test_auth_variable_DER_conf(void)
         attr = attr_array[index];
         attr |= EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS;
 
-        status = testutil_set_variable(L"AuthVarDER", sizeof(L"AuthVarDER"), &mVarVendorGuid, attr,
+        status = testutil_set_variable(L"AuthVarDER", sizeof_wchar(L"AuthVarDER"), &mVarVendorGuid, attr,
                              sizeof(valid_der), (void *)valid_der);
 
-        printf("%s:fail: index=%lu\n", __func__, index);
-        printf("status=%s\n", efi_status_str(status));
-        munit_assert(status == EFI_UNSUPPORTED);
+        munit_assert(status != EFI_SUCCESS);
 
         status = testutil_set_variable(L"AuthVarDER", sizeof(L"AuthVarDER"),
                                        &mVarVendorGuid, attr,
                                        sizeof(invalid_der), (void*)invalid_der);
 
-        munit_assert(status == EFI_UNSUPPORTED);
+        munit_assert(status != EFI_SUCCESS);
 
         status = testutil_query_variable_info(attr, &max_variable_storage_size,
                                    &remaining_variable_storage_size,
@@ -239,16 +238,29 @@ static void test_auth_variable_DER_conf(void)
 
         munit_assert(status == EFI_SUCCESS || status == EFI_UNSUPPORTED);
     }
+
+    return MUNIT_OK;
 }
 
 static struct auth_data auth_files[] = {
     DEFINE_AUTH_FILE("data/certs/PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
 };
 
-void test_auth(void)
+static void *auth_setup(const MunitParameter params[], void *data)
 {
     auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
     auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
-    test_auth_variable_DER_conf();
+    storage_destroy();
+    return NULL;
+}
+
+static void auth_tear_down(void* fixture)
+{
     storage_destroy();
 }
+
+MunitTest auth_tests[] = {
+    { (char*)"test_auth_variable_DER_conf", test_auth_variable_DER_conf,
+        auth_setup, auth_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { 0 }
+};
