@@ -10,7 +10,6 @@
 struct backend *backend = NULL;
 const enum loglevel loglevel = LOGLEVEL_ERROR;
 
-#define ARRAY_SIZE(arr) (sizeof(arr)/(sizeof(arr[0])))
 
 MunitSuite other_suites[] = {
     {
