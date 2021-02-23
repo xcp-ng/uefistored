@@ -33,8 +33,6 @@ static void *comm_buf = comm_buf_phys;
 
 static UTF16 v1[] = { 'B', 'C', '\0' };
 static UTF16 v2[] = { 'Y', 'Z', '\0' };
-static const UTF16 FOO[] = { 'F', 'O', 'O', '\0' };
-static const UTF16 BAR[] = { 'B', 'A', 'R', '\0' };
 
 static char *D1 = "WORLD!";
 static char *D2 = "bar";
