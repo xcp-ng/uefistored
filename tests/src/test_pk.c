@@ -32,7 +32,7 @@ static uint8_t DEFAULT_PK[BUF_SIZE];
 
 static inline EFI_STATUS util_set_pk(void *data, size_t n)
 {
-    return auth_lib_process_variable(L"PK", sizeof(L"PK"), &gEfiGlobalVariableGuid,
+    return auth_lib_process_variable(L"PK", sizeof_wchar(L"PK"), &gEfiGlobalVariableGuid,
                                      data, n, PK_ATTRS);
 }
 

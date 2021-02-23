@@ -29,9 +29,9 @@ static struct auth_data auth_files[] = {
 
 extern EFI_GUID gEfiGlobalVariableGuid;
 
-static inline EFI_STATUS util_set_kek(void *data, size_t n)
+EFI_STATUS util_set_kek(void *data, size_t n)
 {
-    return auth_lib_process_variable(L"KEK", sizeof(L"KEK"),
+    return auth_lib_process_variable(L"KEK", sizeof_wchar(L"KEK"),
                                      &gEfiGlobalVariableGuid,
                                      data, n, KEK_ATTRS);
 }

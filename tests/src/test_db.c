@@ -20,16 +20,11 @@
 #define BUF_SIZE 4096
 extern EFI_GUID gEfiGlobalVariableGuid;
 
-static inline EFI_STATUS util_set_kek(void *data, size_t n)
-{
-    return auth_lib_process_variable(L"KEK", sizeof(L"KEK"),
-                                     &gEfiGlobalVariableGuid,
-                                     data, n, AT_ATTRS);
-}
+EFI_STATUS util_set_kek(void *data, size_t n);
 
 static inline EFI_STATUS util_set_db(void *data, size_t n)
 {
-    return auth_lib_process_variable(L"db", sizeof(L"db"),
+    return auth_lib_process_variable(L"db", sizeof_wchar(L"db"),
                                      &gEfiImageSecurityDatabaseGuid,
                                      data, n, AT_ATTRS);
 }
