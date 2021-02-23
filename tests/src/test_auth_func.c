@@ -242,6 +242,8 @@ static uint8_t mAuthVarDERKey1[] = {
 0x3d, 0xc1, 0xea, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36,
 0x37, 0x38, 0x39 };
 
+// TODO: implement append write
+#if 0
 static uint8_t mAuthVarDERAppendKey0[] = {
 0xdc, 0x07, 0x0b, 0x0f, 0x0a, 0x28, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x13, 0x03, 0x00, 0x00, 0x00, 0x02, 0xf1, 0x0e, 0x9d, 0xd2, 0xaf, 0x4a, 0xdf, 0x68, 0xee, 0x49,
@@ -296,6 +298,7 @@ static uint8_t mAuthVarDERAppendKey0[] = {
 0x9d, 0x1a, 0x47, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36,
 0x37, 0x38, 0x39
 };
+#endif
 
 static uint8_t mAuthVarDERDelKey0[] = {
 0xdc, 0x07, 0x0b, 0x0f, 0x0a, 0x37, 0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -406,6 +409,8 @@ static uint8_t mAuthVarDERCreateKey1[] = {     //it is same as mAuthVarDERKey1
 0x37, 0x38, 0x39
 };
 
+// TODO: implemented APPENd_WRITE
+#if 0
 static uint8_t mAuthVarDERAppendKey1[] = {
 0xdc, 0x07, 0x0b, 0x0f, 0x0b, 0x28, 0x15, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x13, 0x03, 0x00, 0x00, 0x00, 0x02, 0xf1, 0x0e, 0x9d, 0xd2, 0xaf, 0x4a, 0xdf, 0x68, 0xee, 0x49,
@@ -460,7 +465,10 @@ static uint8_t mAuthVarDERAppendKey1[] = {
 0x40, 0x0f, 0x84, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36,
 0x37, 0x38, 0x39
 };
+#endif
 
+// TODO: implement APPEND_WRITE
+#if 0
 static uint8_t mAuthVarDERUpdateKey1[] = {
 0xdc, 0x07, 0x0b, 0x0f, 0x0b, 0x27, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 0x13, 0x03, 0x00, 0x00, 0x00, 0x02, 0xf1, 0x0e, 0x9d, 0xd2, 0xaf, 0x4a, 0xdf, 0x68, 0xee, 0x49,
@@ -515,6 +523,7 @@ static uint8_t mAuthVarDERUpdateKey1[] = {
 0x70, 0xc1, 0x03, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36,
 0x37, 0x38, 0x39 
 };
+#endif
 
 static uint8_t mAuthVarDERDelKey1[] = {
 0xdc, 0x07, 0x0b, 0x0f, 0x0e, 0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -572,7 +581,8 @@ static uint8_t mAuthVarDERDelKey1[] = {
 
 static EFI_GUID mVarVendorGuid = {0x15EDF297, 0xE832, 0x4d30, {0x82, 0x00, 0xA5, 0x25, 0xA9, 0x31, 0xE3, 0x3E}};
 
-void test_auth_DER_func(void)
+static MunitResult test_auth_func(const MunitParameter params[],
+                                      void *testdata)
 {
   EFI_STATUS                          Status;
   uint32_t                              Attr;
@@ -588,7 +598,7 @@ void test_auth_DER_func(void)
   //Call SetVariable to create the auth variable 
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey0), 
@@ -600,7 +610,7 @@ void test_auth_DER_func(void)
   DataSize = 50;
   Status = testutil_get_variable(
                  L"AuthVarDER01",
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid,
                  &Attr,
                  &DataSize,
@@ -618,7 +628,7 @@ void test_auth_DER_func(void)
   //The 2nd Call SetVariable with the same Data, the return status should be EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey0), 
@@ -630,7 +640,7 @@ void test_auth_DER_func(void)
   //Modify the auth info in Data, then call SetVariable, the expect status should be EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERModifyKey0), 
@@ -642,7 +652,7 @@ void test_auth_DER_func(void)
   //SetVariable to new value by using the same key but a new timestamp, it should succeed. 
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERNewValueKey0), 
@@ -654,7 +664,7 @@ void test_auth_DER_func(void)
   DataSize = 50;
   Status = testutil_get_variable(
                  L"AuthVarDER01",
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid,
                  &Attr,
                  &DataSize,
@@ -668,7 +678,7 @@ void test_auth_DER_func(void)
   //SetVariable with the old data and one old timestamp, the expect status should be EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey0), 
@@ -680,7 +690,7 @@ void test_auth_DER_func(void)
   //SetVariable with one existing variable but Data area is changed due to different key and valid, the call should return EFI_SECURITY_VIOLATION.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERKey1), 
@@ -689,10 +699,12 @@ void test_auth_DER_func(void)
 
   munit_assert(Status == EFI_SECURITY_VIOLATION);
 
-  //SetVariable to execute the normal append operation
+#if 0
+  // SetVariable to execute the normal append operation
+  // TODO: implement APPEND_WRITE
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr | EFI_VARIABLE_APPEND_WRITE, 
                  sizeof(mAuthVarDERAppendKey0), 
@@ -705,25 +717,35 @@ void test_auth_DER_func(void)
     DataSize = 50;
     Status = testutil_get_variable(
                    L"AuthVarDER01",
-                 sizeof(L"AuthVarDER01"), 
+                   sizeof_wchar(L"AuthVarDER01"), 
                    &mVarVendorGuid,
                    &Attr,
                    &DataSize,
                    Data
                    );
 
-    munit_assert(Status == EFI_SUCCESS && DataSize == 32 && Data[0] == 0x41 && Data[1] == 0x42 && Data[2] == 0x43 && Data[3] == 0x44 &&
-  	  Data[4] == 0x45 && Data[5] == 0x46 && Data[6] == 0x30 && Data[7] == 0x31 && Data[8] == 0x32 && Data[9] == 0x33 && 
-  	  Data[10] == 0x34 && Data[11] == 0x35 && Data[12] == 0x36 && Data[13] == 0x37 && Data[14] == 0x38 && Data[15] == 0x39 &&
-  	  Data[16] == 0x41 && Data[17] == 0x42 && Data[18] == 0x43 && Data[19] == 0x44 && Data[20] == 0x45 && Data[21] == 0x46 && 
-  	  Data[22] == 0x30 && Data[23] == 0x31 && Data[24] == 0x32 && Data[25] == 0x33 && Data[26] == 0x34 && Data[27] == 0x35 &&
-  	  Data[28] == 0x36 && Data[29] == 0x37 && Data[30] == 0x38 && Data[31] == 0x39);
+    munit_assert(Status == EFI_SUCCESS);
+    munit_assert_uint64(DataSize, ==, 32);
+
+    munit_assert(
+            Data[0] == 0x41 && Data[1] == 0x42 && Data[2] == 0x43 &&
+            Data[3] == 0x44 && Data[4] == 0x45 && Data[5] == 0x46 &&
+            Data[6] == 0x30 && Data[7] == 0x31 && Data[8] == 0x32 &&
+            Data[9] == 0x33 && Data[10] == 0x34 && Data[11] == 0x35 &&
+            Data[12] == 0x36 && Data[13] == 0x37 && Data[14] == 0x38 &&
+            Data[15] == 0x39 && Data[16] == 0x41 && Data[17] == 0x42 &&
+            Data[18] == 0x43 && Data[19] == 0x44 && Data[20] == 0x45 &&
+            Data[21] == 0x46 && Data[22] == 0x30 && Data[23] == 0x31 &&
+            Data[24] == 0x32 && Data[25] == 0x33 && Data[26] == 0x34 &&
+            Data[27] == 0x35 && Data[28] == 0x36 && Data[29] == 0x37 &&
+            Data[30] == 0x38 && Data[31] == 0x39);
   }
+#endif
 
   //SetVariable to execute the normal delete operation, and call GetVariable to ensure the auth variable is not found.
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERDelKey0), 
@@ -736,7 +758,7 @@ void test_auth_DER_func(void)
   
   Status = testutil_get_variable(
                  L"AuthVarDER01",
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid,
                  &Attr,
                  &DataSize,
@@ -748,7 +770,7 @@ void test_auth_DER_func(void)
   //SetVariable with one different key after the variable is deleted
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERCreateKey1), 
@@ -757,10 +779,13 @@ void test_auth_DER_func(void)
 
   munit_assert(Status == EFI_SUCCESS);
 
+#if 0
+TODO: implement APPEND_WRITE
+
   //SetVariable to one existing variable with EFI_VARIABLE_APPEND_WRITE attribute and new data
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr | EFI_VARIABLE_APPEND_WRITE, 
                  sizeof(mAuthVarDERAppendKey1), 
@@ -773,7 +798,7 @@ void test_auth_DER_func(void)
     //SetVariable with one old timestamp, the return status should be EFI_SECURITY_VIOLATION
     Status = testutil_set_variable(
                    L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                    &mVarVendorGuid, 
                    Attr, 
                    sizeof(mAuthVarDERUpdateKey1), 
@@ -782,11 +807,12 @@ void test_auth_DER_func(void)
 
     munit_assert(Status == EFI_SECURITY_VIOLATION);
   }
+#endif
 
   //SetVariable to delete
   Status = testutil_set_variable(
                  L"AuthVarDER01", 
-                 sizeof(L"AuthVarDER01"), 
+                 sizeof_wchar(L"AuthVarDER01"), 
                  &mVarVendorGuid, 
                  Attr, 
                  sizeof(mAuthVarDERDelKey1), 
@@ -794,16 +820,27 @@ void test_auth_DER_func(void)
                  );
 
   munit_assert(Status == EFI_SUCCESS);
+  return MUNIT_OK;
 }
 
 struct auth_data auth_files[] = {
     DEFINE_AUTH_FILE("data/certs/PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
 };
 
-void test_auth_func(void)
+static void *auth_func_setup(const MunitParameter params[], void *data)
 {
     auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
     auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
-    test_auth_DER_func();
+    return NULL;
+}
+
+static void auth_func_tear_down(void* fixture)
+{
     storage_destroy();
 }
+
+MunitTest auth_func_tests[] = {
+    { (char*)"test_auth_func", test_auth_func,
+        auth_func_setup, auth_func_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { 0 }
+};
