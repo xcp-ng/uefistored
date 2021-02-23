@@ -14,7 +14,6 @@ To build uefistored:
 
 ```
 make all
-
 ```
 
 Use `make help` to see make targets:
@@ -33,7 +32,6 @@ install:           Install uefistored
 deploy:            Deploy uefistored to a host
 help:              Display this help
 scan-build:        Use scan-build for static analysis
-
 ```
 
 ## Deployment during Test
