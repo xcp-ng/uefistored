@@ -4,3 +4,4 @@ uefistored
 uefistored-debug
 scripts/certs/*.{esl,auth,cert,der,key}
 tests/test
+tests/munit
