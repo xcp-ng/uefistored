@@ -2,5 +2,4 @@
 *.d
 uefistored
 uefistored-debug
-tests/*
 scripts/certs/*.{esl,auth,cert,der,key}
