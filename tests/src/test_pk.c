@@ -99,11 +99,10 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
     auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
 
     if (auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files)) != EFI_SUCCESS) {
-
         return MUNIT_ERROR;
     }
 
-    status = auth_internal_find_variable(L"PK",
+    status = auth_internal_find_variable(L"PK", sizeof_wchar(L"PK"),
                                          &gEfiGlobalVariableGuid, (void*)&old_esl,
                                          &old_esl_size);
 
