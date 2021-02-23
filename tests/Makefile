@@ -51,7 +51,7 @@ all: test-nosan test
 		./test-nosan
 	./$<
 
-test: main.c $(OBJS) $(TEST_OBJS) $(HDRS)
+test: test.c $(OBJS) $(TEST_OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
 		$(TEST_OBJS) $(CFLAGS) $(SANITIZERS) \
 		$(LDFLAGS)
@@ -60,7 +60,7 @@ test: main.c $(OBJS) $(TEST_OBJS) $(HDRS)
 run-test: test
     $<
 
-test-nosan: main.c $(TEST_OBJS) $(OBJS) $(HDRS)
+test-nosan: test.c $(TEST_OBJS) $(OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS) $(LDFLAGS)
 
 run-test-nosan: test-nosan
