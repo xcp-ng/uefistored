@@ -51,7 +51,7 @@ all: test-nosan test
 		./test-nosan
 	./$<
 
-test: main.c $(OBJS) $(TEST_OBJS) keys/.done $(HDRS)
+test: main.c $(OBJS) $(TEST_OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
 		$(TEST_OBJS) $(CFLAGS) $(SANITIZERS) \
 		$(LDFLAGS)
@@ -60,7 +60,7 @@ test: main.c $(OBJS) $(TEST_OBJS) keys/.done $(HDRS)
 run-test: test
     $<
 
-test-nosan: main.c $(TEST_OBJS) $(OBJS) keys $(HDRS)
+test-nosan: main.c $(TEST_OBJS) $(OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS) $(LDFLAGS)
 
 run-test-nosan: test-nosan
@@ -83,15 +83,6 @@ valgrind: test-nosan
 clean:
 	rm -f $(OBJS) $(TEST_OBJS) test test-nosan
 	$(MAKE) $@ -C fuzz/
-
-.PHONY: keys
-keys: keys/.done
-	@echo "Keys generated"
-
-keys/.done:
-	@mkdir -p keys
-	@cd keys && ../scripts/create-keys.sh
-	@touch $@
 
 .PHONY: print
 print:
