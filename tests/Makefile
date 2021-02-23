@@ -1,5 +1,10 @@
 include ../Common.mk
 
+LDFLAGS := $$(pkg-config --libs libxml-2.0)     \
+            -lseccomp                           \
+            -lssl                               \
+            -lcrypto
+
 CC := gcc
 
 SRCS := $(patsubst %,../%,$(SRCS))
