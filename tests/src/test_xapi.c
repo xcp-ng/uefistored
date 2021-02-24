@@ -96,10 +96,10 @@ static void test_bytes(void)
 
     /* Setup */
     variable_create_noalloc(&orig, L"FOO", sizeof(L"FOO"), (uint8_t *)L"BAR",
-            strsize16(L"BAR"), &default_guid, DEFAULT_ATTR, NULL);
+            strsize16(L"BAR"), &default_guid, DEFAULT_ATTR, NULL, NULL);
 
     serialize_variable_list(&p, TEST_PT_SIZE, &orig, 1);
-    from_bytes_to_vars(&var, 1, bytes);
+    from_bytes_to_vars(&var, 1, bytes, 4096);
 
     munit_assert(variable_eq(&orig, &var));
     variable_destroy_noalloc(&orig);
@@ -116,7 +116,7 @@ static void test_var_copy(void)
 
     /* Setup */
     variable_create_noalloc(&orig, L"FOO", sizeof(L"FOO"), (uint8_t *)L"BAR",
-            strsize16(L"BAR"), &default_guid, DEFAULT_ATTR, NULL);
+            strsize16(L"BAR"), &default_guid, DEFAULT_ATTR, NULL, NULL);
 
     /* Do the work */
     p = buf;
@@ -153,8 +153,8 @@ void test_xapi_base64(void)
     base64 = bytes_to_base64(buf, list_size(orig, 1));
 
     /* Convert base64 to bytes, then bytes back to variable */
-     base64_to_bytes(bytes, 4096, base64, strlen(base64));
-    from_bytes_to_vars(&var, 1, bytes);
+    base64_to_bytes(bytes, 4096, base64, strlen(base64));
+    from_bytes_to_vars(&var, 1, bytes, 4096);
 
     /* Assert the original variable and the decoded variable are equal */
     munit_assert(variable_eq(&var, orig));
@@ -180,7 +180,7 @@ void test_xapi_base64_big(void)
     ret = base64_to_bytes(pt, 4096 * 4, BIG_BASE64, strlen(BIG_BASE64));
     munit_assert(ret > 0);
 
-    ret = from_bytes_to_vars(vars, 256, pt);
+    ret = from_bytes_to_vars(vars, 256, pt, 4096*4);
 
     for (i = 0; i < ret; i++) {
         char ascii[512];
@@ -216,7 +216,7 @@ void test_xapi_base64_big_xml(void)
     ret = base64_to_bytes(pt, 4096 * 4, base64, strlen(base64));
     munit_assert(ret > 0);
 
-    ret = from_bytes_to_vars(vars, 256, pt);
+    ret = from_bytes_to_vars(vars, 256, pt, 4096*4);
 
     for (i = 0; i < ret; i++) {
         char ascii[512];
@@ -282,7 +282,7 @@ static void test_big_request2(void)
     base64_from_response(buffer, 4096 * 8, big_request);
     base64_to_bytes(plaintext, MSG_SIZE, buffer, strlen(buffer));
 
-    from_bytes_to_vars(vars, 32, plaintext);
+    from_bytes_to_vars(vars, 32, plaintext, MSG_SIZE);
 
     int i, j;
 
@@ -322,10 +322,10 @@ void test_xapi(void)
     memset(vars, 0, sizeof(vars));
 
     variable_create_noalloc(&vars[0], v1, v1_len, (uint8_t *)D1, d1_len,
-                            &default_guid, DEFAULT_ATTR, NULL);
+                            &default_guid, DEFAULT_ATTR, NULL, NULL);
 
     variable_create_noalloc(&vars[1], v2, v2_len, (uint8_t *)D2, d2_len,
-                            &default_guid, DEFAULT_ATTR, NULL);
+                            &default_guid, DEFAULT_ATTR, NULL, NULL);
 
     DO_TEST(test_xapi_set_efi_vars);
     DO_TEST(test_var_copy);
