@@ -238,9 +238,9 @@ static void handle_query_variable_info(void *comm_buf)
 
     ptr = comm_buf;
     serialize_result(&ptr, EFI_SUCCESS);
-    serialize_value(&ptr, max_variable_storage);
-    serialize_value(&ptr, remaining_variable_storage);
-    serialize_value(&ptr, max_variable_size);
+    serialize_uint64(&ptr, max_variable_storage);
+    serialize_uint64(&ptr, remaining_variable_storage);
+    serialize_uint64(&ptr, max_variable_size);
 }
 
 static int unserialize_set_request(struct request *request, void *comm_buf)

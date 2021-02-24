@@ -20,6 +20,7 @@ void serialize_name(uint8_t **ptr, const UTF16 *name, size_t namesz);
 void serialize_data(uint8_t **ptr, const void *data, uint64_t datasz);
 void serialize_uintn(uint8_t **ptr, uint64_t var);
 void serialize_uint32(uint8_t **ptr, uint32_t var);
+void serialize_uint64(uint8_t **ptr, uint64_t var);
 void serialize_boolean(uint8_t **ptr, bool var);
 void serialize_command(uint8_t **ptr, command_t cmd);
 void serialize_guid(uint8_t **ptr, const EFI_GUID *guid);
@@ -39,23 +40,6 @@ void unserialize_variable_list_header(const uint8_t **ptr,
                                       struct variable_list_header *hdr);
 int unserialize_var_cached(const uint8_t **ptr, variable_t *var);
 void unserialize_timestamp(const uint8_t **p, EFI_TIME *timestamp);
-
-#define unserialize_value(p, field)                                            \
-    do {                                                                       \
-        barrier();                                                             \
-        memcpy(&field, *p, sizeof(field));                                     \
-        barrier();                                                             \
-        *p += sizeof(field);                                                   \
-    } while (0)
-
 void unserialize_cert(const uint8_t **ptr, uint8_t cert[SHA256_DIGEST_SIZE]);
-
-#define serialize_value(p, field)                                              \
-    do {                                                                       \
-        barrier();                                                             \
-        memcpy(*p, &field, sizeof(field));                                     \
-        barrier();                                                             \
-        *p += sizeof(field);                                                   \
-    } while (0)
 
 #endif // __H_SERIALIZER_
