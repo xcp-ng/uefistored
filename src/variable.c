@@ -154,10 +154,22 @@ int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp)
     return 0;
 }
 
+int variable_set_cert(variable_t *var, const uint8_t *cert)
+{
+    if (!var || !cert)
+        return -1;
+
+    memcpy(var->cert, cert, SHA256_DIGEST_SIZE);
+
+    return 0;
+}
+
+
 int variable_create_noalloc(variable_t *var, const UTF16 *name, size_t namesz,
                             const uint8_t *data, const uint64_t datasz,
                             const EFI_GUID *guid, const uint32_t attrs,
-                            const EFI_TIME *timestamp)
+                            const EFI_TIME *timestamp,
+                            const uint8_t *cert)
 {
     if (!var || !name || !data || !guid || datasz == 0)
         return -1;
@@ -175,6 +187,9 @@ int variable_create_noalloc(variable_t *var, const UTF16 *name, size_t namesz,
         goto cleanup_data;
 
     if (timestamp && variable_set_timestamp(var, timestamp) < 0)
+        goto cleanup_data;
+
+    if (cert && variable_set_cert(var, cert) < 0)
         goto cleanup_data;
 
     return 0;

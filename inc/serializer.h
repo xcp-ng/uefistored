@@ -48,6 +48,8 @@ void unserialize_timestamp(const uint8_t **p, EFI_TIME *timestamp);
         *p += sizeof(field);                                                   \
     } while (0)
 
+void unserialize_cert(const uint8_t **ptr, uint8_t cert[SHA256_DIGEST_SIZE]);
+
 #define serialize_value(p, field)                                              \
     do {                                                                       \
         barrier();                                                             \

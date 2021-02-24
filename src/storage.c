@@ -233,7 +233,7 @@ EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
     {
         if (var->name[0] == 0) {
             ret = variable_create_noalloc(var, name, namesz, data, datasz, guid,
-                                          attrs, NULL);
+                                          attrs, NULL, NULL);
 
             if (ret < 0)
                 return EFI_DEVICE_ERROR;
