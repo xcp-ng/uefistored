@@ -8,5 +8,6 @@ extern MunitTest kek_tests[];
 extern MunitTest db_tests[];
 extern MunitTest auth_tests[];
 extern MunitTest auth_func_tests[];
+extern MunitTest base64_tests[];
 
 #endif // __H_PK_TEST_

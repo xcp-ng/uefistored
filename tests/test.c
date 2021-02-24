@@ -47,6 +47,13 @@ MunitSuite other_suites[] = {
         1,
         MUNIT_SUITE_OPTION_NONE
     },
+    {
+        (char*) "base64/",
+        base64_tests,
+        NULL,
+        1,
+        MUNIT_SUITE_OPTION_NONE
+    },
     { NULL, NULL, NULL, 0, MUNIT_SUITE_OPTION_NONE },
 };
 
