@@ -62,7 +62,7 @@ int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp);
 uint64_t variable_size(const variable_t *var);
 variable_t *variable_create_unserialize(const uint8_t **ptr);
 
-int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes);
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz);
 
 static inline bool variable_is_valid(const variable_t *var) {
     return (var && var->name && var->name[0] && var->namesz != 0);

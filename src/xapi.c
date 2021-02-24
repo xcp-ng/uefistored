@@ -198,7 +198,7 @@ int xapi_variables_read_file(variable_t *vars, size_t n, char *fname)
         goto cleanup2;
     }
 
-    ret = from_bytes_to_vars(vars, n, mem);
+    ret = from_bytes_to_vars(vars, n, mem, size);
 
 cleanup2:
     free(mem);
@@ -1086,7 +1086,7 @@ int xapi_variables_request(variable_t *vars, size_t n)
         return 0;
     }
 
-    return from_bytes_to_vars(vars, n, plaintext);
+    return from_bytes_to_vars(vars, n, plaintext, ret);
 }
 
 /**

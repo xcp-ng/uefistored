@@ -328,9 +328,8 @@ uint64_t variable_size(const variable_t *var)
  *
  * @return the number of variables on success, otherwise -1.
  */
-int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes)
+int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes, size_t bytes_sz)
 {
-    int ret;
     const uint8_t *ptr = bytes;
     struct variable_list_header hdr;
     size_t i;
@@ -343,16 +342,19 @@ int from_bytes_to_vars(variable_t *vars, size_t n, const uint8_t *bytes)
     if (hdr.variable_count > n)
         return -1;
 
-    for (i = 0; i < hdr.variable_count; i++) {
-        ret = unserialize_var_cached(&ptr, &vars[i]);
-
-        if (ret < 0)
-            break;
+    for (i=0; i<hdr.variable_count; i++) {
+        if (unserialize_var_cached(&ptr, &vars[i]) < 0) {
+            return -1;
+        }
     }
 
-    assert(i <= INT_MAX);
+    if (i != hdr.variable_count)
+        return -1;
 
-    return (int)i;
+    if (bytes_sz != (((unsigned long)ptr)) - (unsigned long)(bytes))
+        return -1;
+
+    return (int)(i > INT_MAX ? -1 : i);
 }
 
 variable_t *find_variable(const UTF16 *name, size_t namesz,
