@@ -9,5 +9,6 @@ extern MunitTest db_tests[];
 extern MunitTest auth_tests[];
 extern MunitTest auth_func_tests[];
 extern MunitTest base64_tests[];
+extern MunitTest xapi_tests[];
 
 #endif // __H_PK_TEST_
