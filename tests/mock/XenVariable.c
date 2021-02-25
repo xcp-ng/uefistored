@@ -7,16 +7,9 @@
 #include "serializer.h"
 #include "XenVariable.h"
 
-#define exec_command(...)                                                      \
-    do {                                                                       \
-    } while (0)
-#define AcquireSpinLock(...)                                                   \
-    do {                                                                       \
-    } while (0)
-#define ReleaseSpinLock(...)                                                   \
-    do {                                                                       \
-    } while (0)
-#define UNUSED(var) ((void)var)
+#define exec_command(...) do { } while (0)
+#define AcquireSpinLock(...) do { } while (0)
+#define ReleaseSpinLock(...) do { } while (0)
 
 static void *comm_buf;
 
@@ -90,6 +83,7 @@ XenGetVariableLocked(char16_t *VariableName, EFI_GUID *VendorGuid,
     ptr = comm_buf;
     serialize_uint32(&ptr, 1); /* version */
     serialize_command(&ptr, COMMAND_GET_VARIABLE);
+   
     serialize_name(&ptr, VariableName, strsize16(VariableName));
     serialize_guid(&ptr, VendorGuid);
     serialize_uintn(&ptr, *DataSize);
@@ -122,8 +116,6 @@ XenGetNextVariableNameLocked(uint64_t *VariableNameSize, char16_t *VariableName,
                              EFI_GUID *VendorGuid)
 {
     uint8_t *ptr;
-    EFI_STATUS status;
-    UNUSED(status);
 
     if (!VariableNameSize || !VariableName || !VendorGuid)
         return EFI_INVALID_PARAMETER;
@@ -139,28 +131,7 @@ XenGetNextVariableNameLocked(uint64_t *VariableNameSize, char16_t *VariableName,
     serialize_guid(&ptr, VendorGuid);
     serialize_boolean(&ptr, EfiAtRuntime());
 
-#if 0
-  exec_command(comm_buf);
-
-  ptr = comm_buf;
-  status = unserialize_result(&ptr);
-  switch (status) {
-  case EFI_SUCCESS:
-    unserialize_data(&ptr, VariableName, VariableNameSize);
-    VariableName[*VariableNameSize / 2] = '\0';
-    *VariableNameSize = sizeof(*VariableName);
-    unserialize_guid(&ptr, VendorGuid);
-    break;
-  case EFI_BUFFER_TOO_SMALL:
-    *VariableNameSize = unserialize_uintn(&ptr);
-    break;
-  default:
-    break;
-  }
-  return status;
-#else
     return 0;
-#endif
 }
 
 EFI_STATUS
@@ -224,33 +195,12 @@ XenQueryVariableInfoLocked(uint32_t Attributes,
                            uint64_t *MaximumVariableSize)
 {
     uint8_t *ptr;
-    EFI_STATUS status;
-
-    UNUSED(status);
 
     ptr = comm_buf;
     serialize_uint32(&ptr, 1); /* version */
     serialize_command(&ptr, COMMAND_QUERY_VARIABLE_INFO);
     serialize_uint32(&ptr, Attributes);
-
-#if 0
-  exec_command(comm_buf);
-
-  ptr = comm_buf;
-  status = unserialize_result(&ptr);
-  switch (status) {
-  case EFI_SUCCESS:
-    *MaximumVariableStorageSize = unserialize_uint64(&ptr);
-    *RemainingVariableStorageSize = unserialize_uint64(&ptr);
-    *MaximumVariableSize = unserialize_uint64(&ptr);
-    break;
-  default:
-    break;
-  }
-  return status;
-#else
     return 0;
-#endif
 }
 
 EFI_STATUS
