@@ -1278,7 +1278,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
      * i.e. (name, guid, attrs, TimeStamp, data).
      */
     new_data_size = payload_size + sizeof(EFI_TIME) + sizeof(uint32_t) +
-                    sizeof(EFI_GUID) + strsize16(name) - sizeof(UTF16);
+                    sizeof(EFI_GUID) + strsize16(name);
     new_data = malloc(new_data_size);
 
     if (!new_data) {
