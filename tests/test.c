@@ -61,6 +61,13 @@ MunitSuite other_suites[] = {
         1,
         MUNIT_SUITE_OPTION_NONE
     },
+    {
+        (char*) "xen_variable_server_tests/",
+        xen_variable_server_tests,
+        NULL,
+        1,
+        MUNIT_SUITE_OPTION_NONE
+    },
     { NULL, NULL, NULL, 0, MUNIT_SUITE_OPTION_NONE },
 };
 

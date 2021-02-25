@@ -17,17 +17,6 @@
 static uint8_t comm_buf_phys[SHMEM_PAGES * PAGE_SIZE];
 static void *comm_buf = comm_buf_phys;
 
-static void pre_test(void)
-{
-    memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
-}
-
-static void post_test(void)
-{
-    storage_destroy();
-    memset(comm_buf, 0, SHMEM_PAGES * PAGE_SIZE);
-}
-
 /* Test Data */
 UTF16 rtcnamebytes[] = {
     'R',
@@ -52,7 +41,8 @@ static inline uint64_t getstatus(void *p)
     return ret;
 }
 
-static void test_nonexistent_variable_returns_not_found(void)
+static MunitResult
+test_nonexistent_variable_returns_not_found(const MunitParameter *params, void *d)
 {
     char16_t *rtcname = (char16_t *)rtcnamebytes;
     EFI_GUID guid = DEFAULT_GUID;
@@ -73,6 +63,8 @@ static void test_nonexistent_variable_returns_not_found(void)
 
     // xen_variable_server_handle_request(comm_buf);
     munit_assert(getstatus(comm_buf) == EFI_NOT_FOUND);
+
+    return MUNIT_OK;
 }
 
 static EFI_STATUS deserialize_xen_get_var_response(void *buf,
@@ -136,7 +128,7 @@ static void set_mtc_variable(void *buf)
  * that same variable results in the saved and
  * restored variables being equivalent.
  */
-static void test_set_and_get(void)
+static MunitResult test_set_and_get(const MunitParameter *params, void *data)
 {
     uint64_t status;
     char16_t *rtcname = (char16_t *)rtcnamebytes;
@@ -162,6 +154,8 @@ static void test_set_and_get(void)
             deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
     munit_assert(status == EFI_SUCCESS);
     munit_assert(outdata == indata);
+
+    return MUNIT_OK;
 }
 
 /**
@@ -169,7 +163,7 @@ static void test_set_and_get(void)
  * exceed the shared memory area fails with
  * EFI_OUT_OF_RESOURCES.
  */
-static void test_big_set(void)
+static MunitResult test_big_set(const MunitParameter *params, void *data)
 {
     char16_t *rtcname = (char16_t *)rtcnamebytes;
     EFI_GUID guid = DEFAULT_GUID;
@@ -195,6 +189,8 @@ static void test_big_set(void)
     /* Cleanup */
     free(indata);
     free(tempbuf);
+
+    return MUNIT_OK;
 }
 
 /**
@@ -203,7 +199,7 @@ static void test_big_set(void)
  *
  * TODO: check that the variable was cleared.
  */
-static void test_zero_set(void)
+static MunitResult test_zero_set(const MunitParameter *params, void *data)
 {
     char16_t *rtcname = (char16_t *)rtcnamebytes;
     EFI_GUID guid = DEFAULT_GUID;
@@ -218,13 +214,15 @@ static void test_zero_set(void)
     xen_variable_server_handle_request(comm_buf);
 
     munit_assert(getstatus(comm_buf) == EFI_SUCCESS);
+
+    return MUNIT_OK;
 }
 
 /**
  * Test that empty variable store returns EFI_NOT_FOUND
  * for GetNextVariableName().
  */
-static void test_empty_get_next_var(void)
+static MunitResult test_empty_get_next_var(const MunitParameter *params, void *data)
 {
     size_t varname_sz;
     char16_t *varname;
@@ -233,7 +231,7 @@ static void test_empty_get_next_var(void)
     /* Setup */
     mock_xen_variable_server_set_buffer(comm_buf);
     memset(comm_buf, 0, 4096);
-    varname_sz = sizeof(char16_t) * 128;
+    varname_sz = 128;
     varname = malloc(varname_sz);
     memset(varname, 0, varname_sz);
 
@@ -244,11 +242,13 @@ static void test_empty_get_next_var(void)
 
     /* Cleanup */
     free(varname);
+
+    return MUNIT_OK;
 }
 
 #define TEST_VARNAME_BUF_SZ 256
 
-static void test_success_get_next_var_one(void)
+static MunitResult test_success_get_next_var_one(const MunitParameter *params, void *data)
 {
     EFI_STATUS status;
     size_t varname_sz = TEST_VARNAME_BUF_SZ;
@@ -282,6 +282,8 @@ static void test_success_get_next_var_one(void)
     ptr = comm_buf;
     status = unserialize_result(&ptr);
     munit_assert(status == EFI_NOT_FOUND);
+
+    return MUNIT_OK;
 }
 
 static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], void *val,
@@ -303,7 +305,7 @@ static bool contains(char16_t buf[2][TEST_VARNAME_BUF_SZ], void *val,
  * variable names upon GetNextVariableName() being called after setting two
  * variables.
  */
-static void test_success_get_next_var_two(void)
+static MunitResult test_success_get_next_var_two(const MunitParameter *params, void *data)
 {
     EFI_STATUS status;
     size_t varname_sz = TEST_VARNAME_BUF_SZ;
@@ -313,10 +315,11 @@ static void test_success_get_next_var_two(void)
     const uint8_t *ptr;
 
     /* Setup */
-    set_rtc_variable(comm_buf);
-    set_mtc_variable(comm_buf);
     mock_xen_variable_server_set_buffer(comm_buf);
     memset(comm_buf, 0, 4096);
+
+    set_rtc_variable(comm_buf);
+    set_mtc_variable(comm_buf);
 
     /* Store the first variable from GetNextVariableName() */
     XenGetNextVariableName(&varname_sz, buf, &guid);
@@ -347,9 +350,12 @@ static void test_success_get_next_var_two(void)
     ptr = comm_buf;
     status = unserialize_result(&ptr);
     munit_assert(status == EFI_NOT_FOUND);
+
+    return MUNIT_OK;
 }
 
-static void test_get_next_var_buf_too_small(void)
+static MunitResult
+test_get_next_var_buf_too_small(const MunitParameter *params, void *data)
 {
     EFI_STATUS status;
     size_t varname_sz = 2;
@@ -374,35 +380,9 @@ static void test_get_next_var_buf_too_small(void)
 
     /* Assertions */
     munit_assert(status == EFI_BUFFER_TOO_SMALL);
-    munit_assert(newsz == strsize16(rtcnamebytes));
-}
+    munit_assert(newsz == strsize16(rtcnamebytes) + 2);
 
-static void test_runtime_access_attr(void)
-{
-    uint64_t status;
-    char16_t *rtcname = (char16_t *)rtcnamebytes;
-    EFI_GUID guid = DEFAULT_GUID;
-    uint32_t attr = EFI_VARIABLE_NON_VOLATILE;
-    uint32_t indata = 0xdeadbeef;
-    uint32_t outdata;
-    size_t outsz = sizeof(outdata);
-
-    mock_xen_variable_server_set_buffer(comm_buf);
-
-    /* Perform SetVariable() and then GetVariable() */
-    XenSetVariable(rtcname, &guid, attr, sizeof(indata), (void *)&indata);
-    xen_variable_server_handle_request(comm_buf);
-    XenGetVariable(rtcname, &guid, &attr, &outsz, (void *)&outdata);
-    xen_variable_server_handle_request(comm_buf);
-
-    /*
-     * Assert that status is EFI_SUCCESS, and that saved and retreived
-     * variables are equal
-     */
-    status =
-            deserialize_xen_get_var_response(comm_buf, &attr, &outdata, &outsz);
-
-    munit_assert(status == EFI_NOT_FOUND);
+    return MUNIT_OK;
 }
 
 /**
@@ -410,7 +390,8 @@ static void test_runtime_access_attr(void)
  *
  * All attributes should have the same contstraints;
  */
-static void test_query_variable_info_bad_attrs(void)
+static MunitResult
+test_query_variable_info_bad_attrs(const MunitParameter *params, void *data)
 {
     const uint8_t *ptr;
     uint64_t max_storage_size, remaining_storage_size, max_variable_size;
@@ -441,12 +422,15 @@ static void test_query_variable_info_bad_attrs(void)
     xen_variable_server_handle_request(comm_buf);
     ptr = comm_buf;
     munit_assert(unserialize_result(&ptr) == EFI_INVALID_PARAMETER);
+
+    return MUNIT_OK;
 }
 
 /**
  * Test that valid attrs is correct.
  */
-static void test_valid_attrs(void)
+static MunitResult
+test_valid_attrs(const MunitParameter *params, void *data)
 {
     /* We don't support authenticated writes yet */
     munit_assert(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS |
@@ -459,6 +443,8 @@ static void test_valid_attrs(void)
     /* Runetime accesss requires boot access */
     munit_assert(evaluate_attrs(EFI_VARIABLE_RUNTIME_ACCESS &
                      ~EFI_VARIABLE_BOOTSERVICE_ACCESS) != EFI_SUCCESS);
+
+    return MUNIT_OK;
 }
 
 /**
@@ -466,7 +452,8 @@ static void test_valid_attrs(void)
  *
  * All attributes should have the same contstraints;
  */
-static void test_query_variable_info(void)
+static MunitResult
+test_query_variable_info(const MunitParameter *params, void *data)
 {
     const uint8_t *ptr;
     uint32_t attrs;
@@ -503,23 +490,27 @@ static void test_query_variable_info(void)
 
         attrs >>= 1;
     }
+
+    return MUNIT_OK;
 }
 
-#define WRAP_TEST(test) \
-    do { pre_test(); test(); post_test(); } while ( 0 )
+#define DEFINE_TEST(test_func)                  \
+    { (char*) #test_func, test_func,            \
+        NULL,              \
+        NULL,          \
+        MUNIT_SUITE_OPTION_NONE, NULL }
 
-void test_xen_variable_server(void)
-{
-    WRAP_TEST(test_nonexistent_variable_returns_not_found);
-    WRAP_TEST(test_set_and_get);
-    WRAP_TEST(test_big_set);
-    WRAP_TEST(test_zero_set);
-    WRAP_TEST(test_empty_get_next_var);
-    WRAP_TEST(test_success_get_next_var_one);
-    WRAP_TEST(test_success_get_next_var_two);
-    WRAP_TEST(test_get_next_var_buf_too_small);
-    WRAP_TEST(test_runtime_access_attr);
-    WRAP_TEST(test_query_variable_info);
-    WRAP_TEST(test_query_variable_info_bad_attrs);
-    WRAP_TEST(test_valid_attrs);
-}
+MunitTest xen_variable_server_tests[] = {
+    DEFINE_TEST(test_nonexistent_variable_returns_not_found),
+    DEFINE_TEST(test_set_and_get),
+    DEFINE_TEST(test_big_set),
+    DEFINE_TEST(test_zero_set),
+    DEFINE_TEST(test_empty_get_next_var),
+    DEFINE_TEST(test_success_get_next_var_one),
+    DEFINE_TEST(test_success_get_next_var_two),
+    DEFINE_TEST(test_get_next_var_buf_too_small),
+    DEFINE_TEST(test_query_variable_info),
+    DEFINE_TEST(test_query_variable_info_bad_attrs),
+    DEFINE_TEST(test_valid_attrs),
+    { 0 }
+};
