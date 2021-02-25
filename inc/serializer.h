@@ -28,7 +28,7 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status);
 int serialize_var(uint8_t **p, const variable_t *var);
 int serialize_variable_list(uint8_t **ptr, size_t sz, const variable_t *var,
                             size_t n);
-uint64_t unserialize_data(const uint8_t **ptr, void *data, size_t max);
+ssize_t unserialize_data(const uint8_t **ptr, void *data, size_t max);
 uint64_t unserialize_uintn(const uint8_t **ptr);
 uint32_t unserialize_uint32(const uint8_t **ptr);
 uint64_t unserialize_uint64(const uint8_t **ptr);

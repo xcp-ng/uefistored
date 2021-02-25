@@ -31,7 +31,7 @@ struct request {
     command_t command;
     int namesz;
     uint8_t name[MAX_VARIABLE_NAME_SIZE];
-    size_t buffer_size;
+    ssize_t buffer_size;
     uint8_t buffer[MAX_VARIABLE_DATA_SIZE];
     EFI_GUID guid;
     uint32_t attrs;
@@ -93,29 +93,33 @@ static void serialize_buffer_too_small(void *comm_buf, size_t required_size)
     serialize_uintn(&ptr, (uint64_t)required_size);
 }
 
-static int unserialize_get_request(struct request *request, void *comm_buf)
+static EFI_STATUS unserialize_get_request(struct request *request, void *comm_buf)
 {
     const uint8_t *ptr;
 
     if (!comm_buf || !request)
-        return -1;
+        return EFI_DEVICE_ERROR;
 
     ptr = comm_buf;
 
     request->version = unserialize_uint32(&ptr);
 
     if (request->version != UEFISTORED_VERSION) {
-        return -1;
+        return EFI_UNSUPPORTED;
     }
 
     request->command = (command_t)unserialize_uint32(&ptr);
     request->namesz =
             unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+
+    if (request->namesz < 0)
+        return EFI_OUT_OF_RESOURCES;
+
     unserialize_guid(&ptr, &request->guid);
     request->buffer_size = unserialize_uint64(&ptr);
     efi_at_runtime = unserialize_boolean(&ptr);
 
-    return 0;
+    return EFI_SUCCESS;
 }
 
 /**
@@ -166,12 +170,14 @@ static void handle_get_variable(void *comm_buf)
     uint8_t *ptr;
     struct request req = { 0 };
     struct request *request = &req;
+    EFI_STATUS status;
     variable_t *var;
 
     ptr = comm_buf;
 
-    if (unserialize_get_request(request, comm_buf) < 0) {
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
+    status = unserialize_get_request(request, comm_buf);
+    if (status != EFI_SUCCESS) {
+        serialize_result(&ptr, status);
         return;
     }
 
@@ -243,12 +249,12 @@ static void handle_query_variable_info(void *comm_buf)
     serialize_uint64(&ptr, max_variable_size);
 }
 
-static int unserialize_set_request(struct request *request, void *comm_buf)
+static EFI_STATUS unserialize_set_request(struct request *request, void *comm_buf)
 {
     const uint8_t *ptr;
 
     if (!comm_buf || !request)
-        return -1;
+        return EFI_DEVICE_ERROR;
 
     ptr = comm_buf;
     request->version = unserialize_uint32(&ptr);
@@ -256,13 +262,21 @@ static int unserialize_set_request(struct request *request, void *comm_buf)
     request->command = (command_t)unserialize_uint32(&ptr);
     request->namesz =
             unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+
+    if (request->namesz < 0)
+        return EFI_OUT_OF_RESOURCES;
+
     unserialize_guid(&ptr, &request->guid);
     request->buffer_size =
             unserialize_data(&ptr, request->buffer, MAX_VARIABLE_DATA_SIZE);
+
+    if (request->buffer_size < 0)
+        return EFI_OUT_OF_RESOURCES;
+
     request->attrs = unserialize_uint32(&ptr);
     efi_at_runtime = unserialize_boolean(&ptr);
 
-    return 0;
+    return EFI_SUCCESS;
 }
 
 #define strcmp16_len(a, a_n, b) (a_n == sizeof_wchar(b) && !strcmp16(a, b))
@@ -296,9 +310,9 @@ static void handle_set_variable(void *comm_buf)
     struct request *request = &req;
     EFI_STATUS status;
 
-    if (unserialize_set_request(request, comm_buf) < 0) {
-        ERROR("failed to parse set request\n");
-        serialize_result(&ptr, EFI_DEVICE_ERROR);
+    status = unserialize_set_request(request, comm_buf);
+    if (status != EFI_SUCCESS) {
+        serialize_result(&ptr, status);
         return;
     };
 
@@ -365,6 +379,10 @@ static int unserialize_get_next_request(struct request *request, void *comm_buf)
     request->buffer_size = unserialize_uintn(&ptr);
     request->namesz =
             unserialize_data(&ptr, request->name, MAX_VARIABLE_NAME_SIZE);
+
+    if (request->namesz < 0)
+        return -1;
+
     unserialize_guid(&ptr, &request->guid);
     efi_at_runtime = unserialize_boolean(&ptr);
 

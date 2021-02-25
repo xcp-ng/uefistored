@@ -124,7 +124,7 @@ void serialize_result(uint8_t **ptr, EFI_STATUS status)
  * Returns:
  *    The size of the data field.
  */
-uint64_t unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
+ssize_t unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
 {
     uint64_t ret;
 
@@ -132,7 +132,8 @@ uint64_t unserialize_data(const uint8_t **ptr, void *buf, size_t buflen)
     memcpy(&ret, *ptr, sizeof(ret));
     barrier();
 
-    assert(ret < buflen && ret < INT_MAX);
+    if (ret > buflen || ret > SIZE_MAX)
+        return -1;
 
     *ptr += sizeof(ret);
 
