@@ -36,14 +36,14 @@ TEST_SRCS += munit/munit.c
 TEST_OBJS := $(patsubst %.c,%.o,$(TEST_SRCS))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
-SANITIZERS := -fsanitize=address -fsanitize=undefined -fsanitize=leak
+SANITIZERS := -fsanitize=address
 
 .PHONY: test
 test: test.c $(OBJS) $(TEST_OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
 		$(TEST_OBJS) $(CFLAGS) $(SANITIZERS) \
 		$(LDFLAGS)
-	./$@
+	ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=lsan.supp ./$@
 
 .PHONY: test-nosan
 test-nosan: test.c $(TEST_OBJS) $(OBJS) $(HDRS)

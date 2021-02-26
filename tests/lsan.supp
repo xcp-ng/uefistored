@@ -1,0 +1,2 @@
+leak:auth_lib_initialize
+leak:auth_lib_load
