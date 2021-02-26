@@ -30,11 +30,7 @@ $(TARGET)-debug: src/$(TARGET).c $(OBJS)
 clean:
 	rm -f $(TARGET) $(OBJS)
 	rm -f $(DEPS)
-
-.PHONY: clean-test
-clean-test:
 	$(MAKE) clean -C tests/
-
 
 .PHONY: tools
 tools:
@@ -42,13 +38,11 @@ tools:
 
 .PHONY: test
 test:             ## Run uefistored unit tests with address sanitizers
-	$(MAKE) -C tests/
-	cd tests && ./$@
+	$(MAKE) $@ -C tests/
 
 .PHONY: test-nosan
 test-nosan:       ## Run uefistored unit tests without address sanitizers
 	$(MAKE) test-nosan -C tests/
-	cd tests && ./$@
 
 .PHONY: install
 install: uefistored

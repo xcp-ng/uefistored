@@ -31,40 +31,24 @@ TEST_SRCS +=                            \
     src/test_db.c      \
     src/test_xapi.c
 
-    #src/test_storage.c                  \
-
 TEST_SRCS += munit/munit.c
 
 TEST_OBJS := $(patsubst %.c,%.o,$(TEST_SRCS))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
-#SANITIZERS := -fsanitize=address -fsanitize=undefined -fsanitize=leak
+SANITIZERS := -fsanitize=address -fsanitize=undefined -fsanitize=leak
 
-.PHONY: all
-all: test-nosan test
-	valgrind --leak-check=full \
-		--show-leak-kinds=all \
-		--track-origins=yes \
-		--verbose \
-		--log-file=valgrind-out.txt \
-		./test-nosan
-	./$<
-
+.PHONY: test
 test: test.c $(OBJS) $(TEST_OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
 		$(TEST_OBJS) $(CFLAGS) $(SANITIZERS) \
 		$(LDFLAGS)
+	./$@
 
-
-run-test: test
-    $<
-
+.PHONY: test-nosan
 test-nosan: test.c $(TEST_OBJS) $(OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS) $(LDFLAGS)
-
-run-test-nosan: test-nosan
-    $<
-
+	./$@
 
 .PHONY: valgrind
 valgrind: test-nosan
@@ -73,7 +57,7 @@ valgrind: test-nosan
 		--track-origins=yes \
 		--verbose \
 		--log-file=valgrind-out.txt \
-		./test-nosan
+		./$<
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS) $(INC)
@@ -90,7 +74,3 @@ print:
 .PHONY: fetch
 fetch:
 	git clone git@github.com:nemequ/munit.git
-
-.PHONY: run-test
-run-test:
-	$(MAKE) test && ./test --no-fork
