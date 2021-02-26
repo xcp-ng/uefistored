@@ -24,7 +24,6 @@ TEST_SRCS += mock/XenVariable.c \
 TEST_SRCS +=                            \
     src/test_auth.c                     \
     src/test_auth_func.c                \
-    src/test_base64.c                   \
     src/test_common.c                   \
     src/test_xen_variable_server.c      \
     src/test_pk.c      \

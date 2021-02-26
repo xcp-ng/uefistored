@@ -9,7 +9,6 @@
 #include "munit/munit.h"
 
 #include "storage.h"
-#include "base64.h"
 #include "common.h"
 #include "log.h"
 #include "test_common.h"
@@ -38,6 +37,46 @@ static size_t d2_len;
 static size_t blocksz;
 
 static variable_t vars[2];
+
+#define BUFFER_MAX (4096*4)
+#define VAR_MAX 512
+
+char *bytes_to_base64(uint8_t *buffer, size_t length);
+int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded,
+                    size_t encoded_size);
+
+MunitResult test_base64(const MunitParameter *params, void* data)
+{
+    int ret, sz;
+    uint8_t buffer[BUFFER_MAX] = {0};
+    char base64[BUFFER_MAX] = {0};
+    uint8_t serialized[BUFFER_MAX] = {0};
+    uint8_t *ptr;
+    variable_t vars[VAR_MAX];
+    FILE *fd;
+
+    memset(vars, 0, sizeof(vars));
+
+    fd = fopen("data/simple-db.b64", "r");
+    munit_assert(fd != NULL);
+
+    sz = fread(base64, 1, BUFFER_MAX, fd);
+    fclose(fd);
+
+    ret = base64_to_bytes(buffer, BUFFER_MAX, base64, sz);
+    munit_assert(ret >= 0);
+
+    ret = from_bytes_to_vars(vars, VAR_MAX, buffer, ret);
+    munit_assert(ret >= 0);
+
+    ptr = serialized;
+    ret = serialize_variable_list(&ptr, BUFFER_MAX, vars, ret);
+
+    munit_assert(ret >= 0);
+    munit_assert_int(memcmp(serialized, buffer, BUFFER_MAX), ==, 0);
+
+    return MUNIT_OK;
+}
 
 static MunitResult test_bytes(const MunitParameter *params, void* data)
 {
@@ -91,7 +130,7 @@ static MunitResult test_var_copy(const MunitParameter *params, void *data)
  * Passes if serializing a list of size 1 and then deserializig it results in
  * the same list of size 1.
  */
-static MunitResult test_xapi_base64(const MunitParameter *params, void *data)
+static MunitResult test_list_serialization(const MunitParameter *params, void *data)
 {
     char *base64;
     uint8_t buf[4096] = { 0 };
@@ -157,6 +196,8 @@ static void *xapi_setup(const MunitParameter params[], void* user_data)
 MunitTest xapi_tests[] = {
     DEFINE_TEST(test_var_copy),
     DEFINE_TEST(test_bytes),
-    DEFINE_TEST(test_xapi_base64),
+    DEFINE_TEST(test_list_serialization),
+    { (char*)"test_base64", test_base64,
+        NULL, NULL, MUNIT_SUITE_OPTION_NONE, NULL },
     { 0 }
 };

@@ -48,13 +48,6 @@ MunitSuite other_suites[] = {
         MUNIT_SUITE_OPTION_NONE
     },
     {
-        (char*) "base64/",
-        base64_tests,
-        NULL,
-        1,
-        MUNIT_SUITE_OPTION_NONE
-    },
-    {
         (char*) "xapi/",
         xapi_tests,
         NULL,
