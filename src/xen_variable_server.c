@@ -13,7 +13,6 @@
 
 #include "backend.h"
 #include "common.h"
-#include "info.h"
 #include "log.h"
 #include "serializer.h"
 #include "storage.h"

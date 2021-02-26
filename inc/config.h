@@ -1,6 +1,8 @@
 #ifndef __H_CONFIG_
 #define __H_CONFIG_
 
+#define UEFISTORED_VERSION 1
+
 /* utility macros for configs */
 #define KB(x) (x * 1024)
 #define MB(x) (KB(x) * 1024)
