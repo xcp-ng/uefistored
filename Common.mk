@@ -1,5 +1,4 @@
 SRCS :=                                                         \
-        src/base64.c                                            \
         src/common.c                                            \
         src/depriv.c                                            \
         src/log.c                                               \

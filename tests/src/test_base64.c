@@ -7,7 +7,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "base64.h"
 #include "log.h"
 #include "serializer.h"
 #include "variable.h"
@@ -15,6 +14,10 @@
 
 #define BUFFER_MAX (4096*4)
 #define VAR_MAX 512
+
+char *bytes_to_base64(uint8_t *buffer, size_t length);
+int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded,
+                    size_t encoded_size);
 
 MunitResult test_base64(const MunitParameter *params, void* data)
 {
