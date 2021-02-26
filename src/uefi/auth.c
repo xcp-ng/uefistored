@@ -1056,6 +1056,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                          (void *)&old_esl, &old_esl_size);
 
     if (status != EFI_SUCCESS) {
+        free(top_cert_der);
         DBG("No PK found\n");
         return false;
     }
@@ -1066,6 +1067,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
      */
     if (!cert_equals_esl(top_cert_der, top_cert_der_size, old_esl)) {
         DBG("PKCS7 SignedData cert not equal old PK!\n");
+        free(top_cert_der);
         return false;
     }
 
@@ -1076,6 +1078,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                        new_data_size);
 
     PKCS7_free(pkcs7);
+    free(top_cert_der);
     return ret;
 }
 
@@ -1234,6 +1237,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
             wrap_with_content_info(sig_data, sig_data_size, &wrap_data_size);
 
     if (!wrap_data) {
+        free(wrap_data);
         ERROR("failed to wrap with ContentInfo\n");
         return EFI_DEVICE_ERROR;
     }
@@ -1259,6 +1263,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
                 (memcmp(wrap_data + 32, &sha256_oid, sizeof(sha256_oid)) !=
                  0)) {
                 WARNING("VARIABLE_AUTHENTICATION_2 not using SHA256 (wrong oid)\n");
+                free(wrap_data);
                 return EFI_SECURITY_VIOLATION;
             }
         }
@@ -1282,6 +1287,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     new_data = malloc(new_data_size);
 
     if (!new_data) {
+        free(wrap_data);
         return EFI_OUT_OF_RESOURCES;
     }
 
@@ -1322,17 +1328,20 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     free(new_data);
 
     if (!verify_status) {
+        free(wrap_data);
         return EFI_SECURITY_VIOLATION;
     }
 
     status = check_signature_list_format(name, guid, payload_ptr, payload_size);
     if (status != EFI_SUCCESS) {
+        free(wrap_data);
         return status;
     }
 
     *var_payload_ptr = payload_ptr;
     *var_payload_size = payload_size;
 
+    free(wrap_data);
     return EFI_SUCCESS;
 }
 

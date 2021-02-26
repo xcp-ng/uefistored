@@ -47,6 +47,7 @@ int base64_to_bytes(uint8_t *plaintext, size_t n, char *encoded,
 
 MunitResult test_base64(const MunitParameter *params, void* data)
 {
+    int i, var_num;
     int ret, sz;
     uint8_t buffer[BUFFER_MAX] = {0};
     char base64[BUFFER_MAX] = {0};
@@ -66,7 +67,7 @@ MunitResult test_base64(const MunitParameter *params, void* data)
     ret = base64_to_bytes(buffer, BUFFER_MAX, base64, sz);
     munit_assert(ret >= 0);
 
-    ret = from_bytes_to_vars(vars, VAR_MAX, buffer, ret);
+    var_num = ret = from_bytes_to_vars(vars, VAR_MAX, buffer, ret);
     munit_assert(ret >= 0);
 
     ptr = serialized;
@@ -74,6 +75,10 @@ MunitResult test_base64(const MunitParameter *params, void* data)
 
     munit_assert(ret >= 0);
     munit_assert_int(memcmp(serialized, buffer, BUFFER_MAX), ==, 0);
+
+    for (i=0; i<var_num; i++) {
+        variable_destroy_noalloc(&vars[i]);
+    }
 
     return MUNIT_OK;
 }
@@ -165,6 +170,8 @@ static MunitResult test_list_serialization(const MunitParameter *params, void *d
 static void xapi_tear_down(void *fixture)
 {
     storage_destroy();
+    variable_destroy_noalloc(&vars[0]);
+    variable_destroy_noalloc(&vars[1]);
 }
 
 static void *xapi_setup(const MunitParameter params[], void* user_data)

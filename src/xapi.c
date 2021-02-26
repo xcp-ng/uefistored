@@ -1215,6 +1215,8 @@ int xapi_init(bool resume)
                          var->datasz, var->attrs);
         }
 
+        variable_destroy_noalloc(var);
+
         /*
          * If we fail to set a variable from XAPI then we can't trust our 
          * secure boot state.  It's best if we die loudly then let it slide
