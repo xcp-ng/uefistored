@@ -39,7 +39,6 @@ extern const enum loglevel loglevel;
         }                                                                      \
     } while (0)
 
-#ifdef DEBUG
 #define DBG(...)                                                               \
     do {                                                                       \
         if (loglevel >= LOGLEVEL_DEBUG) {                                      \
@@ -51,10 +50,11 @@ extern const enum loglevel loglevel;
 
 #define DPRINTF(...)                                                           \
         if (loglevel >= LOGLEVEL_DEBUG) {                                      \
-            fprintf(stdout, __VA_ARGS__)                                       \
+            fprintf(stdout, __VA_ARGS__);                                      \
             fflush(stdout);                                                    \
         }                                                                      \
 
+#ifdef DEBUG
 static inline void _dprint_data(const void *data, size_t datasz)
 {
     const uint8_t *p = data;
@@ -82,15 +82,12 @@ void _dprint_variable_list(const variable_t *vars, size_t n);
 #define dprint_name _dprint_name
 void _dprint_name(const UTF16 *name, size_t namesz);
 
-#else
-#define DBG(...) do { } while(0)
-#define DPRINTF(...) do { } while(0)
+#else // DEBUG
 #define dprint_data(...) do { } while(0)
 #define dprint_variable_list(...) do { } while(0)
 #define dprint_variable(...) do { } while(0)
 
 #define dprint_name(...) do { } while(0)
-
-#endif
+#endif // DEBUG
 
 #endif // __H_LOG__
