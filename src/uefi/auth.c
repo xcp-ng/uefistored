@@ -1573,9 +1573,7 @@ EFI_STATUS process_var_with_kek(UTF16 *name, size_t namesz, EFI_GUID *guid,
                                                     data_size, attrs,
                                                     AUTH_VAR_TYPE_KEK, NULL);
     } else {
-        /*
-         * If in setup mode, no authentication needed.
-         */
+        DBG("In setup mode, no authentication needed.\n");
         payload = (uint8_t *)data + AUTHINFO2_SIZE(data);
         payload_size = data_size - AUTHINFO2_SIZE(data);
 
