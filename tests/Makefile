@@ -73,4 +73,4 @@ print:
 
 .PHONY: fetch
 fetch:
-	git clone git@github.com:nemequ/munit.git
+	git clone https://github.com/nemequ/munit.git
