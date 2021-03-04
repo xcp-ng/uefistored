@@ -60,7 +60,7 @@ valgrind: test-nosan
 		./$<
 
 %.o: %.c
-	$(CC) -o $@ -c $< $(CFLAGS) $(INC)
+	$(CC) -o $@ -c $< $(CFLAGS) $(INC) $(SANITIZERS)
 
 .PHONY: clean
 clean:
