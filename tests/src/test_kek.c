@@ -61,6 +61,7 @@ static void *kek_setup(const MunitParameter params[], void* user_data)
 
 static void kek_tear_down(void* fixture)
 {
+    auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
     storage_destroy();
 }
 

@@ -837,6 +837,7 @@ static void *auth_func_setup(const MunitParameter params[], void *data)
 static void auth_func_tear_down(void* fixture)
 {
     storage_destroy();
+    auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
 }
 
 MunitTest auth_func_tests[] = {

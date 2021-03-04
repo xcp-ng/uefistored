@@ -91,6 +91,7 @@ static MunitResult test_pk_new_cert_neq_dummy_cert(const MunitParameter params[]
 
 static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], void *testdata)
 {
+    MunitResult result = MUNIT_OK;
     PKCS7 *pkcs7;
     uint8_t *top_cert_der;
     int top_cert_der_size;
@@ -101,7 +102,8 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
     auth_lib_load(auth_files, ARRAY_SIZE(auth_files));
 
     if (auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files)) != EFI_SUCCESS) {
-        return MUNIT_ERROR;
+        result = MUNIT_ERROR;
+        goto out;
     }
 
     status = auth_internal_find_variable(L"PK", sizeof_wchar(L"PK"),
@@ -109,12 +111,14 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
                                          &old_esl_size);
 
     if (status != EFI_SUCCESS) {
-        return MUNIT_ERROR;
+        result = MUNIT_ERROR;
+        goto out;
     }
 
     if (file_to_buf("data/certs/PK.auth", DEFAULT_PK, BUF_SIZE) < 0) {
         fprintf(stderr, "failed to open data/null.auth\n");
-        return MUNIT_ERROR;
+        result = MUNIT_ERROR;
+        goto out;
     }
 
     pkcs7 = pkcs7_from_auth((EFI_VARIABLE_AUTHENTICATION_2 *)DEFAULT_PK);
@@ -122,10 +126,12 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
 
     munit_assert_true(cert_equals_esl(top_cert_der, top_cert_der_size, old_esl));
 
+out:
     PKCS7_free(pkcs7);
     free(top_cert_der);
+    auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
 
-    return MUNIT_OK;
+    return result;
 }
 
 static void *pk_setup(const MunitParameter params[], void* user_data)
@@ -137,6 +143,7 @@ static void *pk_setup(const MunitParameter params[], void* user_data)
 
 static void pk_tear_down(void* fixture)
 {
+    auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
     storage_destroy();
 }
 

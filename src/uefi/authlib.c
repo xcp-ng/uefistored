@@ -198,6 +198,20 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 }
 
+void auth_lib_deinit(struct auth_data *auths, size_t n)
+{
+    int i;
+
+    for (i=0; i<n; i++) {
+        if (auths[i].var.data) {
+            free(auths[i].var.data);
+        }
+    }
+
+    if (hash_ctx)
+        free(hash_ctx);
+}
+
 /**
  * Process variable with EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS set.
  *

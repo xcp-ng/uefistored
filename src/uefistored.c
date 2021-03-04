@@ -435,6 +435,7 @@ static void signal_handler(int sig)
         free(pidfile);
 
     backend_cleanup();
+    auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
 
     signal(sig, SIG_DFL);
     raise(sig);

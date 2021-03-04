@@ -89,6 +89,7 @@ static void *db_setup(const MunitParameter params[], void* user_data)
 
 static void db_tear_down(void* fixture)
 {
+    auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
     storage_destroy();
 }
 

@@ -20,6 +20,7 @@ EFI_STATUS auth_lib_process_variable (
 );
 
 EFI_STATUS auth_lib_initialize(struct auth_data *auths, size_t n);
+void auth_lib_deinit(struct auth_data *auths, size_t n);
 void auth_lib_load(struct auth_data *auths, size_t n);
 
 #endif // __H_AUTHLIB_UEFI_
