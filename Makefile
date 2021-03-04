@@ -48,8 +48,8 @@ test-nosan:       ## Run uefistored unit tests without address sanitizers
 install: uefistored
 install:          ## Install uefistored and secureboot-certs
 	mkdir -p $(DESTDIR)/usr/sbin/
-	cp $< $(DESTDIR)/usr/sbin/$<
-	cp scripts/secureboot-certs $(DESTDIR)/usr/sbin/secureboot-certs
+	install -m 755 $< $(DESTDIR)/usr/sbin/$<
+	install -m 755 scripts/secureboot-certs $(DESTDIR)/usr/sbin/secureboot-certs
 
 .PHONY: deploy
 deploy:           ## Deploy uefistored to a host
