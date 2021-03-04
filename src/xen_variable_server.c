@@ -36,12 +36,11 @@ struct request {
     uint32_t attrs;
 };
 
-#if DEBUG
 static void debug_request(struct request *req)
 {
-    if (!req)
+    if (loglevel < LOGLEVEL_DEBUG || !req)
         return;
-
+#if 0
     DPRINTF("request: version=%u, command=0x%02x, name=", req->version,
             req->command);
     dprint_name((UTF16 *)req->name, req->namesz);
@@ -56,12 +55,8 @@ static void debug_request(struct request *req)
         DPRINTF(", attrs=0x%02x, ", req->attrs);
 
     DPRINTF("\n");
-}
-#else
-#define debug_request(...)                                                     \
-    do {                                                                       \
-    } while (0)
 #endif
+}
 
 EFI_STATUS evaluate_attrs(uint32_t attrs)
 {
@@ -201,6 +196,11 @@ static void handle_get_variable(void *comm_buf)
     serialize_result(&ptr, EFI_SUCCESS);
     serialize_uint32(&ptr, var->attrs);
     serialize_data(&ptr, var->data, var->datasz);
+
+    if (loglevel >= LOGLEVEL_DEBUG &&
+            memcmp(L"SecureBoot", var->name, var->namesz) == 0) {
+        DBG("Returning to OVMF: SecureBoot=%u\n", *((uint8_t*)var->data));
+    }
 }
 
 static void handle_query_variable_info(void *comm_buf)
