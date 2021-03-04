@@ -28,7 +28,7 @@ uefistored:        Build uefistored
 uefistored-debug:  Build uefistored with debug symbols
 test:              Run uefistored unit tests with address sanitizers
 test-nosan:        Run uefistored unit tests without address sanitizers
-install:           Install uefistored
+install:           Install uefistored and secureboot-certs
 deploy:            Deploy uefistored to a host
 help:              Display this help
 scan-build:        Use scan-build for static analysis
