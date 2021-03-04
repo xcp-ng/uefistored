@@ -1158,6 +1158,8 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                 verify_status = pkcs7_verify(pkcs7, trusted_cert, new_data,
                                              new_data_size);
 
+                X509_free(trusted_cert);
+
                 if (verify_status) {
                     DBG("pkcs7_verify() failed\n");
                     goto err;
