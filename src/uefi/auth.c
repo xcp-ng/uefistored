@@ -164,6 +164,7 @@ bool rsa_get_pub_key_from_x509(const uint8_t *cert, uint64_t cert_size,
     }
 
     RSA_free(rsa);
+    RSA_free(*rsa_context);
 
 err:
     if (x509_cert != NULL) {
