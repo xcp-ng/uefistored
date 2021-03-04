@@ -871,6 +871,7 @@ static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                            uint8_t *payload_ptr, uint8_t *new_data,
                            uint64_t new_data_size)
 {
+    bool ret;
     X509 *trusted_cert;
     EFI_SIGNATURE_LIST *cert_list;
     EFI_SIGNATURE_DATA *cert;
@@ -899,10 +900,14 @@ static bool verify_payload(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
     if (!pkcs7) {
         DBG("Failed to parse pkcs7 from auth2\n");
+        X509_free(trusted_cert);
         return false;
     }
 
-    return pkcs7_verify(pkcs7, trusted_cert, new_data, new_data_size);
+    ret = pkcs7_verify(pkcs7, trusted_cert, new_data, new_data_size);
+    X509_free(trusted_cert);
+    PKCS7_free(pkcs7);
+    return ret;
 }
 
 static EFI_STATUS sha256_from_auth(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
