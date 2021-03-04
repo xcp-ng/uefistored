@@ -49,10 +49,12 @@ extern const enum loglevel loglevel;
     } while (0)
 
 #define DPRINTF(...)                                                           \
+    do {                                                                       \
         if (loglevel >= LOGLEVEL_DEBUG) {                                      \
             fprintf(stdout, __VA_ARGS__);                                      \
             fflush(stdout);                                                    \
         }                                                                      \
+    } while ( 0 )
 
 void dprint_data(const void *data, size_t datasz);
 void dprint_variable(const variable_t *var);
