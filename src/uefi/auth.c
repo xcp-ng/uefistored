@@ -555,17 +555,23 @@ EFI_STATUS update_platform_mode(uint32_t mode)
     assert(mode == USER_MODE || mode == SETUP_MODE);
 
     setup_mode = (uint8_t)mode;
-
-    storage_set(L"SetupMode", sizeof_wchar(L"SetupMode"),
-                &gEfiGlobalVariableGuid, &setup_mode, sizeof(setup_mode),
-                EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
-
     secure_boot = mode == USER_MODE ? secure_boot_enabled : 0;
 
     status = storage_set(
             EFI_SECURE_BOOT_MODE_NAME, sizeof_wchar(EFI_SECURE_BOOT_MODE_NAME),
             &gEfiGlobalVariableGuid, &secure_boot, sizeof(uint8_t),
             EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_BOOTSERVICE_ACCESS);
+
+    if (status != EFI_SUCCESS) {
+        ERROR("Failed to set secure boot mode\n");
+        return status;
+    }
+
+    INFO("%s: variable SecureBoot %s\n", __func__, secure_boot ? "ON" : "OFF");
+
+    status = storage_set(L"SetupMode", sizeof_wchar(L"SetupMode"),
+                &gEfiGlobalVariableGuid, &setup_mode, sizeof(setup_mode),
+                EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
     if (status != EFI_SUCCESS)
         return status;
