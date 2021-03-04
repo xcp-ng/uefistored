@@ -560,7 +560,7 @@ EFI_STATUS update_platform_mode(uint32_t mode)
                 &gEfiGlobalVariableGuid, &setup_mode, sizeof(setup_mode),
                 EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
 
-    secure_boot = secure_boot_enabled;
+    secure_boot = mode == USER_MODE ? secure_boot_enabled : 0;
 
     status = storage_set(
             EFI_SECURE_BOOT_MODE_NAME, sizeof_wchar(EFI_SECURE_BOOT_MODE_NAME),
