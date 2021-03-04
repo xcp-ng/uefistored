@@ -105,30 +105,41 @@ void auth_lib_load(struct auth_data *auths, size_t n)
     }
 }
 
-static void load_auth_files(struct auth_data *auths, size_t n)
+static EFI_STATUS load_auth_files(struct auth_data *auths, size_t n)
 {
     size_t i;
-    EFI_STATUS status;
+    EFI_STATUS status = EFI_SUCCESS;
     variable_t *var;
 
     for (i = 0; i < n; i++) {
         var = &auths[i].var;
 
-        if (!storage_exists(var->name, var->namesz, &var->guid) && var->datasz > 0 && var->data != NULL) {
-            status = auth_lib_process_variable(var->name, var->namesz,
-                                               &var->guid, var->data,
-                                               var->datasz, var->attrs);
+        if (storage_exists(var->name, var->namesz, &var->guid)) {
+            INFO("skip loading %s (variable alreadys exists)\n", auths[i].path);
+            continue;
+        }
 
-            if (status != EFI_SUCCESS) {
-                DBG("Failed to set SB variable from %s (attrs=0x%02x), status=%s (0x%02lx)\n",
-                       auths[i].path, var->attrs, efi_status_str(status), status);
-            } else {
-                INFO("Successfuly set SB variable from %s (attrs=0x%02x)\n",
-                       auths[i].path, var->attrs);
-                dprint_variable(var);
-            }
+        if (var->datasz == 0 || var->data == NULL) {
+            continue;
+        }
+
+        status = auth_lib_process_variable(var->name, var->namesz,
+                                           &var->guid, var->data,
+                                           var->datasz, var->attrs);
+
+        if (status != EFI_SUCCESS) {
+            ERROR("Failed to set %s (attrs=0x%02x), status=%s (0x%02lx)\n",
+                   auths[i].path, var->attrs, efi_status_str(status),
+                   status);
+
+            return status;
+        } else {
+            INFO("Set %s (attrs=0x%02x)\n", auths[i].path, var->attrs);
+            dprint_variable(var);
         }
     }
+
+    return status;
 }
 
 /**
@@ -163,7 +174,11 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
     if (status != EFI_SUCCESS)
         return status;
 
-    load_auth_files(auths, n);
+    status = load_auth_files(auths, n);
+    if (status != EFI_SUCCESS) {
+        ERROR("load_auth_files() failed.\n");
+        return status;
+    }
 
     secure_boot = secure_boot_enabled;
 
