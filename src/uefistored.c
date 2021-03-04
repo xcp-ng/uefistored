@@ -894,7 +894,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-
     if (backend_init(resume) < 0) {
         goto err;
     }
@@ -905,16 +904,19 @@ int main(int argc, char **argv)
         ERROR("auth_lib_initialization() failed, status=%s (0x%lx)",
               efi_status_str(status), status);
 
-        assert(status == EFI_SUCCESS);
+        goto err;
     }
 
     if (write_pid() < 0)
         goto err;
 
+    /* No return from handler_loop() */
     handler_loop(buffered_iopage, vcpu_count, shared_iopage);
 
 err:
     ERROR("Did not enter loop! dying...\n");
     exit(1);
+
+    /* make GCC happy by making main() return an int */
     return -1;
 }
