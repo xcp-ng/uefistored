@@ -56,7 +56,6 @@ valgrind: test-nosan
 		--show-leak-kinds=all \
 		--track-origins=yes \
 		--verbose \
-		--log-file=valgrind-out.txt \
 		./$<
 
 %.o: %.c
