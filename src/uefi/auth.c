@@ -1045,6 +1045,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     uint8_t *top_cert_der = NULL;
     int top_cert_der_size;
     PKCS7 *pkcs7;
+    STACK_OF(X509) *certs = NULL;
     EFI_SIGNATURE_LIST *old_esl = NULL;
     uint64_t old_esl_size;
     EFI_STATUS status;
@@ -1056,9 +1057,11 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
         return false;
     }
 
-    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
+    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size, &certs);
 
     if (!top_cert_der) {
+        if (certs)
+            sk_X509_free(certs);
         PKCS7_free(pkcs7);
         DBG("No top cert found\n");
         return false;
@@ -1084,13 +1087,20 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
         goto out;
     }
 
+    if (certs) {
+        sk_X509_free(certs);
+        certs = NULL;
+    }
+
     /*
      * Verify Pkcs7 SignedData.
      */
-    ret = pkcs7_verify(pkcs7, pkcs7_get_top_cert(pkcs7), new_data,
+    ret = pkcs7_verify(pkcs7, pkcs7_get_top_cert(pkcs7, &certs), new_data,
                        new_data_size);
 
 out:
+    if (certs)
+        sk_X509_free(certs);
     PKCS7_free(pkcs7);
     free(top_cert_der);
     return ret;

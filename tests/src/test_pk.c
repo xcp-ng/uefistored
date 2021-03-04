@@ -58,11 +58,14 @@ static MunitResult test_parsing_pkcs7_top_cert(const MunitParameter params[], vo
     PKCS7 *pkcs7;
     uint8_t *top_cert_der;
     int top_cert_der_size;
+    STACK_OF(X509) *certs = NULL;
 
     pkcs7 = pkcs7_from_auth((EFI_VARIABLE_AUTHENTICATION_2 *)DEFAULT_PK);
-    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
+    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size, &certs);
     munit_assert_ptr_not_null(top_cert_der);
 
+    if (certs)
+        sk_X509_free(certs);
     PKCS7_free(pkcs7);
     free(top_cert_der);
 
@@ -75,13 +78,17 @@ static MunitResult test_pk_new_cert_neq_dummy_cert(const MunitParameter params[]
     uint8_t *top_cert_der = NULL;
     int top_cert_der_size;
     EFI_SIGNATURE_LIST dummy_esl;
+    STACK_OF(X509) *certs = NULL;
 
     memset(&dummy_esl, 0, sizeof(dummy_esl));
 
     pkcs7 = pkcs7_from_auth((EFI_VARIABLE_AUTHENTICATION_2 *)DEFAULT_PK);
-    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
+    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size, &certs);
 
     munit_assert_false(cert_equals_esl(top_cert_der, top_cert_der_size, &dummy_esl));
+
+    if (certs)
+        sk_X509_free(certs);
 
     PKCS7_free(pkcs7);
     free(top_cert_der);
@@ -92,6 +99,7 @@ static MunitResult test_pk_new_cert_neq_dummy_cert(const MunitParameter params[]
 static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], void *testdata)
 {
     MunitResult result = MUNIT_OK;
+    STACK_OF(X509) *certs = NULL;
     PKCS7 *pkcs7;
     uint8_t *top_cert_der;
     int top_cert_der_size;
@@ -122,11 +130,13 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
     }
 
     pkcs7 = pkcs7_from_auth((EFI_VARIABLE_AUTHENTICATION_2 *)DEFAULT_PK);
-    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
+    top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size, &certs);
 
     munit_assert_true(cert_equals_esl(top_cert_der, top_cert_der_size, old_esl));
 
 out:
+    if (certs)
+        sk_X509_free(certs);
     PKCS7_free(pkcs7);
     free(top_cert_der);
     auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
