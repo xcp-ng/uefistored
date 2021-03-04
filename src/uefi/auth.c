@@ -1041,10 +1041,10 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                       uint8_t *new_data, uint64_t new_data_size)
 {
     bool ret;
-    uint8_t *top_cert_der;
+    uint8_t *top_cert_der = NULL;
     int top_cert_der_size;
     PKCS7 *pkcs7;
-    EFI_SIGNATURE_LIST *old_esl;
+    EFI_SIGNATURE_LIST *old_esl = NULL;
     uint64_t old_esl_size;
     EFI_STATUS status;
 
