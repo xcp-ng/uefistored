@@ -1058,6 +1058,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);
 
     if (!top_cert_der) {
+        PKCS7_free(pkcs7);
         DBG("No top cert found\n");
         return false;
     }
@@ -1069,7 +1070,8 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     if (status != EFI_SUCCESS) {
         free(top_cert_der);
         DBG("No PK found\n");
-        return false;
+        ret = false;
+        goto out;
     }
 
     /*
@@ -1078,8 +1080,8 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
      */
     if (!cert_equals_esl(top_cert_der, top_cert_der_size, old_esl)) {
         DBG("PKCS7 SignedData cert not equal old PK!\n");
-        free(top_cert_der);
-        return false;
+        ret = false;
+        goto out;
     }
 
     /*
@@ -1088,6 +1090,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
     ret = pkcs7_verify(pkcs7, pkcs7_get_top_cert(pkcs7), new_data,
                        new_data_size);
 
+out:
     PKCS7_free(pkcs7);
     free(top_cert_der);
     return ret;
