@@ -46,21 +46,20 @@ test-nosan:       ## Run uefistored unit tests without address sanitizers
 
 .PHONY: install
 install: uefistored
-
 install:          ## Install uefistored
 	mkdir -p $(DESTDIR)/usr/sbin/
 	cp $< $(DESTDIR)/usr/sbin/$<
 
 .PHONY: deploy
 deploy:           ## Deploy uefistored to a host
-	scripts/deploy.sh
+	scp uefistored root@$(HOST):/usr/sbin/uefistored
+	ssh root@$(HOST) -- ln -sf /usr/sbin/uefistored /usr/sbin/varstored
 
 .PHONY: help
 help:             ## Display this help
 	@printf "\nuefistored - UEFI Secure Boot Support for Xen Guest VMs\n\n"
 	@grep -Fh "##" Makefile Docker.mk | grep -Fv grep | sed -e 's/\\$$//' | sed -e 's/##//'
 	@printf "\n"
-
 
 print-%:
 	@:$(info $($*))
