@@ -1067,8 +1067,7 @@ static bool verify_pk(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                          &gEfiGlobalVariableGuid,
                                          (void *)&old_esl, &old_esl_size);
 
-    if (status != EFI_SUCCESS) {
-        free(top_cert_der);
+    if (status != EFI_SUCCESS || !old_esl) {
         DBG("No PK found\n");
         ret = false;
         goto out;
