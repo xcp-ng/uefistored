@@ -72,9 +72,11 @@ static MunitResult test_parsing_pkcs7_top_cert(const MunitParameter params[], vo
 static MunitResult test_pk_new_cert_neq_dummy_cert(const MunitParameter params[], void *testdata)
 {
     PKCS7 *pkcs7;
-    uint8_t *top_cert_der;
+    uint8_t *top_cert_der = NULL;
     int top_cert_der_size;
     EFI_SIGNATURE_LIST dummy_esl;
+
+    memset(&dummy_esl, 0, sizeof(dummy_esl));
 
     pkcs7 = pkcs7_from_auth((EFI_VARIABLE_AUTHENTICATION_2 *)DEFAULT_PK);
     top_cert_der = pkcs7_get_top_cert_der(pkcs7, &top_cert_der_size);

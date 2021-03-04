@@ -97,4 +97,5 @@ MunitTest db_tests[] = {
         db_setup, db_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
     { (char*)"test_db_signed_by_kek", test_db_signed_by_kek,
         db_setup, db_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { 0 }
 };

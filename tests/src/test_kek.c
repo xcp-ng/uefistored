@@ -67,4 +67,5 @@ static void kek_tear_down(void* fixture)
 MunitTest kek_tests[] = {
     { (char*)"test_valid_first_kek", test_valid_first_kek,
         kek_setup, kek_tear_down, MUNIT_SUITE_OPTION_NONE, NULL },
+    { 0 }
 };
