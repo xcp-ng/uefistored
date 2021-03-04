@@ -145,6 +145,8 @@ static EFI_STATUS load_auth_files(struct auth_data *auths, size_t n)
 /**
  * Initialization for authenticated variable services.
  * 
+ * Failure of this function should be halting.
+ *
  * @return EFI_SUCCESS if initialize is successful, otherwise an EFI errno
  */
 EFI_STATUS
@@ -165,30 +167,30 @@ auth_lib_initialize(struct auth_data *auths, size_t n)
     if (status != EFI_SUCCESS)
         return status;
 
-    if (storage_exists(L"PK", sizeof_wchar(L"PK"), &gEfiGlobalVariableGuid)) {
-        status = update_platform_mode(USER_MODE);
-    } else {
-        status = update_platform_mode(SETUP_MODE);
+    status = update_platform_mode(SETUP_MODE);
+
+    if (status != EFI_SUCCESS) {
+        DBG("Failed to initialize platform mode\n");
+        return status;
     }
 
-    if (status != EFI_SUCCESS)
-        return status;
-
     status = load_auth_files(auths, n);
+
     if (status != EFI_SUCCESS) {
         ERROR("load_auth_files() failed.\n");
         return status;
     }
 
-    secure_boot = secure_boot_enabled;
+    if (secure_boot == 0 &&
+            storage_exists(L"PK", sizeof_wchar(L"PK"), &gEfiGlobalVariableGuid)) {
 
-    status = storage_set(
-            L"SecureBoot", sizeof_wchar(L"SecureBoot"), &gEfiGlobalVariableGuid,
-            &secure_boot, sizeof(secure_boot),
-            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS);
+        status = update_platform_mode(USER_MODE);
 
-    if (status != EFI_SUCCESS)
-        return status;
+        if (status != EFI_SUCCESS) {
+            DBG("Failed to initialize platform mode\n");
+            return status;
+        }
+    }
 
     return storage_set(
             L"AuditMode", sizeof_wchar(L"AuditMode"), &gEfiGlobalVariableGuid,
