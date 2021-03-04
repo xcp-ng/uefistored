@@ -12,11 +12,11 @@
 /**
  * Print UTF16 variable name.
  */
-void _dprint_name(const UTF16 *name, size_t namesz)
+void dprint_name(const UTF16 *name, size_t namesz)
 {
     char buf[MAX_VARIABLE_NAME_SIZE] = { 0 };
 
-    if (!name)
+    if (loglevel < LOGLEVEL_DEBUG || !name)
         return;
 
     uc2_ascii_safe(name, namesz, buf, MAX_VARIABLE_NAME_SIZE);
@@ -29,9 +29,9 @@ void _dprint_name(const UTF16 *name, size_t namesz)
  * NOTE: this only prints ASCII characters correctly.
  * Any char code above 255 will be skipped.
  */
-void _dprint_variable(const variable_t *var)
+void dprint_variable(const variable_t *var)
 {
-    if (!var)
+    if (loglevel < LOGLEVEL_DEBUG || !var)
         return;
 
     dprint_name(var->name, var->namesz);
@@ -49,14 +49,35 @@ void _dprint_variable(const variable_t *var)
 /**
  * Print a list of variables.
  */
-void _dprint_variable_list(const variable_t *vars, size_t n)
+void dprint_variable_list(const variable_t *vars, size_t n)
 {
     size_t i;
 
-    if (!vars)
+    if (loglevel < LOGLEVEL_DEBUG || !vars)
         return;
 
     for (i = 0; i < n; i++) {
         dprint_variable(&vars[i]);
     }
+}
+
+void dprint_data(const void *data, size_t datasz)
+{
+    const uint8_t *p = data;
+    size_t i;
+
+    if (loglevel < LOGLEVEL_DEBUG)
+        return;
+
+    if (!data)
+        return;
+
+    DPRINTF("data(%lu)=[", datasz);
+    for (i = 0; i < datasz; i++) {
+        DPRINTF("0x%02x ", p[i]);
+
+        if (i < datasz - 1)
+            DPRINTF(", ");
+    }
+    DPRINTF("]\n");
 }
