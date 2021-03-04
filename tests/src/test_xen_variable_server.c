@@ -494,10 +494,15 @@ test_query_variable_info(const MunitParameter *params, void *data)
     return MUNIT_OK;
 }
 
+static void tear_down(void* fixture)
+{
+    storage_destroy();
+}
+
 #define DEFINE_TEST(test_func)                  \
     { (char*) #test_func, test_func,            \
-        NULL,              \
-        NULL,          \
+        NULL,               \
+        tear_down,          \
         MUNIT_SUITE_OPTION_NONE, NULL }
 
 MunitTest xen_variable_server_tests[] = {
