@@ -43,7 +43,7 @@ test: test.c $(OBJS) $(TEST_OBJS) $(HDRS)
 	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
 		$(TEST_OBJS) $(CFLAGS) $(SANITIZERS) \
 		$(LDFLAGS)
-	ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=lsan.supp ./$@
+	ASAN_OPTIONS=detect_leaks=1 ./$@
 
 .PHONY: test-nosan
 test-nosan: test.c $(TEST_OBJS) $(OBJS) $(HDRS)
