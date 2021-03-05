@@ -27,7 +27,6 @@ all:               Build uefistored (same as uefistored target)
 uefistored:        Build uefistored
 uefistored-debug:  Build uefistored with debug symbols
 test:              Run uefistored unit tests with address sanitizers
-test-nosan:        Run uefistored unit tests without address sanitizers
 install:           Install uefistored and secureboot-certs
 deploy:            Deploy uefistored to a host
 help:              Display this help
@@ -101,7 +100,7 @@ Currently, the only implemented backend is for XAPI.
 uefistored uses Xen's libxen to register itself as a device emulator for the
 HVM domU that XAPI has started.  XenVariable, found in OVMF, knows how to
 communicate with uefistored using the device emulation protocol.  See [OVMF
-and uefistored] for more details.
+and uefistored](#ovmf-and-uefistored) for more details.
 
 ## OVMF and uefistored
 
@@ -125,11 +124,11 @@ GetVariable request has been served and the response is ready for processing.
 
 # Contributing
 
-Contributions are welcome and may be submittedd as PRs to [](https://github.com/xcp-ng/uefistored).
+Contributions are welcome and may be submitted as PRs to [github](https://github.com/xcp-ng/uefistored).
 
 # Reporting bugs
 
-Bugs may be reported on [](https://github.com/xcp-ng/uefistored/issues).
+Bugs may be reported as [github issues](https://github.com/xcp-ng/uefistored/issues).
 
 Some helpful information may include:
 
