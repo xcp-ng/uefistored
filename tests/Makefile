@@ -36,7 +36,20 @@ TEST_SRCS += munit/munit.c
 TEST_OBJS := $(patsubst %.c,%.o,$(TEST_SRCS))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
-SANITIZERS := -fsanitize=address
+SANTIZERS :=
+
+ifeq ($(ASAN),1)
+ SANITIZERS = -fsanitize=address
+endif
+
+.PHONY: all
+all:
+	$(MAKE) clean
+	$(MAKE) asan
+	$(MAKE) clean
+	$(MAKE) valgrind
+	@printf "\n\n\x1B[32mAll Tests Passed"
+	@printf "\n\n\x1B[32mNo leaks found by valgrind or ASAN\n\n"
 
 .PHONY: test
 test: test.c $(OBJS) $(TEST_OBJS) $(HDRS)
@@ -45,18 +58,20 @@ test: test.c $(OBJS) $(TEST_OBJS) $(HDRS)
 		$(LDFLAGS)
 	ASAN_OPTIONS=detect_leaks=1 ./$@
 
-.PHONY: test-nosan
-test-nosan: test.c $(TEST_OBJS) $(OBJS) $(HDRS)
-	$(CC) -o $@ $< $(INC) $(OBJS) $(TEST_OBJS) $(CFLAGS) $(LIBS) $(LDFLAGS)
-	./$@
+.PHONY: asan
+asan:
+	$(MAKE) clean
+	ASAN=1 make test
+	ASAN_OPTIONS=detect_leaks=1 ./test
 
 .PHONY: valgrind
-valgrind: test-nosan
+valgrind: test
 	valgrind --leak-check=full \
-		--show-leak-kinds=all \
-		--track-origins=yes \
-		--verbose \
-		./$<
+			--show-leak-kinds=all \
+			--track-origins=yes \
+			--error-exitcode=1 \
+			--verbose \
+			./$<
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS) $(INC) $(SANITIZERS)

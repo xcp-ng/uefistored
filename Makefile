@@ -38,7 +38,7 @@ tools:
 
 .PHONY: test
 test:             ## Run uefistored unit tests with address sanitizers
-	$(MAKE) $@ -C tests/
+	$(MAKE) -s all -C tests/
 
 .PHONY: test-nosan
 test-nosan:       ## Run uefistored unit tests without address sanitizers
