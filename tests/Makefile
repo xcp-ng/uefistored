@@ -1,5 +1,6 @@
 include ../Common.mk
 
+# Override to omit unused libs (i.e., xen libs)
 LDFLAGS := $$(pkg-config --libs libxml-2.0)     \
             -lseccomp                           \
             -lssl                               \
@@ -31,9 +32,10 @@ TEST_SRCS +=                            \
     src/test_db.c      \
     src/test_xapi.c
 
-TEST_SRCS += munit/munit.c
+MUNIT_SRCS += munit/munit.c
 
 TEST_OBJS := $(patsubst %.c,%.o,$(TEST_SRCS))
+MUNIT_OBJS := $(patsubst %.c,%.o,$(MUNIT_SRCS))
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
 SANTIZERS :=
@@ -43,42 +45,39 @@ ifeq ($(ASAN),1)
 endif
 
 .PHONY: all
-all:
-	$(MAKE) clean
-	$(MAKE) asan
-	$(MAKE) clean
-	$(MAKE) valgrind
-	@printf "\n\n\x1B[32mAll Tests Passed"
-	@printf "\n\n\x1B[32mNo leaks found by valgrind or ASAN\n\n"
+all: scan-build valgrind asan
+	@printf '\n\n\x1B[32mvalgrind, ASAN, scan-build tests all passed\n\n\x1B[0m'
 
-.PHONY: test
-test: test.c $(OBJS) $(TEST_OBJS) $(HDRS)
-	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
-		$(TEST_OBJS) $(CFLAGS) $(SANITIZERS) \
-		$(LDFLAGS)
-	ASAN_OPTIONS=detect_leaks=1 ./$@
+.PHONY: scan-build
+scan-build:
+	$(MAKE) clean
+	scan-build --status-bugs make $(TEST_OBJS) -j$(shell nproc)
 
 .PHONY: asan
 asan:
 	$(MAKE) clean
-	ASAN=1 make test
+	ASAN=1 $(MAKE) test
 	ASAN_OPTIONS=detect_leaks=1 ./test
 
 .PHONY: valgrind
-valgrind: test
+valgrind: clean test
 	valgrind --leak-check=full \
 			--show-leak-kinds=all \
 			--track-origins=yes \
 			--error-exitcode=1 \
-			--verbose \
-			./$<
+			./test
+
+test: test.c $(OBJS) $(TEST_OBJS) $(HDRS) $(MUNIT_OBJS)
+	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
+		$(TEST_OBJS) $(MUNIT_OBJS) $(CFLAGS) $(SANITIZERS) \
+		$(LDFLAGS)
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS) $(INC) $(SANITIZERS)
 
 .PHONY: clean
 clean:
-	rm -f $(OBJS) $(TEST_OBJS) test test-nosan
+	rm -f $(OBJS) $(TEST_OBJS) $(MUNIT_OBJS) test test-nosan
 	$(MAKE) $@ -C fuzz/
 
 .PHONY: print
