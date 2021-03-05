@@ -40,10 +40,6 @@ tools:
 test:             ## Run uefistored unit tests with address sanitizers
 	$(MAKE) all -C tests/
 
-.PHONY: test-nosan
-test-nosan:       ## Run uefistored unit tests without address sanitizers
-	$(MAKE) test-nosan -C tests/
-
 .PHONY: install
 install: uefistored
 install:          ## Install uefistored and secureboot-certs
