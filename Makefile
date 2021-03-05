@@ -11,6 +11,10 @@ CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
 
 DEPS     = ./.*.d src/.*.d src/uefi/.*.d
 
+TAG     := $(shell git describe --abbrev=0 --tags)
+RELEASE := $(shell echo $(TAG) | tr -d 'v')
+ARCHIVE := $(TARGET)-$(RELEASE).tar.gz
+
 all:              ## Build uefistored (same as uefistored target)
 all: $(TARGET) $(TARGET)-debug
 
@@ -64,6 +68,11 @@ print-%:
 .PHONY: scan-build
 scan-build:       ## Use scan-build for static analysis
 	scan-build make all -j$(shell nproc)
+
+.PHONY: archive
+archive:          ## Create uefistored-X.Y.Z.tar.gz for release of most recent tag
+	git archive --format=tar --prefix=uefistored-$(RELEASE)/ $(TAG) \
+		| xz > $(ARCHIVE)
 
 -include $(DEPS)
 include Docker.mk
