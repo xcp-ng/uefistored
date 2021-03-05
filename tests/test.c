@@ -2,6 +2,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <openssl/evp.h>
+#include <openssl/err.h>
+#include <openssl/engine.h>
+
 #include "log.h"
 
 #include "munit/munit.h"
@@ -74,8 +78,27 @@ MunitSuite all_suites = {
 
 int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)])
 {
+    int ret;
+
     /* Require no fork */
     char *newargs[] = { argv[0],  "--no-fork" };
 
-    return munit_suite_main(&all_suites, NULL, 2, newargs);
+    ret = munit_suite_main(&all_suites, NULL, 2, newargs);
+
+    /* deinitialize everything OpenSSL */
+
+    CRYPTO_set_locking_callback(NULL);
+    CRYPTO_set_id_callback(NULL);
+    ENGINE_cleanup();
+    ERR_free_strings();
+    EVP_cleanup();
+
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000
+    ERR_remove_thread_state(NULL);
+#endif
+
+    CRYPTO_cleanup_all_ex_data();
+
+    return ret;
 }

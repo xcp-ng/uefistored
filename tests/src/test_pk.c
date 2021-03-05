@@ -38,7 +38,7 @@ static inline EFI_STATUS util_set_pk(void *data, size_t n)
 
 static MunitResult test_parsing_pkcs7(const MunitParameter params[], void *testdata)
 {
-    PKCS7 *pkcs7;
+    PKCS7 *pkcs7 = NULL;
 
     if (file_to_buf("data/certs/nullPK.auth", DEFAULT_PK, BUF_SIZE) < 0) {
         fprintf(stderr, "failed to open data/certs/nullPK.auth\n");
@@ -48,7 +48,8 @@ static MunitResult test_parsing_pkcs7(const MunitParameter params[], void *testd
     pkcs7 = pkcs7_from_auth((EFI_VARIABLE_AUTHENTICATION_2 *)DEFAULT_PK);
     munit_assert_ptr_not_null(pkcs7);
 
-    PKCS7_free(pkcs7);
+    if (pkcs7)
+        PKCS7_free(pkcs7);
 
     return MUNIT_OK;
 }
@@ -100,8 +101,8 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
 {
     MunitResult result = MUNIT_OK;
     STACK_OF(X509) *certs = NULL;
-    PKCS7 *pkcs7;
-    uint8_t *top_cert_der;
+    PKCS7 *pkcs7 = NULL;
+    uint8_t *top_cert_der = NULL;
     int top_cert_der_size;
     EFI_SIGNATURE_LIST *old_esl;
     uint64_t old_esl_size;
@@ -137,8 +138,11 @@ static MunitResult test_pk_new_cert_eq_old_cert(const MunitParameter params[], v
 out:
     if (certs)
         sk_X509_free(certs);
-    PKCS7_free(pkcs7);
-    free(top_cert_der);
+    if (pkcs7)
+        PKCS7_free(pkcs7);
+    if (top_cert_der)
+        free(top_cert_der);
+
     auth_lib_deinit(auth_files, ARRAY_SIZE(auth_files));
 
     return result;
