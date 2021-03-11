@@ -32,7 +32,7 @@ openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
 # Self-sign KEK and create KEK.auth
 # NOTE: because this cert is self-signed it will not be provisionable from
 # the guest, only as a file for uefistored to use from /usr/share/uefistored
-create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt
+/opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt
 
 # Note, if curling fails the original redirect links to the certs are here:
 # * [MicWinProPCA2011_2011-10-19.crt](https://go.microsoft.com/fwlink/p/?linkid=321192)
@@ -45,7 +45,7 @@ uefi_pca=uefi_pca.pem
 openssl x509 -in MicWinProPCA2011_2011-10-19.crt -inform DER -outform PEM -out ${uefi_pca}
 
 # Sign Microsoft certs with your KEK and create a db.auth
-create-auth \
+/opt/xensource/libexec/create-auth \
     -k KEK.key \
     -c KEK.crt \
     db \
