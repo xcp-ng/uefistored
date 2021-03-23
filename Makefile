@@ -72,7 +72,7 @@ scan-build:       ## Use scan-build for static analysis
 .PHONY: archive
 archive:          ## Create uefistored-X.Y.Z.tar.gz for release of most recent tag
 	git archive --format=tar --prefix=uefistored-$(RELEASE)/ $(TAG) \
-		| xz > $(ARCHIVE)
+		| gzip > $(ARCHIVE)
 
 -include $(DEPS)
 include Docker.mk
