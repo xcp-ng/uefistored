@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.4.2] - 2020-03-23
+### Fixed
+- Build munit with -std=c99
+- Use gzip for archive
+- Fix bad path to create-auth in README
+
 ## [0.4.1] - 2020-11-23
 ### Fixed
 - Fix abd path to create-auth tool
