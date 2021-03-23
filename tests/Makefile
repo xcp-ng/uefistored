@@ -75,6 +75,9 @@ test: test.c $(OBJS) $(TEST_OBJS) $(HDRS) $(MUNIT_OBJS)
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS) $(INC) $(SANITIZERS)
 
+munit/munit.o: munit/munit.c
+	$(CC) -o $@ -c $< $(CFLAGS) --std=c99 $(INC) $(SANITIZERS)
+
 .PHONY: clean
 clean:
 	rm -f $(OBJS) $(TEST_OBJS) $(MUNIT_OBJS) test test-nosan
