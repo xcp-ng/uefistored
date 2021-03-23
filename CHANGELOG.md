@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.4.1] - 2020-11-23
+### Fixed
+- Fix abd path to create-auth tool
+
 ## [0.4.0] - 2020-03-03
 ### Security
 - Use compiler barriers to prevent unsafe optimizations on shared memory data
