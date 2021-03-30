@@ -4,6 +4,7 @@
 
 set -e
 
+AUTH_DIR=/var/lib/uefistored/
 CA_URL=https://www.microsoft.com/pkiops/certs/MicCorUEFCA2011_2011-06-27.crt
 PCA_URL=https://www.microsoft.com/pkiops/certs/MicWinProPCA2011_2011-10-19.crt
 
@@ -98,7 +99,7 @@ openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
 
 # Self-sign KEK and create KEK.auth
 # NOTE: because this cert is self-signed it will not be provisionable from
-# the guest, only as a file for uefistored to use from /usr/share/uefistored
+# the guest, only as a file for uefistored to use from /var/lib/uefistored
 /opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt
 
 # Note, if curling fails the original redirect links to the certs are here:
@@ -120,13 +121,14 @@ openssl x509 -in ${pca} -inform DER -outform PEM -out ${uefi_pca_pem}
     ${uefi_pca_pem} \
     ${uefi_ca_pem}
 
-cp db.auth KEK.auth /usr/share/uefistored/
+install -m 444 db.auth ${AUTH_DIR}/db.auth
+install -m 444 KEK.auth ${AUTH_DIR}/KEK.auth
 
 # If you would like the dbx, it may be found here:
 # https://www.uefi.org/revocationlistfile
 #
 # It is already in .auth format, so simply download it to
-#  /usr/share/uefistored/dbx.auth
+#  /var/lib/uefistored/dbx.auth
 
 popd
 rm -R ${tmpdir}
