@@ -52,7 +52,7 @@ openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
 
 # Self-sign KEK and creat KEK.auth
 # NOTE: because this cert is self-signed it will not be provisionable from
-# the guest, only as a file for uefistored to read from /usr/share/uefistored
+# the guest, only as a file for uefistored to read from /var/lib/uefistored
 /opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt
 
 # Download Microsoft UEFI CA 2011
@@ -68,10 +68,10 @@ curl 'https://www.microsoft.com/pkiops/certs/MicWinProPCA2011_2011-10-19.crt' --
 # Sign Microsoft certs with your KEK and create a db.auth
 /opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt db db.auth MicWinProPCA2011_2011-10-19.crt MicCorUEFCA2011_2011-06-27.crt
 
-cp *.auth /usr/share/uefistored/
+cp *.auth /var/lib/uefistored/
 
 # If you would like the most recent dbx, it may be found here:
-https://www.uefi.org/revocationlistfile
+# https://www.uefi.org/revocationlistfile
 
 ```
 
