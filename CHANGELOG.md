@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 - Support variable write appends
 - Document key exchanges and the key creation tools
 
+## [0.5.0] - 2020-03-30
+### Added
+- secureboot-certs allows local certs
+
+### Fixed
+- uefistored and secureboot-certs use /var/lib/uefistored
+  for non-RPM managed certs (those made by secureboot-certs)
+
 ## [0.4.2] - 2020-03-23
 ### Fixed
 - Build munit with -std=c99

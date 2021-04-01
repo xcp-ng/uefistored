@@ -101,10 +101,10 @@ static unsigned long io_port_addr;
 
 #define DEFINE_AUTH_FILE(fname, _name, _guid, _attrs)                          \
     {                                                                          \
-        .path = "/usr/share/uefistored/" fname,                                 \
+        .path = fname,                                                         \
         .var = {                                                               \
             .name = _name,                                                     \
-            .namesz = sizeof_wchar(_name),                                           \
+            .namesz = sizeof_wchar(_name),                                     \
             .guid = _guid,                                                     \
             .attrs = _attrs,                                                   \
         },                                                                     \
@@ -116,10 +116,22 @@ static unsigned long io_port_addr;
             EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS
 
 struct auth_data auth_files[] = {
-    DEFINE_AUTH_FILE("db.auth", L"db", EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
-    DEFINE_AUTH_FILE("dbx.auth", L"dbx", EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
-    DEFINE_AUTH_FILE("KEK.auth", L"KEK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
-    DEFINE_AUTH_FILE("PK.auth", L"PK", EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+    /*
+     * These certs must come from Microsoft, so may not be easily
+     * distributed with uefistored.  Locate them in /var/lib/.
+     */
+    DEFINE_AUTH_FILE("/var/lib/uefistored/db.auth", L"db",
+                        EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
+    DEFINE_AUTH_FILE("/var/lib/uefistored/dbx.auth", L"dbx",
+                        EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
+    DEFINE_AUTH_FILE("/var/lib/uefistored/KEK.auth", L"KEK",
+                        EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
+    /*
+     * PK should be distributed with uefistored, so should
+     * be stored in /usr/share/ (refer to Linux FHS)
+     */
+    DEFINE_AUTH_FILE("/usr/share/uefistored/PK.auth", L"PK",
+                        EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
 };
 
 static int write_pidfile(void)

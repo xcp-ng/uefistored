@@ -1,27 +1,95 @@
 #!/bin/bash
 
-# This file installs certs and keys necessary for uefistored
+# This script installs certs and keys necessary for uefistored
 
 set -e
 
-usage="$(basename $0) [--help|-h]"
+AUTH_DIR=/var/lib/uefistored/
+CA_URL=https://www.microsoft.com/pkiops/certs/MicCorUEFCA2011_2011-06-27.crt
+PCA_URL=https://www.microsoft.com/pkiops/certs/MicWinProPCA2011_2011-10-19.crt
+
+name=$(basename $0)
+usage="
+${name} [-h] [--pca PCA.crt] [--ca CA.crt]
+Download and install Microsoft certs for uefistored
+
+optional arguments:
+  -h, --help  show this help message and exit
+  -p, --pca   The Microsoft PCA certificate file
+              note: if left empty, ${name} will attempt
+              to download the PCA cert from the MS server
+  -c, --ca    The Microsoft CA certificate file
+              note: if left empty, ${name} will attempt
+              to download the CA cert from the MS server
+
+The URLs used for the fallback MS certs:
+  CA: ${CA_URL}
+  PCA: ${PCA_URL}
+
+"
 
 [[ "$@" =~ "--help" || "$@" =~ "-h" ]] && {
-    printf "\n${usage}\n\nDownload and install Microsoft certs for uefistored\n\n"
+    printf "${usage}"
     exit 0
 }
+
+die() {
+    printf "$@" >&2
+    exit 1
+}
+
+while [[ $# -gt 0 ]]
+do
+
+arg=$1
+case $arg in
+    -p|--pca)
+        pca=$2
+        shift
+        shift
+        ;;
+    -c|--ca)
+        ca=$2
+        shift
+        shift
+        ;;
+    -h|--help)
+        die "${usage}"
+        ;;
+    *)
+        die "${usage}"
+        ;;
+esac
+done
+
+if [[ -n "${ca}" ]];
+then
+    ca=$(readlink -e ${ca})
+
+    [[ ! -e ${ca} ]] && die "${ca} does not exist\n"
+fi
+
+if [[  -n "${pca}" ]];
+then
+    pca=$(readlink -e ${pca})
+
+    [[ ! -e ${pca} ]] && die "${pca} does not exist\n"
+fi
 
 tmpdir=$(mktemp -d)
 
 pushd ${tmpdir}
 
 # Download Microsoft UEFI CA 2011
-curl 'https://www.microsoft.com/pkiops/certs/MicCorUEFCA2011_2011-06-27.crt' \
-    --output MicCorUEFCA2011_2011-06-27.crt
+[[ "x${ca}" == "x" ]] && {
+    ca=MicCorUEFCA2011_2011-06-27.crt
+    curl "${CA_URL}" --output ${ca}
+}
 
-# Download Microsoft UEFI PCA 2011
-curl 'https://www.microsoft.com/pkiops/certs/MicWinProPCA2011_2011-10-19.crt' \
-    --output MicWinProPCA2011_2011-10-19.crt
+[[ "x${pca}" == "x" ]] && {
+    pca=MicWinProPCA2011_2011-10-19.crt
+    curl ${PCA_URL} --output ${pca}
+}
 
 # Generate KEK
 openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
@@ -31,18 +99,18 @@ openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
 
 # Self-sign KEK and create KEK.auth
 # NOTE: because this cert is self-signed it will not be provisionable from
-# the guest, only as a file for uefistored to use from /usr/share/uefistored
+# the guest, only as a file for uefistored to use from /var/lib/uefistored
 /opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt
 
 # Note, if curling fails the original redirect links to the certs are here:
 # * [MicWinProPCA2011_2011-10-19.crt](https://go.microsoft.com/fwlink/p/?linkid=321192)
 # * [MicCorUEFCA2011_2011-06-27.crt](https://go.microsoft.com/fwlink/p/?linkid=321194)
 
-uefi_ca=uefi_ca.pem
-openssl x509 -in MicCorUEFCA2011_2011-06-27.crt -inform DER -outform PEM -out ${uefi_ca}
+uefi_ca_pem=uefi_ca.pem
+openssl x509 -in ${ca} -inform DER -outform PEM -out ${uefi_ca_pem}
 
-uefi_pca=uefi_pca.pem
-openssl x509 -in MicWinProPCA2011_2011-10-19.crt -inform DER -outform PEM -out ${uefi_pca}
+uefi_pca_pem=uefi_pca.pem
+openssl x509 -in ${pca} -inform DER -outform PEM -out ${uefi_pca_pem}
 
 # Sign Microsoft certs with your KEK and create a db.auth
 /opt/xensource/libexec/create-auth \
@@ -50,16 +118,17 @@ openssl x509 -in MicWinProPCA2011_2011-10-19.crt -inform DER -outform PEM -out $
     -c KEK.crt \
     db \
     db.auth \
-    ${uefi_pca} \
-    ${uefi_ca}
+    ${uefi_pca_pem} \
+    ${uefi_ca_pem}
 
-cp db.auth KEK.auth /usr/share/uefistored/
+install -m 444 db.auth ${AUTH_DIR}/db.auth
+install -m 444 KEK.auth ${AUTH_DIR}/KEK.auth
 
 # If you would like the dbx, it may be found here:
 # https://www.uefi.org/revocationlistfile
 #
 # It is already in .auth format, so simply download it to
-#  /usr/share/uefistored/dbx.auth
+#  /var/lib/uefistored/dbx.auth
 
 popd
 rm -R ${tmpdir}
