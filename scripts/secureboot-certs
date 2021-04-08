@@ -7,6 +7,7 @@ set -e
 AUTH_DIR=/var/lib/uefistored/
 CA_URL=https://www.microsoft.com/pkiops/certs/MicCorUEFCA2011_2011-06-27.crt
 PCA_URL=https://www.microsoft.com/pkiops/certs/MicWinProPCA2011_2011-10-19.crt
+KEK_URL=https://www.microsoft.com/pkiops/certs/MicCorKEKCA2011_2011-06-24.crt
 
 name=$(basename $0)
 usage="
@@ -21,10 +22,14 @@ optional arguments:
   -c, --ca    The Microsoft CA certificate file
               note: if left empty, ${name} will attempt
               to download the CA cert from the MS server
+  -k, --kek   The Microsoft KEK certificate file
+              note: if left empty, ${name} will attempt
+              to download the CA cert from the MS server
 
 The URLs used for the fallback MS certs:
   CA: ${CA_URL}
   PCA: ${PCA_URL}
+  KEK: ${KEK_URL}
 
 "
 
@@ -53,6 +58,11 @@ case $arg in
         shift
         shift
         ;;
+    -k|--kek)
+        kek=$2
+        shift
+        shift
+        ;;
     -h|--help)
         die "${usage}"
         ;;
@@ -76,6 +86,13 @@ then
     [[ ! -e ${pca} ]] && die "${pca} does not exist\n"
 fi
 
+if [[  -n "${kek}" ]];
+then
+    kek=$(readlink -e ${kek})
+
+    [[ ! -e ${kek} ]] && die "${kek} does not exist\n"
+fi
+
 tmpdir=$(mktemp -d)
 
 pushd ${tmpdir}
@@ -91,6 +108,11 @@ pushd ${tmpdir}
     curl ${PCA_URL} --output ${pca}
 }
 
+[[ "x${kek}" == "x" ]] && {
+    kek=MicCorKEKCA2011_2011-06-24.crt
+    curl ${KEK_URL} --output ${kek}
+}
+
 # Generate KEK
 openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
         -subj "/CN=KEK Owner/" \
@@ -100,11 +122,12 @@ openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
 # Self-sign KEK and create KEK.auth
 # NOTE: because this cert is self-signed it will not be provisionable from
 # the guest, only as a file for uefistored to use from /var/lib/uefistored
-/opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt
+/opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt ${kek}
 
 # Note, if curling fails the original redirect links to the certs are here:
 # * [MicWinProPCA2011_2011-10-19.crt](https://go.microsoft.com/fwlink/p/?linkid=321192)
 # * [MicCorUEFCA2011_2011-06-27.crt](https://go.microsoft.com/fwlink/p/?linkid=321194)
+# * [MicCorKEKCA2011_2011-06-24.crt](https://go.microsoft.com/fwlink/?LinkId=321185)
 
 uefi_ca_pem=uefi_ca.pem
 openssl x509 -in ${ca} -inform DER -outform PEM -out ${uefi_ca_pem}
