@@ -1,4 +1,4 @@
-XCP_NG_VER := 8.1
+XCP_NG_VER := 8.2
 DOCKER_IMAGE := xcp-ng/xcp-ng-build-env:$(XCP_NG_VER)
 DOCKER_ARGS := -v$(PWD):$(PWD) -w $(PWD) -it $(DOCKER_IMAGE)
 
