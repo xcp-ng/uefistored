@@ -113,17 +113,6 @@ pushd ${tmpdir}
     curl ${KEK_URL} --output ${kek}
 }
 
-# Generate KEK
-openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
-        -subj "/CN=KEK Owner/" \
-        -keyout KEK.key \
-        -out KEK.crt
-
-# Self-sign KEK and create KEK.auth
-# NOTE: because this cert is self-signed it will not be provisionable from
-# the guest, only as a file for uefistored to use from /var/lib/uefistored
-/opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt ${kek}
-
 # Note, if curling fails the original redirect links to the certs are here:
 # * [MicWinProPCA2011_2011-10-19.crt](https://go.microsoft.com/fwlink/p/?linkid=321192)
 # * [MicCorUEFCA2011_2011-06-27.crt](https://go.microsoft.com/fwlink/p/?linkid=321194)
@@ -134,6 +123,20 @@ openssl x509 -in ${ca} -inform DER -outform PEM -out ${uefi_ca_pem}
 
 uefi_pca_pem=uefi_pca.pem
 openssl x509 -in ${pca} -inform DER -outform PEM -out ${uefi_pca_pem}
+
+uefi_kek_pem=uefi_kek.pem
+openssl x509 -in ${kek} -inform DER -outform PEM -out ${uefi_kek_pem}
+
+# Generate KEK
+openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
+        -subj "/CN=KEK Owner/" \
+        -keyout KEK.key \
+        -out KEK.crt
+
+# Self-sign KEK and create KEK.auth
+# NOTE: because this cert is self-signed it will not be provisionable from
+# the guest, only as a file for uefistored to use from /var/lib/uefistored
+/opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt ${uefi_kek_pem}
 
 # Sign Microsoft certs with your KEK and create a db.auth
 /opt/xensource/libexec/create-auth \
