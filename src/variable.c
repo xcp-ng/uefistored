@@ -20,7 +20,7 @@ int variable_set_attrs(variable_t *var, const uint32_t attrs)
     return 0;
 }
 
-int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz)
+int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz, bool append)
 {
     if (!var || !data || datasz == 0)
         return -1;
@@ -28,18 +28,33 @@ int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz)
     if (datasz > MAX_VARIABLE_DATA_SIZE)
         return -2;
 
-    if (var->datasz != datasz) {
-        if (var->data) {
-            free(var->data);
-            var->data = NULL;
+    if (!append) {
+        if (var->datasz != datasz) {
+            if (var->data) {
+                free(var->data);
+                var->data = NULL;
+            }
+
+            var->data = malloc(datasz);
         }
 
-        var->data = malloc(datasz);
+        var->datasz = datasz;
+        memcpy(var->data, data, datasz);
+    } else {
+        uint64_t newsz;
+
+        newsz = var->datasz + datasz;
+        if (newsz > MAX_VARIABLE_DATA_SIZE)
+            return -ENOMEM;
+
+        /* Reallocate var->data to be newsz sized */
+        var->data = realloc(var->data, newsz);
+
+        /* Do the append */
+        memcpy(&var->data[var->datasz], data, datasz);
+
+        var->datasz = newsz;
     }
-
-    var->datasz = datasz;
-
-    memcpy(var->data, data, datasz);
 
     return 0;
 }
@@ -110,7 +125,7 @@ variable_t *variable_create(const UTF16 *name, size_t namesz,
         return NULL;
     }
 
-    ret = variable_set_data(var, data, datasz);
+    ret = variable_set_data(var, data, datasz, false);
 
     if (ret < 0) {
         free(var);
@@ -177,7 +192,7 @@ int variable_create_noalloc(variable_t *var, const UTF16 *name, size_t namesz,
     if (variable_set_name(var, name, namesz) < 0)
         return -1;
 
-    if (variable_set_data(var, data, datasz) < 0)
+    if (variable_set_data(var, data, datasz, false) < 0)
         goto cleanup_name;
 
     if (variable_set_guid(var, guid) < 0)
@@ -243,7 +258,7 @@ int variable_copy(variable_t *dst, const variable_t *src)
         return ret;
     }
 
-    ret = variable_set_data(dst, src->data, src->datasz);
+    ret = variable_set_data(dst, src->data, src->datasz, false);
 
     if (ret < 0) {
         return ret;

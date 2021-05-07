@@ -498,7 +498,7 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
      * EFI_VARIABLE_APPEND_WRITE attribute only effects for existing variable
      */
     if ((find_status == EFI_SUCCESS) &&
-        ((var->attrs & EFI_VARIABLE_APPEND_WRITE) != 0)) {
+        ((attrs & EFI_VARIABLE_APPEND_WRITE) != 0)) {
         if (((compare_guid(&var->guid, &gEfiImageSecurityDatabaseGuid) &&
               (is_var(var, EFI_IMAGE_SECURITY_DATABASE) ||
                is_var(var, EFI_IMAGE_SECURITY_DATABASE1) ||
@@ -1173,7 +1173,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
                 if (verify_status) {
                     DBG("pkcs7_verify() failed\n");
-                    goto err;
+                    goto out;
                 }
 
                 cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert +
@@ -1186,7 +1186,7 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
                                            cert_list->SignatureListSize);
     }
 
-err:
+out:
     PKCS7_free(pkcs7);
     return verify_status;
 }
@@ -1325,6 +1325,8 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     length = sizeof(EFI_GUID);
     memcpy(p, guid, length);
     p += length;
+
+    attrs &= ~EFI_VARIABLE_APPEND_WRITE;
 
     length = sizeof(uint32_t);
     memcpy(p, &attrs, length);

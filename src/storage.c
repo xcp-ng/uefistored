@@ -177,6 +177,7 @@ EFI_STATUS storage_remove(const UTF16 *name, size_t namesz,
 EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
                        const void *data, size_t datasz, uint32_t attrs)
 {
+    bool append;
     size_t i;
     int ret;
     variable_t *var;
@@ -195,6 +196,9 @@ EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
     /* Caller passed in a null pointer as data */
     if (!data)
         return EFI_DEVICE_ERROR;
+
+    append = !!(attrs & EFI_VARIABLE_APPEND_WRITE);
+    attrs &= ~EFI_VARIABLE_APPEND_WRITE;
 
     /* If it already exists, replace it */
     for_each_variable(variables, var, i)
@@ -216,7 +220,7 @@ EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
             else if (ret < 0)
                 return EFI_DEVICE_ERROR;
 
-            ret = variable_set_data(var, data, datasz);
+            ret = variable_set_data(var, data, datasz, append);
 
             if (ret == -2)
                 return EFI_OUT_OF_RESOURCES;

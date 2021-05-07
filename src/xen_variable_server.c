@@ -73,8 +73,6 @@ EFI_STATUS evaluate_attrs(uint32_t attrs)
     /* We do not support EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS */
     else if (attrs & EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS)
         return EFI_UNSUPPORTED;
-    else if (attrs & EFI_VARIABLE_APPEND_WRITE)
-        DBG("attrs & EFI_VARIABLE_APPEND_WRITE");
 
     return EFI_SUCCESS;
 }

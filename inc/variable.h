@@ -55,7 +55,7 @@ int variable_copy(variable_t *dst, const variable_t *src);
 bool variable_eq(const variable_t *a, const variable_t *b);
 
 int variable_set_attrs(variable_t *var, const uint32_t attrs);
-int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz);
+int variable_set_data(variable_t *var, const uint8_t *data, uint64_t datasz, bool append);
 int variable_set_guid(variable_t *var, const EFI_GUID *guid);
 int variable_set_name(variable_t *var, const UTF16 *name, size_t namesz);
 int variable_set_timestamp(variable_t *var, const EFI_TIME *timestamp);
