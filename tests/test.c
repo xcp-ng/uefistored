@@ -52,6 +52,13 @@ MunitSuite other_suites[] = {
         MUNIT_SUITE_OPTION_NONE
     },
     {
+        (char*) "append/",
+        append_tests,
+        NULL,
+        1,
+        MUNIT_SUITE_OPTION_NONE
+    },
+    {
         (char*) "xapi/",
         xapi_tests,
         NULL,
@@ -79,9 +86,17 @@ MunitSuite all_suites = {
 int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)])
 {
     int ret;
+    char **newargs;
+    char *no_fork = "--no-fork";
 
-    /* Require no fork */
-    char *newargs[] = { argv[0],  "--no-fork" };
+    /* Force --no-fork */
+    newargs = malloc((argc + 1) * sizeof(char*));
+
+    if ( !newargs )
+        return -ENOMEM;
+
+    memcpy(newargs, argv, argc * sizeof(char*));
+    newargs[argc] = no_fork;
 
     ret = munit_suite_main(&all_suites, NULL, 2, newargs);
 
@@ -100,5 +115,6 @@ int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)])
 
     CRYPTO_cleanup_all_ex_data();
 
+    free(newargs);
     return ret;
 }

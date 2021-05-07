@@ -25,11 +25,12 @@ TEST_SRCS += mock/XenVariable.c \
 TEST_SRCS +=                            \
     src/test_auth.c                     \
     src/test_auth_func.c                \
+    src/test_append.c                	\
     src/test_common.c                   \
     src/test_xen_variable_server.c      \
-    src/test_pk.c      \
-    src/test_kek.c      \
-    src/test_db.c      \
+    src/test_pk.c      					\
+    src/test_kek.c      				\
+    src/test_db.c      					\
     src/test_xapi.c
 
 MUNIT_SRCS += munit/munit.c

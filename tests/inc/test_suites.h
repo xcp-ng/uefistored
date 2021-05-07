@@ -8,6 +8,7 @@ extern MunitTest kek_tests[];
 extern MunitTest db_tests[];
 extern MunitTest auth_tests[];
 extern MunitTest auth_func_tests[];
+extern MunitTest append_tests[];
 extern MunitTest xapi_tests[];
 extern MunitTest xen_variable_server_tests[];
 
