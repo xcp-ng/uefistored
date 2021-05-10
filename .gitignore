@@ -3,6 +3,7 @@
 uefistored
 uefistored-debug
 scripts/certs/*.{esl,auth,cert,der,key}
+scripts/certs/test-certs
 tests/test
 tests/munit*
 *.tar.gz
