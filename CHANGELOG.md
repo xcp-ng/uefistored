@@ -2,8 +2,11 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-- Support variable write appends
 - Document key exchanges and the key creation tools
+
+## [0.6.0] - 2020-05-10
+### Added
+- Support variable write appends
 
 ## [0.5.0] - 2020-03-30
 ### Added
