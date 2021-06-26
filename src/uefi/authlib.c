@@ -101,7 +101,10 @@ void auth_lib_load(struct auth_data *auths, size_t n)
         return;
 
     for (i = 0; i < n; i++) {
-        load_auth(&auths[i]);
+        if (load_auth(&auths[i]) < 0) {
+            WARNING("load_auth() failed, stop loading certs\n");
+            break;
+        }
     }
 }
 
