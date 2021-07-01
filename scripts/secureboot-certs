@@ -1,160 +1,545 @@
-#!/bin/bash
+#!/usr/bin/env python
+"""
+This script installs UEFI certificates for XCP-ng hosts.
+"""
+import argparse
+import atexit
+import base64
+import hashlib
+import logging
+import os
+import requests
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
 
-# This script installs certs and keys necessary for uefistored
+from io import BytesIO
 
-set -e
+import XenAPI
 
-AUTH_DIR=/var/lib/uefistored/
-CA_URL=https://www.microsoft.com/pkiops/certs/MicCorUEFCA2011_2011-06-27.crt
-PCA_URL=https://www.microsoft.com/pkiops/certs/MicWinProPCA2011_2011-10-19.crt
-KEK_URL=https://www.microsoft.com/pkiops/certs/MicCorKEKCA2011_2011-06-24.crt
+__author__ = "Bobby Eshleman"
+__copyright__ = "Copyright 2021, Vates SAS"
+__license__ = "GPLv2"
+__version__ = "1.0.0"
+__maintainer__ = "Bobby Eshleman"
+__email__ = "bobbyeshleman@gmail.com"
+__status__ = "Production"
 
-name=$(basename $0)
-usage="
-${name} [-h] [--pca PCA.crt] [--ca CA.crt]
-Download and install Microsoft certs for uefistored
 
-optional arguments:
-  -h, --help  show this help message and exit
-  -p, --pca   The Microsoft PCA certificate file
-              note: if left empty, ${name} will attempt
-              to download the PCA cert from the MS server
-  -c, --ca    The Microsoft CA certificate file
-              note: if left empty, ${name} will attempt
-              to download the CA cert from the MS server
-  -k, --kek   The Microsoft KEK certificate file
-              note: if left empty, ${name} will attempt
-              to download the CA cert from the MS server
+TEMPDIRS = []
 
-The URLs used for the fallback MS certs:
-  CA: ${CA_URL}
-  PCA: ${PCA_URL}
-  KEK: ${KEK_URL}
+key = None
+crt = None
 
-"
 
-[[ "$@" =~ "--help" || "$@" =~ "-h" ]] && {
-    printf "${usage}"
-    exit 0
-}
+def cd_tempdir():
+    """Change directories to a temporary directory.
 
-die() {
-    printf "$@" >&2
-    exit 1
-}
+    Usage:
 
-while [[ $# -gt 0 ]]
-do
+    ```
+        prevdir = cd_tempdir()
 
-arg=$1
-case $arg in
-    -p|--pca)
-        pca=$2
-        shift
-        shift
-        ;;
-    -c|--ca)
-        ca=$2
-        shift
-        shift
-        ;;
-    -k|--kek)
-        kek=$2
-        shift
-        shift
-        ;;
-    -h|--help)
-        die "${usage}"
-        ;;
-    *)
-        die "${usage}"
-        ;;
-esac
-done
+        # Do stuff inside temporary directory
+        ...
 
-if [[ -n "${ca}" ]];
-then
-    ca=$(readlink -e ${ca})
+        # Return to previous directory
+        os.chdir(prevdir)
+    ```
 
-    [[ ! -e ${ca} ]] && die "${ca} does not exist\n"
-fi
+    All temporary directories are automatically cleaned up upon program exit.
 
-if [[  -n "${pca}" ]];
-then
-    pca=$(readlink -e ${pca})
+    Return the name of the current directory.
+    """
+    prevdir = os.path.abspath(os.curdir)
+    tempdir = tempfile.mkdtemp()
+    os.chdir(tempdir)
 
-    [[ ! -e ${pca} ]] && die "${pca} does not exist\n"
-fi
+    # cleanup on program exit
+    atexit.register(lambda: shutil.rmtree(tempdir))
 
-if [[  -n "${kek}" ]];
-then
-    kek=$(readlink -e ${kek})
+    return prevdir
 
-    [[ ! -e ${kek} ]] && die "${kek} does not exist\n"
-fi
 
-tmpdir=$(mktemp -d)
+class Scopes:
+    SYSTEM = "system"
+    POOL = "pool"
 
-pushd ${tmpdir}
 
-# Download Microsoft UEFI CA 2011
-[[ "x${ca}" == "x" ]] && {
-    ca=MicCorUEFCA2011_2011-06-27.crt
-    curl "${CA_URL}" --output ${ca}
-}
+class Actions:
+    CLEAR = "clear"
+    INSTALL = "install"
+    REPORT = "report"
 
-[[ "x${pca}" == "x" ]] && {
-    pca=MicWinProPCA2011_2011-10-19.crt
-    curl ${PCA_URL} --output ${pca}
-}
 
-[[ "x${kek}" == "x" ]] && {
-    kek=MicCorKEKCA2011_2011-06-24.crt
-    curl ${KEK_URL} --output ${kek}
-}
+class Urls:
+    CA = "https://www.microsoft.com/pkiops/certs/MicCorUEFCA2011_2011-06-27.crt"
+    PCA = "https://www.microsoft.com/pkiops/certs/MicWinProPCA2011_2011-10-19.crt"
+    KEK = "https://www.microsoft.com/pkiops/certs/MicCorKEKCA2011_2011-06-24.crt"
+    dbx = "https://uefi.org/sites/default/files/resources/dbxupdate_x64.bin"
 
-# Note, if curling fails the original redirect links to the certs are here:
-# * [MicWinProPCA2011_2011-10-19.crt](https://go.microsoft.com/fwlink/p/?linkid=321192)
-# * [MicCorUEFCA2011_2011-06-27.crt](https://go.microsoft.com/fwlink/p/?linkid=321194)
-# * [MicCorKEKCA2011_2011-06-24.crt](https://go.microsoft.com/fwlink/?LinkId=321185)
 
-uefi_ca_pem=uefi_ca.pem
-openssl x509 -in ${ca} -inform DER -outform PEM -out ${uefi_ca_pem}
+def hashfile(path):
+    with open(path, "r") as f:
+        return hashlib.md5(f.read()).hexdigest()
 
-uefi_pca_pem=uefi_pca.pem
-openssl x509 -in ${pca} -inform DER -outform PEM -out ${uefi_pca_pem}
 
-uefi_kek_pem=uefi_kek.pem
-openssl x509 -in ${kek} -inform DER -outform PEM -out ${uefi_kek_pem}
+def download(url, fname=None, tempdir=False):
+    """Download a file.
 
-# Generate KEK
-openssl req -newkey rsa:4096 -nodes -new -x509 -sha256 -days 3650 \
-        -subj "/CN=KEK Owner/" \
-        -keyout KEK.key \
-        -out KEK.crt
+    url:   the url to the remote file.
+    fname: the name to rename the file to upon download.
+    tempdir: If True, place file in a temporary directory.
+             Otherwise, place in current directory.
 
-# Self-sign KEK and create KEK.auth
-# NOTE: because this cert is self-signed it will not be provisionable from
-# the guest, only as a file for uefistored to use from /var/lib/uefistored
-/opt/xensource/libexec/create-auth -k KEK.key -c KEK.crt KEK KEK.auth KEK.crt ${uefi_kek_pem}
+    Returns absolute path to downloaded file.
+    """
+    if fname is None:
+        fname = os.path.basename(url)
+    data = requests.get(url)
 
-# Sign Microsoft certs with your KEK and create a db.auth
-/opt/xensource/libexec/create-auth \
-    -k KEK.key \
-    -c KEK.crt \
-    db \
-    db.auth \
-    ${uefi_pca_pem} \
-    ${uefi_ca_pem}
+    if tempdir:
+        d = cd_tempdir()
 
-install -m 444 db.auth ${AUTH_DIR}/db.auth
-install -m 444 KEK.auth ${AUTH_DIR}/KEK.auth
+    with open(fname, "wb") as f:
+        f.write(data.content)
 
-# If you would like the dbx, it may be found here:
-# https://www.uefi.org/revocationlistfile
-#
-# It is already in .auth format, so simply download it to
-#  /var/lib/uefistored/dbx.auth
+    # Get abspath in temp dir before returning to original directory
+    # of tempdir == True
+    dest = os.path.abspath(fname)
 
-popd
-rm -R ${tmpdir}
+    if tempdir:
+        os.chdir(d)
+
+    return dest
+
+
+def convert_der_to_pem(der):
+    pem = der.replace(".crt", ".pem")
+    subprocess.check_call(
+        [
+            "openssl",
+            "x509",
+            "-in",
+            der,
+            "-inform",
+            "DER",
+            "-outform",
+            "PEM",
+            "-out",
+            pem,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return pem
+
+
+def create_auth(signing_key, signing_cert, var, *certs):
+    auth = var + ".auth"
+    subprocess.check_call(
+        [
+            "/opt/xensource/libexec/create-auth",
+            "-k",
+            signing_key,
+            "-c",
+            signing_cert,
+            var,
+            auth,
+        ]
+        + list(certs),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return os.path.abspath(auth)
+
+
+def create_kek_keypair():
+    d = cd_tempdir()
+    key, crt = "KEK.key", "KEK.crt"
+    subprocess.check_call(
+        [
+            "openssl",
+            "req",
+            "-newkey",
+            "rsa:4096",
+            "-nodes",
+            "-new",
+            "-x509",
+            "-sha256",
+            "-days",
+            "3650",
+            "-subj",
+            "/CN=KEK Owner/",
+            "-keyout",
+            key,
+            "-out",
+            crt,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    key, crt = os.path.abspath(key), os.path.abspath(crt)
+    os.chdir(d)
+    return key, crt
+
+
+def create_msft_kek(signing_key, signing_crt):
+    prevdir = cd_tempdir()
+    msft_kek = download(Urls.KEK)
+    kek_auth = create_auth(
+        signing_key, signing_crt, "KEK", signing_crt, convert_der_to_pem(msft_kek)
+    )
+    os.chdir(prevdir)
+    return kek_auth
+
+
+def create_msft_db(signing_key, signing_crt):
+    prevdir = cd_tempdir()
+    msft_ca = download(Urls.CA)
+    msft_pca = download(Urls.PCA)
+    db_auth = create_auth(
+        signing_key,
+        signing_crt,
+        "db",
+        convert_der_to_pem(msft_ca),
+        convert_der_to_pem(msft_pca),
+    )
+    os.chdir(prevdir)
+
+    return db_auth
+
+
+def session_init():
+    session = XenAPI.xapi_local()
+    ret = session.xenapi.login_with_password(
+        "", "", "0.1", "secureboot-certificates.py"
+    )
+    return session
+
+
+def clear(session):
+    hosts = Host.get_all(session)
+    for host in hosts:
+        host.set_certs(b"")
+        print("Cleared certificates from XAPI DB for host %s." % host.uuid)
+
+    for pool in Pool.get_all(session):
+        pool.set_certs(b"")
+        print("Cleared certificates from XAPI DB for pool %s" % pool.uuid)
+
+
+def create_tarball(paths):
+    tarball = BytesIO()
+    with tarfile.open(mode="w", fileobj=tarball) as tar:
+        for path in paths:
+            name = os.path.basename(path)
+            tar.add(path, arcname=name)
+    return tarball
+
+
+def getdefault(name):
+    global key
+    global crt
+
+    if name == "PK":
+        return "/usr/share/uefistored/PK.auth"
+    elif name == "db":
+        return create_msft_db(key, crt)
+    elif name == "KEK":
+        return create_msft_kek(key, crt)
+    elif name == "dbx":
+        return download(Urls.dbx, "dbx.auth", tempdir=True)
+    else:
+        return None
+
+
+def getpath(args, name):
+    val = getattr(args, name)
+    if os.path.exists(val):
+        if os.stat(val).st_size <= 0:
+            logging.debug("file %s is empty, skipping..." % val)
+            return None
+        return os.path.abspath(val)
+    elif val == "default" or val == "latest":
+        return getdefault(name)
+    elif name == "dbx" and val == "none":
+        return None
+    else:
+        print("error: file %s does not exist, and is not option 'default'" % val)
+        sys.exit(1)
+
+
+def install(session, args):
+    paths = []
+    for name in ["PK", "KEK", "db", "dbx"]:
+        p = getpath(args, name)
+        if p:
+            paths.append(p)
+
+    tarball = create_tarball(paths)
+    data = base64.b64encode(tarball.getvalue())
+    tarball.close()
+
+    hosts = Host.get_all(session)
+    for host in hosts:
+        host.set_certs(data)
+
+    pool = Pool.get_all(session)[0]
+    if not pool:
+        print("Could not retrieve pool from XAPI")
+        sys.exit(1)
+    pool.set_certs(data)
+    print("Successfully installed certificates to the XAPI DB for pool.")
+
+
+def find(strings, substr):
+    for item in strings:
+        if substr in item:
+            return item
+    return None
+
+
+class Host(object):
+    def __init__(self, opaque_ref, session):
+        self.session = session
+        attrname = type(self).__name__.lower()
+        self.xapi_class = getattr(session.xenapi, attrname)
+        self.xapi_class_string = "session.xenapi.%s" % attrname
+        self.opaque_ref = opaque_ref
+        self.__certs = None
+
+    @property
+    def name_label(self):
+        return self.xapi_class.get_name_label(self.opaque_ref)
+
+    @property
+    def uuid(self):
+        return self.xapi_class.get_uuid(self.opaque_ref)
+
+    def get_certs(self):
+        if self.__certs is None:
+            self.__certs = self.xapi_class.get_uefi_certificates(self.opaque_ref)
+        return self.__certs
+
+    def set_certs(self, data):
+        self.xapi_class.set_uefi_certificates(self.opaque_ref, data)
+
+    def save_certs_to_disk(self):
+        decoded = base64.b64decode(self.get_certs())
+
+        d = cd_tempdir()
+        _, fname = tempfile.mkstemp()
+
+        atexit.register(lambda: os.remove(fname))
+
+        if not decoded:
+            return []
+
+        with open(fname, "w") as f:
+            f.write(decoded)
+
+        try:
+            subprocess.check_call(
+                ["tar", "xvf", fname], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+        except subprocess.CalledProcessError:
+            print("Certs for %s is not valid tarball" % self)
+            return []
+
+        paths = []
+        for dirpath, dirnames, filenames in os.walk(os.curdir):
+            for f in filenames:
+                path = os.path.join(dirpath, f)
+                if path.endswith(".auth"):
+                    paths.append(os.path.abspath(path))
+
+        os.chdir(d)
+
+        ret = []
+
+        for name in ["PK.auth", "KEK.auth", "db.auth", "dbx.auth"]:
+            p = find(paths, name)
+            if p:
+                ret.append(p)
+
+        return ret
+
+    @classmethod
+    def get_by_uuid(cls, session, uuid):
+        attrname = cls.__name__.lower()
+        xapi_class = getattr(session.xenapi, attrname)
+        ref = xapi_class.get_by_uuid(uuid)
+        return cls(ref, session)
+
+    @classmethod
+    def get_all(cls, session):
+        attrname = cls.__name__.lower()
+        xapi_class = getattr(session.xenapi, attrname)
+        refs = xapi_class.get_all()
+        logging.debug("XAPI Request: session.xenapi.%s.get_all()" % attrname)
+        return [cls(ref, session) for ref in refs]
+
+    def log_request(self, string):
+        logging.debug("XAPI Request: %s.%s" % (self.xapi_class_string, string))
+
+    def __str__(self):
+        return "Host(uuid=%s)" % self.uuid
+
+
+class Pool(Host):
+    """This class represents a XAPI Pool.
+
+
+    It is API-equivalent with the Host class.
+    """
+
+
+def print_cert(path, uuid, klass):
+    print("\tCertificate: %s" % os.path.basename(path))
+    print("\t%s: %s" % (klass, uuid))
+    print("\tAuth file md5: %s" % hashfile(path))
+    print("\tData:")
+    output = subprocess.check_output(["hexdump", "-Cv", path])
+    for line in output.splitlines():
+        print("\t\t%s" % line)
+    print("")
+
+
+def report(session):
+    print("\n{} -- Report".format(os.path.basename(sys.argv[0])))
+    pool = Pool.get_all(session)[0]
+    paths = pool.save_certs_to_disk()
+    print("Certificate Info for pool: %s):" % pool.uuid)
+    s = "\tCertificates (%s): " % len(paths)
+    s += ", ".join(os.path.basename(p) for p in paths)
+    s += "\n"
+    print(s)
+    for path in paths:
+        print_cert(path, pool.uuid, klass="Pool")
+
+    hosts = Host.get_all(session)
+    print("Hosts(%s): %s" % (len(hosts), ", ".join(h.uuid for h in hosts)))
+    for host in hosts:
+        paths = host.save_certs_to_disk()
+        print("Certificate Info for host: %s):" % host.uuid)
+        s = "\tCertificates (%s): " % len(paths)
+        s += ", ".join(os.path.basename(p) for p in paths)
+        s += "\n"
+        print(s)
+        for path in paths:
+            print_cert(path, host.uuid, klass="Host")
+        print("")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=("Configure guest UEFI certificates for an XCP-ng system.")
+    )
+
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Verbose output.",
+    )
+
+    action_parsers = parser.add_subparsers()
+    install_parser = action_parsers.add_parser(
+        Actions.INSTALL,
+        help="Install UEFI certificates to every host in the pool.",
+        description="Install UEFI certificates to every host in the pool.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Important Note: all Microsoft certs are downloaded
+automatically from Microsoft's server, and therefore require network access.
+
+Certificate / auth file URLs:
+CA: {}
+PCA: {}
+KEK: {}
+dbx: {}
+""".format(
+            Urls.CA, Urls.PCA, Urls.KEK, Urls.dbx
+        ),
+    )
+    install_parser.set_defaults(action=Actions.INSTALL)
+
+    install_parser.add_argument(
+        "PK",
+        metavar="PK",
+        help="'default' for the default XCP-ng PK or a path to a custom auth file.",
+    )
+    install_parser.add_argument(
+        "KEK",
+        metavar="KEK",
+        help="'default' for the default Microsoft certs or a path to a custom auth file.",
+    )
+    install_parser.add_argument(
+        "db",
+        metavar="db",
+        help="'default' for the default Microsoft certs or a path to a custom auth file.",
+    )
+
+    install_parser.add_argument(
+        "dbx",
+        metavar="dbx",
+        help="""
+'latest' for the most recent UEFI dbx, a path to a custom auth file, or 'none' for no dbx.
+
+Choosing 'none' should be completely avoided in production systems hoping to
+benefit from Secure Boot. It renders Secure Boot practically meaningless
+because attackers may simply load any number of vulnerable binaries that were
+previously signed but later revoked, and thereby take control of the system.
+
+The 'latest' dbx revokes any software that hasn't implemented the most recent
+security fixes, which may include some OS distributions (even if they're
+totally updated, depending how recently the vulnerability was discovered).
+Because it varies per distribution, check if your guest distributions are
+updated to pass the most recent UEFI revocation before installing the latest
+dbx.
+
+Microsoft Windows may extend, replace, or modify the dbx for the VM in which it
+runs if the default KEK is used.
+
+For older dbx files, see: https://uefi.org/revocationlistfile/archive. They may
+be passed to {} as custom auth files.
+""".format(
+            os.path.basename(sys.argv[0])
+        ),
+    )
+
+    clear_parser = action_parsers.add_parser(
+        Actions.CLEAR,
+        help=(
+            "Remove all UEFI certificates from the XAPI DB for a pool. "
+            "Note this only removes them from the XAPI DB but "
+            "not from disk. It may be necessary for you to remove the certs in "
+            "/var/lib/uefistored/ manually on each affected host."
+        ),
+    )
+    clear_parser.set_defaults(action=Actions.CLEAR)
+
+    report_parser = action_parsers.add_parser(
+        Actions.REPORT,
+        help=(
+            "View a report containing information about the UEFI certificates"
+            "for a pool or every host in the system."
+        ),
+    )
+    report_parser.set_defaults(action=Actions.REPORT)
+
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
+
+    session = session_init()
+    if args.action == Actions.CLEAR:
+        clear(session)
+    elif args.action == Actions.INSTALL:
+        key, crt = create_kek_keypair()
+        install(session, args)
+    elif args.action == Actions.REPORT:
+        report(session)
+    else:
+        sys.exit(1)

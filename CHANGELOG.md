@@ -1,8 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
-- Document key exchanges and the key creation tools
+## [1.0.0] - 2020-06-22
+### Changed
+- secureboot-certs: All arguments are now explicit and required!
+  Calling secureboot-certs with no arguments will not work anymore.
+
+### Added
+- secureboot-certs: Support certificate sync via XAPI
+- secureboot-certs: Support dbx
 
 ## [0.6.0] - 2020-05-10
 ### Added
