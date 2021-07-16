@@ -1,7 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [1.0.0] - 2020-06-22
+## [1.0.1] - 2021-07-15
+### Fixed
+- Support Windows update KB4535680
+
+### Changed
+- If there is no default KEK or default db, then uefistored will not load the
+  default PK.
+
+## [1.0.0] - 2021-06-22
 ### Changed
 - secureboot-certs: All arguments are now explicit and required!
   Calling secureboot-certs with no arguments will not work anymore.
@@ -10,11 +18,11 @@ All notable changes to this project will be documented in this file.
 - secureboot-certs: Support certificate sync via XAPI
 - secureboot-certs: Support dbx
 
-## [0.6.0] - 2020-05-10
+## [0.6.0] - 2021-05-10
 ### Added
 - Support variable write appends
 
-## [0.5.0] - 2020-03-30
+## [0.5.0] - 2021-03-30
 ### Added
 - secureboot-certs allows local certs
 
@@ -22,17 +30,17 @@ All notable changes to this project will be documented in this file.
 - uefistored and secureboot-certs use /var/lib/uefistored
   for non-RPM managed certs (those made by secureboot-certs)
 
-## [0.4.2] - 2020-03-23
+## [0.4.2] - 2021-03-23
 ### Fixed
 - Build munit with -std=c99
 - Use gzip for archive
 - Fix bad path to create-auth in README
 
-## [0.4.1] - 2020-11-23
+## [0.4.1] - 2021-11-23
 ### Fixed
 - Fix abd path to create-auth tool
 
-## [0.4.0] - 2020-03-03
+## [0.4.0] - 2021-03-03
 ### Security
 - Use compiler barriers to prevent unsafe optimizations on shared memory data
 - Use SMP memory barriers to ensure cross-CPU synchronicity of shared memory
@@ -53,7 +61,7 @@ All notable changes to this project will be documented in this file.
 - The unit tests are no longer bitrotted and now use ASAN
 - Major code cleanup
 
-## [0.3.1] - 2020-01-11
+## [0.3.1] - 2021-01-11
 ### Changed
 - Increased max variable data size to 32KB (required by Microsoft)
 - Due to the increased data size, dynamic memory wass re-introduced
