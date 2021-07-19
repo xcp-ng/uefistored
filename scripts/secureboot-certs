@@ -256,10 +256,13 @@ def getpath(args, name):
         if os.stat(val).st_size <= 0:
             logging.debug("file %s is empty, skipping..." % val)
             return None
+        logging.debug("using file %s for %s" % (val, name))
         return os.path.abspath(val)
     elif val == "default" or val == "latest":
+        logging.debug("%s for %s" % (val, name))
         return getdefault(name)
     elif name == "dbx" and val == "none":
+        logging.debug("No path for dbx, set dbx to 'none'")
         return None
     else:
         print("error: file %s does not exist, and is not option 'default'" % val)
