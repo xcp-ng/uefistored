@@ -63,11 +63,6 @@ def cd_tempdir():
     return prevdir
 
 
-class Scopes:
-    SYSTEM = "system"
-    POOL = "pool"
-
-
 class Actions:
     CLEAR = "clear"
     INSTALL = "install"
