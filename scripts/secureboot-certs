@@ -63,11 +63,6 @@ def cd_tempdir():
     return prevdir
 
 
-class Scopes:
-    SYSTEM = "system"
-    POOL = "pool"
-
-
 class Actions:
     CLEAR = "clear"
     INSTALL = "install"
@@ -234,9 +229,8 @@ def clear(session):
 def create_tarball(paths):
     tarball = BytesIO()
     with tarfile.open(mode="w", fileobj=tarball) as tar:
-        for path in paths:
-            name = os.path.basename(path)
-            tar.add(path, arcname=name)
+        for name,path in paths.items():
+            tar.add(path, arcname="%s.auth" % name)
     return tarball
 
 
@@ -262,10 +256,13 @@ def getpath(args, name):
         if os.stat(val).st_size <= 0:
             logging.debug("file %s is empty, skipping..." % val)
             return None
+        logging.debug("using file %s for %s" % (val, name))
         return os.path.abspath(val)
     elif val == "default" or val == "latest":
+        logging.debug("%s for %s" % (val, name))
         return getdefault(name)
     elif name == "dbx" and val == "none":
+        logging.debug("No path for dbx, set dbx to 'none'")
         return None
     else:
         print("error: file %s does not exist, and is not option 'default'" % val)
@@ -273,11 +270,11 @@ def getpath(args, name):
 
 
 def install(session, args):
-    paths = []
+    paths = dict()
     for name in ["PK", "KEK", "db", "dbx"]:
         p = getpath(args, name)
         if p:
-            paths.append(p)
+            paths[name] = p
 
     tarball = create_tarball(paths)
     data = base64.b64encode(tarball.getvalue())
