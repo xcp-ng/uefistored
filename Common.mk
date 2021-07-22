@@ -1,4 +1,5 @@
-PKGS := libxml-2.0  \
+PKGS := glib-2.0    \
+        libxml-2.0  \
         libssl      \
         libcrypto   \
         libseccomp

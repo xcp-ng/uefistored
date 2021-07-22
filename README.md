@@ -79,6 +79,29 @@ cp *.auth /var/lib/uefistored/
 Production PCA 2011 from
 [here](https://docs.microsoft.com/en-us/windows-hardware/manufacture/desktop/windows-secure-boot-key-creation-and-management-guidance)
 
+## Logging
+
+`uefistored` supports defining log levels using the file /etc/uefistored/uefistored.conf.
+
+In /etc/uefistored/uefistored.conf, set the "loglevel" variable, such as:
+
+```
+# /etc/uefistored/uefistored.conf
+[default]
+loglevel=DEBUG
+```
+
+Possible values for `loglevel` are:
+
+| loglevel  |
+|-----------|
+|  `DEBUG`  |
+| `WARNING` |
+|  `ERROR`  |
+|  `INFO`   |
+
+The default level is INFO.
+
 ## Deployment during Test
 
 If you just want to deploy to a known host:

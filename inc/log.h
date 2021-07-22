@@ -13,7 +13,7 @@ enum loglevel {
     LOGLEVEL_DEBUG,
 };
 
-extern const enum loglevel loglevel;
+extern enum loglevel loglevel;
 
 #define ERROR(...)                                                             \
     do {                                                                       \
@@ -60,5 +60,6 @@ void dprint_data(const void *data, size_t datasz);
 void dprint_variable(const variable_t *var);
 void dprint_variable_list(const variable_t *vars, size_t n);
 void dprint_name(const UTF16 *name, size_t namesz);
+void logging_init(void);
 
 #endif // __H_LOG__

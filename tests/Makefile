@@ -8,6 +8,8 @@ HDRS := $(shell find . -type f -name '*.h')
 CFLAGS += -g -Wall -Werror -fshort-wchar
 CFLAGS += $(foreach pkg,$(PKGS),$$(pkg-config --cflags $(pkg)))
 
+CFLAGS += -DCONFIG_PATH=\"./conf/test.conf\"
+
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxml2 
 INC += -I./munit/
 INC += $(foreach pkg,$(PKGS),$$(pkg-config --libs $(pkg)))
