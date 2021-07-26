@@ -446,10 +446,17 @@ if __name__ == "__main__":
     install_parser = action_parsers.add_parser(
         Actions.INSTALL,
         help="Install UEFI certificates to every host in the pool.",
-        description="Install UEFI certificates to every host in the pool.",
+        description=(
+              "Install UEFI certificates to every host in the pool.\n\n"
+              "If no arguments are passed to '{} {}', then the default PK, KEK, "
+              "and db, and the latest dbx will be installed."
+                      .format(os.path.basename(sys.argv[0]), Actions.INSTALL)
+              ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""Important Note: all Microsoft certs are downloaded
-automatically from Microsoft's server, and therefore require network access.
+        epilog="""
+
+Important Note: all Microsoft certs are downloaded automatically from
+Microsoft's server, and therefore require network access.
 
 Certificate / auth file URLs:
 CA: {}
@@ -526,17 +533,37 @@ be passed to {} as custom auth files.
     )
     report_parser.set_defaults(action=Actions.REPORT)
 
-    args = parser.parse_args()
-
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
-
-    session = session_init()
-    if args.action == Actions.CLEAR:
-        clear(session)
-    elif args.action == Actions.INSTALL:
+    if len(sys.argv) == 2 and sys.argv[1] == Actions.INSTALL:
+        print("""
+No arguments provided to command install, default arguments will be used:
+- PK: default
+- KEK: default
+- db: default
+- dbx: latest
+""")
+        session = session_init()
         key, crt = create_kek_keypair()
-        install(session, args)
-    elif args.action == Actions.REPORT:
-        report(session)
+        install(
+            session,
+            argparse.Namespace(
+                PK="default",
+                KEK="default",
+                db="default",
+                dbx="latest"
+            )
+        )
     else:
-        sys.exit(1)
+        args = parser.parse_args()
+
+        logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
+
+        session = session_init()
+        if args.action == Actions.CLEAR:
+            clear(session)
+        elif args.action == Actions.INSTALL:
+            key, crt = create_kek_keypair()
+            install(session, args)
+        elif args.action == Actions.REPORT:
+            report(session)
+        else:
+            sys.exit(1)
