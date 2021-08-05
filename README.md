@@ -33,6 +33,14 @@ help:              Display this help
 scan-build:        Use scan-build for static analysis
 ```
 
+### Dependencies
+
+`uefistored` depends on the following libraries:
+
+- libxml-2.0
+- glib-2.0
+- Xen dom0 libs (xenstore, xencontrol, xenevtchn, etc...)
+
 ## Initializing keys for uefistored
 
 Because Microsoft key's are not freely distributable, we must require users to
