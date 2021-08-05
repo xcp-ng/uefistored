@@ -458,8 +458,8 @@ bool pkcs7_verify(PKCS7 *pkcs7, X509 *trusted_cert, const uint8_t *new_data,
 
     if (!status) {
         ERROR("PKCS7_verify() failed\n");
-        ERR_print_errors_fp(stderr);
         ERR_load_crypto_strings();
+        ERR_print_errors_fp(stderr);
         ERR_free_strings();
     }
 
