@@ -1326,8 +1326,6 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     memcpy(p, guid, length);
     p += length;
 
-    attrs &= ~EFI_VARIABLE_APPEND_WRITE;
-
     length = sizeof(uint32_t);
     memcpy(p, &attrs, length);
     p += length;
