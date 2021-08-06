@@ -1171,8 +1171,9 @@ static bool verify_kek(EFI_VARIABLE_AUTHENTICATION_2 *efi_auth,
 
                 X509_free(trusted_cert);
 
+                /* If verification succeeds, don't bother looping again */
                 if (verify_status) {
-                    DBG("pkcs7_verify() failed\n");
+                    INFO("PKCS7 verification succeeded\n");
                     goto out;
                 }
 
