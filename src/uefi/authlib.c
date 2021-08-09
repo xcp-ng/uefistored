@@ -233,6 +233,10 @@ auth_lib_process_variable(UTF16 *variable_name, size_t namesz,
 {
     EFI_STATUS status;
 
+    DPRINTF("processing auth variable: ");
+    dprint_name(variable_name, namesz);
+    DPRINTF("\n");
+
     if (compare_guid(vendor_guid, &gEfiGlobalVariableGuid) &&
         (strcmp16(variable_name, EFI_PLATFORM_KEY_NAME) == 0)) {
         status = process_var_with_pk(variable_name, namesz, vendor_guid, data,

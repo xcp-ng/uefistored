@@ -9,6 +9,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/pkcs7.h>
+#include <openssl/pem.h>
 
 #include "log.h"
 #include "uefi/auth.h"
@@ -19,6 +20,72 @@
 #include "openssl_custom.h"
 
 uint8_t mOidValue[9] = { 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02 };
+
+int pkcs7_print(PKCS7 *pkcs7)
+{
+    char *buf;
+    int i;
+    BIO *in, *out;
+    STACK_OF(X509) *certs = NULL;
+    BUF_MEM *mem_ptr;
+
+    if (loglevel < LOGLEVEL_DEBUG) {
+        return 0;
+    }
+
+    out = BIO_new(BIO_s_mem());
+    if (!out) {
+        ERROR("failed to create new BIO\n");
+        return -1;
+    }
+
+    in = BIO_new(BIO_s_mem());
+    if (!in) {
+        BIO_free(out);
+        ERROR("failed to create new BIO\n");
+        return -1;
+    }
+
+    i = OBJ_obj2nid(pkcs7->type);
+    switch (i) {
+    case NID_pkcs7_signed:
+        if (pkcs7->d.sign != NULL) {
+            certs = pkcs7->d.sign->cert;
+        }
+        break;
+    case NID_pkcs7_signedAndEnveloped:
+        if (pkcs7->d.signed_and_enveloped != NULL) {
+            certs = pkcs7->d.signed_and_enveloped->cert;
+        }
+        break;
+    default:
+        break;
+    }
+
+    if (certs != NULL) {
+        X509 *x;
+
+        for (i = 0; i < sk_X509_num(certs); i++) {
+            x = sk_X509_value(certs, i);
+            X509_print(out, x);
+#ifdef PRINT_X509_PEM
+            PEM_write_bio_X509(out, x);
+#endif
+            BIO_puts(out, "\n");
+        }
+    }
+
+    BIO_get_mem_ptr(out, &mem_ptr);
+    buf = (char *)malloc(mem_ptr->length);
+    memcpy(buf, mem_ptr->data, mem_ptr->length - 1);
+    buf[mem_ptr->length - 1] = 0;
+    INFO("%s", buf);
+    BIO_free(in);
+    BIO_free(out);
+    free(buf);
+
+    return 0;
+}
 
 uint8_t *X509_to_buf(X509 *cert, int *len)
 {

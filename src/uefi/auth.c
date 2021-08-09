@@ -1356,6 +1356,14 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     free(new_data);
 
     if (!verify_status) {
+        DEBUG("Auth var failed. PKCS7 was:\n");
+        PKCS7 *pkcs7 = pkcs7_from_auth(efi_auth);
+        if (pkcs7) {
+            pkcs7_print(pkcs7);
+            PKCS7_free(pkcs7);
+        } else {
+            INFO("..failed to parse PKCS7 from auth\n");
+        }
         free(wrap_data);
         return EFI_SECURITY_VIOLATION;
     }

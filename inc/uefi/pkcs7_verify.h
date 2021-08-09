@@ -21,5 +21,6 @@ uint8_t *wrap_with_content_info(const uint8_t *data, uint32_t size,  uint32_t *n
 bool is_content_info(const uint8_t *data, size_t data_size);
 bool pkcs7_verify(PKCS7 *pkcs7, X509 *TrustedCert,
                   const uint8_t *new_data, uint64_t new_data_size);
+int pkcs7_print(PKCS7 *pkcs7);
 
 #endif // __H_PKCS7_VERIFY_
