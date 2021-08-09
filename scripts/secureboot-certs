@@ -8,13 +8,12 @@ import base64
 import hashlib
 import logging
 import os
-import requests
 import shutil
 import subprocess
 import sys
 import tarfile
 import tempfile
-
+import urllib2
 from io import BytesIO
 
 import XenAPI
@@ -93,16 +92,30 @@ def download(url, fname=None, tempdir=False):
     """
     if fname is None:
         fname = os.path.basename(url)
-    data = requests.get(url)
+
+    req = urllib2.Request(url)
+    # For an unknown reason, microsoft.com reliably rejects the urllib2 User
+    # Agent with error 403 (but oddly doesn't block the python-requests User
+    # Agent). To avoid issues, just use the well-known Mozilla User Agent.
+    req.add_header("User-Agent", "Mozilla/5.0")
+
+    # These two headers are simply the defaults used by the requests library,
+    # which is known to work.  There is no deeper rationale for these exact
+    # headers.
+    req.add_header("Accept", "*/*")
+    req.add_header("Connection", "keep-alive")
+
+    resp = urllib2.urlopen(req)
+    data = resp.read()
 
     if tempdir:
         d = cd_tempdir()
 
     with open(fname, "wb") as f:
-        f.write(data.content)
+        f.write(data)
 
     # Get abspath in temp dir before returning to original directory
-    # of tempdir == True
+    # if tempdir == True
     dest = os.path.abspath(fname)
 
     if tempdir:
