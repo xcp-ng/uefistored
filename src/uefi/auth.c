@@ -1355,7 +1355,7 @@ verify_time_based_payload(UTF16 *name, size_t namesz, EFI_GUID *guid,
     free(new_data);
 
     if (!verify_status) {
-        DEBUG("Auth var failed. PKCS7 was:\n");
+        DBG("Auth var failed. PKCS7 was:\n");
         PKCS7 *pkcs7 = pkcs7_from_auth(efi_auth);
         if (pkcs7) {
             pkcs7_print(pkcs7);
