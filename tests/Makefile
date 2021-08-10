@@ -1,21 +1,18 @@
 include ../Common.mk
 
-# Override to omit unused libs (i.e., xen libs)
-LDFLAGS := $$(pkg-config --libs libxml-2.0)     \
-            -lseccomp                           \
-            -lssl                               \
-            -lcrypto
-
 CC := gcc
 
 SRCS := $(patsubst %,../%,$(SRCS))
 HDRS := $(shell find . -type f -name '*.h')
 
-LIBS := -lssl -lcrypto -lxml2
 CFLAGS += -g -Wall -Werror -fshort-wchar
+CFLAGS += $(foreach pkg,$(PKGS),$$(pkg-config --cflags $(pkg)))
+
+CFLAGS += -DCONFIG_PATH=\"./conf/test.conf\"
 
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxml2 
 INC += -I./munit/
+INC += $(foreach pkg,$(PKGS),$$(pkg-config --libs $(pkg)))
 
 # Add mocks
 TEST_SRCS += mock/XenVariable.c \
@@ -69,7 +66,7 @@ valgrind: clean test
 			./test
 
 test: test.c $(OBJS) $(TEST_OBJS) $(HDRS) $(MUNIT_OBJS)
-	$(CC) -o $@ $< $(INC) $(LIBS) $(OBJS) \
+	$(CC) -o $@ $< $(INC) $(OBJS) \
 		$(TEST_OBJS) $(MUNIT_OBJS) $(CFLAGS) $(SANITIZERS) \
 		$(LDFLAGS)
 

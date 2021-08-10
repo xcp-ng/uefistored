@@ -1,6 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2021-07-16
+### Added
+- Print out PKCS7 certs when auth variable verification fails.
+
+## [1.1.0] - 2021-07-16
+### Added
+- Support for configuring the log level via /etc/uefistored/uefistored.conf.
+
 ## [1.0.1] - 2021-07-15
 ### Fixed
 - Support Windows update KB4535680

@@ -12,8 +12,6 @@
 #include "test_suites.h"
 
 struct backend *backend = NULL;
-const enum loglevel loglevel = LOGLEVEL_ERROR;
-
 
 MunitSuite other_suites[] = {
     {
@@ -88,6 +86,8 @@ int main(int argc, char* argv[MUNIT_ARRAY_PARAM(argc + 1)])
     int ret;
     char **newargs;
     char *no_fork = "--no-fork";
+
+    logging_init();
 
     /* Force --no-fork */
     newargs = malloc((argc + 1) * sizeof(char*));

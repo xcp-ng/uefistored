@@ -3,11 +3,21 @@ include Common.mk
 TARGET := uefistored
 CC ?= gcc
 
+PKGS += xencontrol          \
+        xenstore            \
+        xenforeignmemory    \
+        xendevicemodel      \
+        xenevtchn           \
+        xentoolcore
+
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
-CFLAGS = -I$(shell pwd)/inc $$(pkg-config --cflags libxml-2.0)
+CFLAGS := -I$(shell pwd)/inc
+CFLAGS += $(foreach pkg,$(PKGS),$$(pkg-config --cflags $(pkg)))
 CFLAGS += -fshort-wchar -fstack-protector -O2
 CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
+
+INC := $(foreach pkg,$(PKGS),$$(pkg-config --libs $(pkg)))
 
 DEPS     = ./.*.d src/.*.d src/uefi/.*.d
 
@@ -20,12 +30,12 @@ all: $(TARGET) $(TARGET)-debug
 
 uefistored:       ## Build uefistored
 $(TARGET): src/$(TARGET).c $(OBJS)
-	$(CC) -o $@ $< $(LDFLAGS) $(CFLAGS) $(OBJS) $(INC)
+	$(CC) -o $@ $< $(CFLAGS) $(OBJS) $(INC)
 
 uefistored-debug: ## Build uefistored with debug symbols
 $(TARGET)-debug: CFLAGS += -g -grecord-gcc-switches
 $(TARGET)-debug: src/$(TARGET).c $(OBJS)
-	$(CC) -o $@ $< $(LDFLAGS) $(CFLAGS) $(OBJS) $(INC)
+	$(CC) -o $@ $< $(CFLAGS) $(OBJS) $(INC)
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS) $(INC)

@@ -1,13 +1,17 @@
-#include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
-
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <glib.h>
+
 #include "storage.h"
 #include "log.h"
+
+#ifndef CONFIG_PATH
+#define CONFIG_PATH "/etc/uefistored/uefistored.conf"
+#endif
+
+enum loglevel loglevel = LOGLEVEL_INFO;
 
 /**
  * Print UTF16 variable name.
@@ -80,4 +84,65 @@ void dprint_data(const void *data, size_t datasz)
             DPRINTF(", ");
     }
     DPRINTF("]\n");
+}
+
+/*
+ * Initialize logging.
+ *
+ * Sets the loglevel based on the config variable "loglevel" stored
+ * in /etc/uefistored/uefistored.conf.
+ */
+void logging_init(void)
+{
+    GKeyFile *key_file = NULL;
+    GError *err = NULL;
+    gchar *val = NULL;
+
+    key_file = g_key_file_new();
+    if (!key_file) {
+        goto out;
+    }
+
+    if (!g_key_file_load_from_file(key_file, (const gchar *)CONFIG_PATH,
+                                   G_KEY_FILE_NONE, &err)) {
+        goto out;
+    }
+
+    if (err) {
+        goto out;
+    }
+
+    val = g_key_file_get_string(key_file, "default", "loglevel", &err);
+    if (err || !val) {
+        goto out;
+    }
+
+    if (strncmp(val, "ERROR", 5) == 0)
+        loglevel = LOGLEVEL_ERROR;
+    else if (strncmp(val, "WARNING", 7) == 0)
+        loglevel = LOGLEVEL_WARNING;
+    else if (strncmp(val, "DEBUG", 5) == 0)
+        loglevel = LOGLEVEL_DEBUG;
+    else if (strncmp(val, "INFO", 4) == 0)
+        loglevel = LOGLEVEL_INFO;
+    else {
+        loglevel = LOGLEVEL_INFO;
+        INFO("%s not valid loglevel, defaulting to INFO\n", val);
+    }
+
+out:
+    if (err) {
+        loglevel = LOGLEVEL_INFO;
+        ERROR("%s\n", err->message);
+        g_error_free(err);
+        INFO("Opening/parsing %s failed, defaulting to loglevel=INFO\n",
+             CONFIG_PATH);
+    }
+    if (val) {
+        free(val);
+    }
+
+    if (key_file) {
+        g_key_file_free(key_file);
+    }
 }
