@@ -2,6 +2,10 @@ include ../Common.mk
 
 CC := gcc
 
+GCCVERSION := $(shell gcc --version | grep ^gcc | sed 's/^.* //g')
+GCCMAJOR := $(shell echo $(GCCVERSION) | cut -f1 -d.)
+GCC_GTE_11 := $(shell [[ "$(GCCMAJOR)" -gt 10 ]] && echo "true")
+
 SRCS := $(patsubst %,../%,$(SRCS))
 HDRS := $(shell find . -type f -name '*.h')
 
@@ -9,6 +13,12 @@ CFLAGS += -g -Wall -Werror -fshort-wchar
 CFLAGS += $(foreach pkg,$(PKGS),$$(pkg-config --cflags $(pkg)))
 
 CFLAGS += -DCONFIG_PATH=\"./conf/test.conf\"
+
+# If GCC version is equal to or greater than 11.0.0 then suppress vla-parameter errors because munit
+# will otherwise fail.
+ifeq ($(GCC_GTE_11),true)
+CFLAGS += -Wno-error=vla-parameter
+endif
 
 INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxml2 
 INC += -I./munit/
