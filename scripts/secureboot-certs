@@ -406,29 +406,36 @@ def print_cert(path, uuid, klass):
 
 
 def report(session):
-    print("\n{} -- Report".format(os.path.basename(sys.argv[0])))
-    pool = Pool.get_all(session)[0]
-    paths = pool.save_certs_to_disk()
-    print("Certificate Info for pool: %s):" % pool.uuid)
-    s = "\tCertificates (%s): " % len(paths)
-    s += ", ".join(os.path.basename(p) for p in paths)
-    s += "\n"
-    print(s)
-    for path in paths:
-        print_cert(path, pool.uuid, klass="Pool")
-
-    hosts = Host.get_all(session)
-    print("Hosts(%s): %s" % (len(hosts), ", ".join(h.uuid for h in hosts)))
-    for host in hosts:
-        paths = host.save_certs_to_disk()
-        print("Certificate Info for host: %s):" % host.uuid)
+    try:
+        print("\n{} -- Report".format(os.path.basename(sys.argv[0])))
+        pool = Pool.get_all(session)[0]
+        paths = pool.save_certs_to_disk()
+        print("Certificate Info for pool: %s):" % pool.uuid)
         s = "\tCertificates (%s): " % len(paths)
         s += ", ".join(os.path.basename(p) for p in paths)
         s += "\n"
         print(s)
         for path in paths:
-            print_cert(path, host.uuid, klass="Host")
-        print("")
+            print_cert(path, pool.uuid, klass="Pool")
+
+        hosts = Host.get_all(session)
+        print("Hosts(%s): %s" % (len(hosts), ", ".join(h.uuid for h in hosts)))
+        for host in hosts:
+            paths = host.save_certs_to_disk()
+            print("Certificate Info for host: %s):" % host.uuid)
+            s = "\tCertificates (%s): " % len(paths)
+            s += ", ".join(os.path.basename(p) for p in paths)
+            s += "\n"
+            print(s)
+            for path in paths:
+                print_cert(path, host.uuid, klass="Host")
+            print("")
+    except IOError:
+        # This technique taken from: https://docs.python.org/3/library/signal.html#note-on-sigpipe
+        # Redirect further stdout flushing (like the broken pipe err message) to /dev/null
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(1)
 
 
 if __name__ == "__main__":
