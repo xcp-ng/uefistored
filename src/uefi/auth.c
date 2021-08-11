@@ -290,44 +290,44 @@ out:
 /**
   Filter out the duplicated EFI_SIGNATURE_DATA from the new data by comparing to the original data.
 
-  @parm data          Pointer to original EFI_SIGNATURE_LIST.
+  @parm data           Pointer to original EFI_SIGNATURE_LIST.
   @parm data_size      Size of data buffer.
   @parm new_data       Pointer to new EFI_SIGNATURE_LIST.
-  @parm new_data_size   Size of new_data buffer.
+  @parm new_data_size  Size of new_data buffer.
 
 **/
-EFI_STATUS
-FilterSignatureList(void *data, uint64_t data_size, void *new_data,
-                    uint64_t *new_data_size)
+static EFI_STATUS
+filter_signature_list(void *data, uint64_t data_size, void *new_data,
+                      uint64_t *new_data_size)
 {
-    EFI_SIGNATURE_LIST *certList;
+    EFI_SIGNATURE_LIST *cert_list;
     EFI_SIGNATURE_DATA *cert;
     uint64_t cert_count;
     EFI_SIGNATURE_LIST *new_cert_list;
     EFI_SIGNATURE_DATA *new_cert;
-    uint64_t new_certCount;
+    uint64_t new_cert_count;
     uint64_t i;
     uint64_t j;
-    uint64_t Size;
-    uint8_t *Tail;
-    uint64_t CopiedCount;
-    uint64_t SignatureListSize;
+    uint64_t size;
+    uint8_t *tail;
+    uint64_t copied_count;
+    uint64_t sig_list_size;
     bool is_new_cert;
-    uint8_t *Tempdata;
-    uint64_t Tempdata_size;
+    uint8_t *temp_data;
+    uint64_t temp_data_size;
 
     if (*new_data_size == 0) {
         return EFI_SUCCESS;
     }
 
-    Tempdata_size = *new_data_size;
-    Tempdata = malloc(Tempdata_size);
+    temp_data_size = *new_data_size;
+    temp_data = malloc(temp_data_size);
 
-    if (!Tempdata) {
+    if (!temp_data) {
         return EFI_OUT_OF_RESOURCES;
     }
 
-    Tail = Tempdata;
+    tail = temp_data;
 
     new_cert_list = (EFI_SIGNATURE_LIST *)new_data;
     while ((*new_data_size > 0) &&
@@ -335,68 +335,68 @@ FilterSignatureList(void *data, uint64_t data_size, void *new_data,
         new_cert = (EFI_SIGNATURE_DATA *)((uint8_t *)new_cert_list +
                                           sizeof(EFI_SIGNATURE_LIST) +
                                           new_cert_list->SignatureHeaderSize);
-        new_certCount =
+        new_cert_count =
                 (new_cert_list->SignatureListSize - sizeof(EFI_SIGNATURE_LIST) -
                  new_cert_list->SignatureHeaderSize) /
                 new_cert_list->SignatureSize;
 
-        CopiedCount = 0;
-        for (i = 0; i < new_certCount; i++) {
+        copied_count = 0;
+        for (i = 0; i < new_cert_count; i++) {
             is_new_cert = true;
 
-            Size = data_size;
-            certList = (EFI_SIGNATURE_LIST *)data;
-            while ((Size > 0) && (Size >= certList->SignatureListSize)) {
-                if (compare_guid(&certList->SignatureType,
+            size = data_size;
+            cert_list = (EFI_SIGNATURE_LIST *)data;
+            while ((size > 0) && (size >= cert_list->SignatureListSize)) {
+                if (compare_guid(&cert_list->SignatureType,
                                  &new_cert_list->SignatureType) &&
-                    (certList->SignatureSize == new_cert_list->SignatureSize)) {
-                    cert = (EFI_SIGNATURE_DATA *)((uint8_t *)certList +
+                    (cert_list->SignatureSize == new_cert_list->SignatureSize)) {
+                    cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert_list +
                                                   sizeof(EFI_SIGNATURE_LIST) +
-                                                  certList->SignatureHeaderSize);
-                    cert_count = (certList->SignatureListSize -
+                                                  cert_list->SignatureHeaderSize);
+                    cert_count = (cert_list->SignatureListSize -
                                   sizeof(EFI_SIGNATURE_LIST) -
-                                  certList->SignatureHeaderSize) /
-                                 certList->SignatureSize;
+                                  cert_list->SignatureHeaderSize) /
+                                 cert_list->SignatureSize;
                     for (j = 0; j < cert_count; j++) {
                         //
                         // Iterate each Signature data in this Signature List.
                         //
-                        if (memcmp(new_cert, cert, certList->SignatureSize) ==
+                        if (memcmp(new_cert, cert, cert_list->SignatureSize) ==
                             0) {
                             is_new_cert = false;
                             break;
                         }
                         cert = (EFI_SIGNATURE_DATA *)((uint8_t *)cert +
-                                                      certList->SignatureSize);
+                                                      cert_list->SignatureSize);
                     }
                 }
 
                 if (!is_new_cert) {
                     break;
                 }
-                Size -= certList->SignatureListSize;
-                certList = (EFI_SIGNATURE_LIST *)((uint8_t *)certList +
-                                                  certList->SignatureListSize);
+                size -= cert_list->SignatureListSize;
+                cert_list = (EFI_SIGNATURE_LIST *)((uint8_t *)cert_list +
+                                                  cert_list->SignatureListSize);
             }
 
             if (is_new_cert) {
                 //
                 // New EFI_SIGNATURE_DATA, keep it.
                 //
-                if (CopiedCount == 0) {
+                if (copied_count == 0) {
                     //
                     // Copy EFI_SIGNATURE_LIST header for only once.
                     //
-                    memcpy(Tail, new_cert_list,
+                    memcpy(tail, new_cert_list,
                            sizeof(EFI_SIGNATURE_LIST) +
                                    new_cert_list->SignatureHeaderSize);
-                    Tail = Tail + sizeof(EFI_SIGNATURE_LIST) +
+                    tail = tail + sizeof(EFI_SIGNATURE_LIST) +
                            new_cert_list->SignatureHeaderSize;
                 }
 
-                memcpy(Tail, new_cert, new_cert_list->SignatureSize);
-                Tail += new_cert_list->SignatureSize;
-                CopiedCount++;
+                memcpy(tail, new_cert, new_cert_list->SignatureSize);
+                tail += new_cert_list->SignatureSize;
+                copied_count++;
             }
 
             new_cert = (EFI_SIGNATURE_DATA *)((uint8_t *)new_cert +
@@ -406,12 +406,12 @@ FilterSignatureList(void *data, uint64_t data_size, void *new_data,
         //
         // Update SignatureListSize in the kept EFI_SIGNATURE_LIST.
         //
-        if (CopiedCount != 0) {
-            SignatureListSize = sizeof(EFI_SIGNATURE_LIST) +
+        if (copied_count != 0) {
+            sig_list_size = sizeof(EFI_SIGNATURE_LIST) +
                                 new_cert_list->SignatureHeaderSize +
-                                (CopiedCount * new_cert_list->SignatureSize);
-            certList = (EFI_SIGNATURE_LIST *)(Tail - SignatureListSize);
-            certList->SignatureListSize = (uint32_t)SignatureListSize;
+                                (copied_count * new_cert_list->SignatureSize);
+            cert_list = (EFI_SIGNATURE_LIST *)(tail - sig_list_size);
+            cert_list->SignatureListSize = (uint32_t)sig_list_size;
         }
 
         *new_data_size -= new_cert_list->SignatureListSize;
@@ -420,12 +420,12 @@ FilterSignatureList(void *data, uint64_t data_size, void *new_data,
                                        new_cert_list->SignatureListSize);
     }
 
-    Tempdata_size = (Tail - (uint8_t *)Tempdata);
+    temp_data_size = (tail - (uint8_t *)temp_data);
 
-    memcpy(new_data, Tempdata, Tempdata_size);
-    *new_data_size = Tempdata_size;
+    memcpy(new_data, temp_data, temp_data_size);
+    *new_data_size = temp_data_size;
 
-    free(Tempdata);
+    free(temp_data);
 
     return EFI_SUCCESS;
 }
@@ -510,7 +510,7 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
              * shall not perform an append of EFI_SIGNATURE_DATA values that are
              * already part of the existing variable value.
              */
-            FilterSignatureList(var->data, var->datasz, data, &data_size);
+            filter_signature_list(var->data, var->datasz, data, &data_size);
 
             /*
              * If there are no new certificates to append there is no need to write anything
