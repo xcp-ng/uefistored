@@ -189,15 +189,16 @@ EFI_STATUS storage_set(const UTF16 *name, size_t namesz, const EFI_GUID *guid,
         datasz + namesz + storage_used() > MAX_STORAGE_SIZE)
         return EFI_OUT_OF_RESOURCES;
 
+    append = !!(attrs & EFI_VARIABLE_APPEND_WRITE);
+
     /* As specified by the UEFI spec */
-    if (datasz == 0 || attrs == 0)
+    if ((datasz == 0 && !append) || attrs == 0)
         return storage_remove(name, namesz, guid);
 
     /* Caller passed in a null pointer as data */
     if (!data)
         return EFI_DEVICE_ERROR;
 
-    append = !!(attrs & EFI_VARIABLE_APPEND_WRITE);
     attrs &= ~EFI_VARIABLE_APPEND_WRITE;
 
     /* If it already exists, replace it */
