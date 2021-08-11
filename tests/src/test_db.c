@@ -102,7 +102,7 @@ static MunitResult test_db_append(const MunitParameter params[], void *testdata)
     munit_assert_uint64(util_set_db(db, len, false), ==, EFI_SUCCESS);
     munit_assert_uint64(util_get_db(old, &old_len), ==, EFI_SUCCESS);
 
-    if ((len = file_to_buf("data/certs/db2.auth", db, BUF_SIZE)) < 0) {
+    if ((len = file_to_buf("data/certs/db-append.auth", db, BUF_SIZE)) < 0) {
         fprintf(stderr, "failed to open data/certs/db2.auth: %d\n", len);
         return MUNIT_ERROR;
     }
