@@ -1,6 +1,9 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+- PK.auth is now opened from /var/lib/uefistored/PK.auth
+
 ## [1.2.0] - 2021-07-16
 ### Added
 - Print out PKCS7 certs when auth variable verification fails.

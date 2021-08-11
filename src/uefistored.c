@@ -125,10 +125,9 @@ struct auth_data auth_files[] = {
     DEFINE_AUTH_FILE("/var/lib/uefistored/KEK.auth", L"KEK",
                         EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
     /*
-     * PK should be distributed with uefistored, so should
-     * be stored in /usr/share/ (refer to Linux FHS)
+     * PK should be distributed with uefistored.
      */
-    DEFINE_AUTH_FILE("/usr/share/uefistored/PK.auth", L"PK",
+    DEFINE_AUTH_FILE("/var/lib/uefistored/PK.auth", L"PK",
                         EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
 };
 
