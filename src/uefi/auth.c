@@ -511,6 +511,14 @@ EFI_STATUS auth_internal_update_variable_with_timestamp(
              * already part of the existing variable value.
              */
             FilterSignatureList(var->data, var->datasz, data, &data_size);
+
+            /*
+             * If there are no new certificates to append there is no need to write anything
+             * to storage.  Simply return EFI_SUCCESS.
+             */
+            if (data_size == 0) {
+                return EFI_SUCCESS;
+            }
         }
     }
 
