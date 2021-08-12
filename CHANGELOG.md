@@ -1,22 +1,19 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
-- PK.auth is now opened from /var/lib/uefistored/PK.auth
+## [1.1.0] - 2021-08-12
+### Fixed
+- Windows KB4535680 update now works.
+- Build now works with GCC >= 11.0.0.
 
-## [1.2.0] - 2021-07-16
-### Added
-- Print out PKCS7 certs when auth variable verification fails.
-
-## [1.1.0] - 2021-07-16
 ### Added
 - Support for configuring the log level via /etc/uefistored/uefistored.conf.
-
-## [1.0.1] - 2021-07-15
-### Fixed
-- Support Windows update KB4535680
+- Format checking for secureboot-certs.
+- No arguments resolves to default args in secureboot-certs.
+- Logging presents certificate information when pkcs7 verification fails.
 
 ### Changed
+- PK.auth is now opened from /var/lib/uefistored/PK.auth.
 - If there is no default KEK or default db, then uefistored will not load the
   default PK.
 
