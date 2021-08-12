@@ -9,11 +9,15 @@ import hashlib
 import logging
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tarfile
 import tempfile
 import urllib2
+
+from datetime import datetime
+from subprocess import Popen
 from io import BytesIO
 
 import XenAPI
@@ -282,7 +286,29 @@ def getpath(args, name):
         sys.exit(1)
 
 
+def validate_args(args):
+    if args.KEK != "default" and not validate_cert(os.path.abspath(args.KEK)):
+        print("KEK is not a DER-encoded X509 certificate")
+        sys.exit(1)
+
+    if args.db != "default" and not validate_cert(os.path.abspath(args.db)):
+        print("db is not a DER-encoded X509 certificate")
+        sys.exit(1)
+
+    if args.dbx not in ("latest", "none") and not validate_auth(
+        os.path.abspath(args.dbx)
+    ):
+        print("dbx is not an EFI auth file")
+        sys.exit(1)
+
+    if args.PK != "default" and not validate_auth(os.path.abspath(args.PK)):
+        print("PK is not an EFI auth file")
+        sys.exit(1)
+
+
 def install(session, args):
+    validate_args(args)
+
     paths = dict()
     for name in ["PK", "KEK", "db", "dbx"]:
         p = getpath(args, name)
@@ -303,6 +329,78 @@ def install(session, args):
         sys.exit(1)
     pool.set_certs(data)
     print("Successfully installed certificates to the XAPI DB for pool.")
+
+
+def validate_cert(path):
+    """Return True if path is a DER-encoded X509 certificate, otherwise return False."""
+    with open(path, "rb") as f:
+        data = f.read()
+
+    p = Popen(
+        ["openssl", "x509", "-inform", "DER", "-noout"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    p.stdin.write(data)
+    while p.returncode is None:
+        p.poll()
+
+    return p.returncode == 0
+
+
+def validate_auth(path):
+    """Return True if path is an EFI auth file, otherwise returns False."""
+    with open(path, "rb") as f:
+        data = f.read()
+
+    if len(data) < 15:
+        return False
+
+    # Validate the timestamp
+    year = struct.unpack("<H", data[:2])[0]
+    month = struct.unpack("<B", data[2])[0]
+    day = struct.unpack("<B", data[3])[0]
+    hour = struct.unpack("<B", data[4])[0]
+    minute = struct.unpack("<B", data[5])[0]
+    seconds = struct.unpack("<B", data[6])[0]
+
+    try:
+        logging.debug(
+            "year=%s, month=%s, day=%s, hour=%s, minute=%s, seconds=%s"
+            % (year, month, day, hour, minute, seconds)
+        )
+        _ = datetime(year, month, day, hour, minute, seconds)
+    except ValueError:
+        return False
+
+    pad1 = struct.unpack("<B", data[7])[0]
+    nanosecond = struct.unpack("<I", data[8:12])[0]
+    tz = struct.unpack("<H", data[12:14])[0]
+    daylight = struct.unpack("<B", data[14])[0]
+    pad2 = struct.unpack("<B", data[15])[0]
+
+    if pad1 != 0 or nanosecond != 0 or tz != 0 or daylight != 0 or pad2 != 0:
+        return False
+
+    # Skip dwLength.  Someday it should be used to verify the data length.
+    revision = struct.unpack("<H", data[0x14:0x16])[0]
+    if revision != 0x200:
+        return False
+
+    # wCertificateType
+    certificate_type = struct.unpack("<H", data[0x16:0x18])[0]
+    if certificate_type != 0x0EF1:
+        return False
+
+    # ... at this point there *is* further verification we can do (verify
+    # lengths, etc...) but that level of verification is probably unnecessary
+    # for the use case here, which is to simply stop the user from accidentally
+    # passing in a wrong file.  For that reason, if we get to this point, we
+    # consider the file minimally valid and return True
+
+    return True
 
 
 def find(strings, substr):
@@ -492,17 +590,26 @@ dbx: {}
     install_parser.add_argument(
         "PK",
         metavar="PK",
-        help="'default' for the default XCP-ng PK or a path to a custom auth file.",
+        help=(
+            "'default' for the default XCP-ng PK or a path to a custom auth file. "
+            "If a custom file it must be an EFI .auth file"
+        ),
     )
     install_parser.add_argument(
         "KEK",
         metavar="KEK",
-        help="'default' for the default Microsoft certs or a path to a custom auth file.",
+        help=(
+            "'default' for the default Microsoft certs or a path to a custom auth file. "
+            "If a custom file it must be a DER-encoded X509 certificate."
+        ),
     )
     install_parser.add_argument(
         "db",
         metavar="db",
-        help="'default' for the default Microsoft certs or a path to a custom auth file.",
+        help=(
+            "'default' for the default Microsoft certs or a path to a custom auth file. "
+            "If a custom file it must be a DER-encoded X509 certficate."
+        ),
     )
 
     install_parser.add_argument(
@@ -510,6 +617,8 @@ dbx: {}
         metavar="dbx",
         help="""
 'latest' for the most recent UEFI dbx, a path to a custom auth file, or 'none' for no dbx.
+
+If a custom file, it must be an EFI .auth file.
 
 Choosing 'none' should be completely avoided in production systems hoping to
 benefit from Secure Boot. It renders Secure Boot practically meaningless
