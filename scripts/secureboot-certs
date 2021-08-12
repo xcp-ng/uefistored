@@ -223,7 +223,7 @@ def clear(session):
 
     for pool in Pool.get_all(session):
         pool.set_certs(b"")
-        print("Cleared certificates from XAPI DB for pool %s" % pool.uuid)
+        print("Cleared certificates from XAPI DB for pool %s." % pool.uuid)
 
 
 def create_tarball(paths):
