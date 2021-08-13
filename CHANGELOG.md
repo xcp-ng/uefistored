@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2021-08-13
+### Fixed
+- Fix build (Makefile)
+
 ## [1.1.0] - 2021-08-12
 ### Fixed
 - Windows KB4535680 update now works.
