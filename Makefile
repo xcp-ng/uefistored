@@ -12,8 +12,10 @@ PKGS += xencontrol          \
 
 OBJS := $(patsubst %.c,%.o,$(SRCS))
 
-CFLAGS := -I$(shell pwd)/inc
-CFLAGS += $(foreach pkg,$(PKGS),$$(pkg-config --cflags $(pkg)))
+PKG_CFLAGS := $(foreach pkg,$(PKGS),$$(pkg-config --cflags $(pkg)))
+
+CFLAGS = -I$(shell pwd)/inc
+CFLAGS += $(PKG_CFLAGS)
 CFLAGS += -fshort-wchar -fstack-protector -O2
 CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
 
