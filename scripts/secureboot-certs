@@ -288,21 +288,21 @@ def getpath(args, name):
 
 def validate_args(args):
     if args.KEK != "default" and not validate_cert(os.path.abspath(args.KEK)):
-        print("KEK is not a DER-encoded X509 certificate")
+        print("error: KEK must be a DER-encoded X509 certificate")
         sys.exit(1)
 
     if args.db != "default" and not validate_cert(os.path.abspath(args.db)):
-        print("db is not a DER-encoded X509 certificate")
+        print("error: db must be a DER-encoded X509 certificate")
         sys.exit(1)
 
     if args.dbx not in ("latest", "none") and not validate_auth(
         os.path.abspath(args.dbx)
     ):
-        print("dbx is not an EFI auth file")
+        print("error: dbx must be an EFI auth file")
         sys.exit(1)
 
     if args.PK != "default" and not validate_auth(os.path.abspath(args.PK)):
-        print("PK is not an EFI auth file")
+        print("error: PK must be an EFI auth file")
         sys.exit(1)
 
 
