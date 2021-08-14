@@ -129,42 +129,71 @@ def download(url, fname=None, tempdir=False):
 
 
 def convert_der_to_pem(der):
-    pem = der.replace(".crt", ".pem")
-    subprocess.check_call(
-        [
-            "openssl",
-            "x509",
-            "-in",
-            der,
-            "-inform",
-            "DER",
-            "-outform",
-            "PEM",
-            "-out",
-            pem,
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    der = os.path.abspath(der)
+    d = cd_tempdir()
+
+    # Attempt to convert file foo.der -> foo.crt
+    pem = der.replace(".der", "") + ".crt"
+    pem = os.path.abspath(os.path.basename(pem))
+
+    try:
+        subprocess.check_call(
+            [
+                "openssl",
+                "x509",
+                "-in",
+                der,
+                "-inform",
+                "DER",
+                "-outform",
+                "PEM",
+                "-out",
+                pem,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    finally:
+        os.chdir(d)
     return pem
 
 
 def create_auth(signing_key, signing_cert, var, *certs):
     auth = var + ".auth"
-    subprocess.check_call(
-        [
-            "/opt/xensource/libexec/create-auth",
-            "-k",
-            signing_key,
-            "-c",
-            signing_cert,
-            var,
-            auth,
-        ]
-        + list(certs),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+
+    if any([signing_key, signing_cert]) and not all([signing_key, signing_cert]):
+        raise RuntimeError(
+            (
+                "signing_key and signing_cert must either both "
+                "be None or both be defined"
+            )
+        )
+    if signing_key and signing_cert:
+        subprocess.check_call(
+            [
+                "/opt/xensource/libexec/create-auth",
+                "-k",
+                signing_key,
+                "-c",
+                signing_cert,
+                var,
+                auth,
+            ]
+            + list(certs),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    else:
+        subprocess.check_call(
+            [
+                "/opt/xensource/libexec/create-auth",
+                var,
+                auth,
+            ]
+            + list(certs),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
     return os.path.abspath(auth)
 
 
@@ -246,7 +275,9 @@ def clear(session):
 def create_tarball(paths):
     tarball = BytesIO()
     with tarfile.open(mode="w", fileobj=tarball) as tar:
-        for name,path in paths.items():
+        for name, path in paths.items():
+            if not is_auth(path):
+                raise RuntimeError("error: %s is not an auth file" % path)
             tar.add(path, arcname="%s.auth" % name)
     return tarball
 
@@ -287,22 +318,24 @@ def getpath(args, name):
 
 
 def validate_args(args):
-    if args.KEK != "default" and not validate_cert(os.path.abspath(args.KEK)):
-        print("error: KEK must be a DER-encoded X509 certificate")
-        sys.exit(1)
+    valid_values = {
+        "PK": ["default"],
+        "KEK": ["default"],
+        "db": ["default"],
+        "dbx": ["latest", "none"],
+    }
 
-    if args.db != "default" and not validate_cert(os.path.abspath(args.db)):
-        print("error: db must be a DER-encoded X509 certificate")
-        sys.exit(1)
+    for name in ["PK", "KEK", "db", "dbx"]:
+        value = getattr(args, name)
+        if not value in valid_values[name] and not os.path.exists(value):
+            print("error: file %s does not exist." % value)
+            sys.exit(1)
 
-    if args.dbx not in ("latest", "none") and not validate_auth(
-        os.path.abspath(args.dbx)
-    ):
-        print("error: dbx must be an EFI auth file")
-        sys.exit(1)
-
-    if args.PK != "default" and not validate_auth(os.path.abspath(args.PK)):
-        print("error: PK must be an EFI auth file")
+    if os.path.exists(args.PK) and not is_auth(args.PK) and not getattr(args, "pk_priv", False):
+        print(
+            "error: setting a custom PK requires supplying its private half "
+            "to --pk-priv."
+        )
         sys.exit(1)
 
 
@@ -312,8 +345,13 @@ def install(session, args):
     paths = dict()
     for name in ["PK", "KEK", "db", "dbx"]:
         p = getpath(args, name)
-        if p:
-            paths[name] = p
+        if not p:
+            continue
+        if name == "PK" and getattr(args, "pk_priv", False):
+            priv = os.path.abspath(args.pk_priv)
+        else:
+            priv = None
+        paths[name] = convert_to_auth(name, p, priv)
 
     tarball = create_tarball(paths)
     data = base64.b64encode(tarball.getvalue())
@@ -331,26 +369,48 @@ def install(session, args):
     print("Successfully installed certificates to the XAPI DB for pool.")
 
 
-def validate_cert(path):
-    """Return True if path is a DER-encoded X509 certificate, otherwise return False."""
-    with open(path, "rb") as f:
-        data = f.read()
+def convert_to_auth(var, path, priv=None):
+    """Return an auth file created from an X509 cert or auth file.
 
-    p = Popen(
-        ["openssl", "x509", "-inform", "DER", "-noout"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    If path points to an auth file already, its path will be returned without
+    modification.
 
-    p.stdin.write(data)
-    while p.returncode is None:
-        p.poll()
+    If it is a DER X509, it will be converted into a new PEM file prior to
+    building the auth file (create-auth requires PEM certs).  The original DER
+    file will be unaffected.
 
-    return p.returncode == 0
+    If it is already a PEM, no conversion will be required.
+
+    Arguments:
+        var - the name of the UEFI variable
+        path - a path to an auth, X509 DER, or X509 PEM file.
+        priv - the private half of the cert.  Only used for self-signing PK.
+    """
+    if is_auth(path):
+        logging.debug("Using auth directly: %s" % path)
+        return path
+    elif is_der(path):
+        pem = convert_der_to_pem(path)
+        logging.debug("Creating auth %s from DER %s" % (var, path))
+    elif is_pem(path):
+        pem = path
+        logging.debug("Creating auth %s from PEM %s" % (var, path))
+    else:
+        print("file %s is not a valid auth file or x509 certificate" % path)
+        sys.exit(1)
+
+    prevdir = cd_tempdir()
+    if priv:
+        # priv is only used for self-signing the PK as required
+        # by the spec and uefistored.
+        auth = create_auth(priv, pem, var, pem)
+    else:
+        auth = create_auth(None, None, var, pem)
+    os.chdir(prevdir)
+    return auth
 
 
-def validate_auth(path):
+def is_auth(path):
     """Return True if path is an EFI auth file, otherwise returns False."""
     with open(path, "rb") as f:
         data = f.read()
@@ -367,10 +427,6 @@ def validate_auth(path):
     seconds = struct.unpack("<B", data[6])[0]
 
     try:
-        logging.debug(
-            "year=%s, month=%s, day=%s, hour=%s, minute=%s, seconds=%s"
-            % (year, month, day, hour, minute, seconds)
-        )
         _ = datetime(year, month, day, hour, minute, seconds)
     except ValueError:
         return False
@@ -401,6 +457,44 @@ def validate_auth(path):
     # consider the file minimally valid and return True
 
     return True
+
+
+def is_der(path):
+    """Return True if path is a DER-encoded X509 certificate, otherwise return False."""
+    return is_cert_type(path, "DER")
+
+
+def is_pem(path):
+    """Return True if path is a PEM format X509 certificate, otherwise return False."""
+    return is_cert_type(path, "PEM")
+
+
+def is_cert_type(path, t):
+    """
+    Return True if path is a cert of type t, otherwise return False.
+
+    Arguments:
+        t: must be "DER" or "PEM"
+
+    """
+    if t not in ("DER", "PEM"):
+        raise RuntimeError("arg %s is not DER or PEM" % t)
+
+    with open(path, "rb") as f:
+        data = f.read()
+
+    p = Popen(
+        ["openssl", "x509", "-inform", t, "-noout"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    p.stdin.write(data)
+    while p.returncode is None:
+        p.poll()
+
+    return p.returncode == 0
 
 
 def find(strings, substr):
@@ -565,11 +659,12 @@ if __name__ == "__main__":
         Actions.INSTALL,
         help="Install UEFI certificates to every host in the pool.",
         description=(
-              "Install UEFI certificates to every host in the pool.\n\n"
-              "If no arguments are passed to '{} {}', then the default PK, KEK, "
-              "and db, and the latest dbx will be installed."
-                      .format(os.path.basename(sys.argv[0]), Actions.INSTALL)
-              ),
+            "Install UEFI certificates to every host in the pool.\n\n"
+            "If no arguments are passed to '{} {}', then the default PK, KEK, "
+            "and db, and the latest dbx will be installed.".format(
+                os.path.basename(sys.argv[0]), Actions.INSTALL
+            )
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 
@@ -592,7 +687,15 @@ dbx: {}
         metavar="PK",
         help=(
             "'default' for the default XCP-ng PK or a path to a custom auth file. "
-            "If a custom file it must be an EFI .auth file"
+            "If a custom file it must be an EFI .auth file, "
+            "a DER-encoded X509 certificate, or a PEM X509 certificate."
+        ),
+    )
+    install_parser.add_argument(
+        "--pk-priv",
+        help=(
+            "The private half of the PK certificate.  "
+            "Required for custom PK certificates."
         ),
     )
     install_parser.add_argument(
@@ -600,7 +703,8 @@ dbx: {}
         metavar="KEK",
         help=(
             "'default' for the default Microsoft certs or a path to a custom auth file. "
-            "If a custom file it must be a DER-encoded X509 certificate."
+            "If a custom file it must be an EFI .auth file, "
+            "a DER-encoded X509 certificate, or a PEM X509 certificate."
         ),
     )
     install_parser.add_argument(
@@ -608,7 +712,8 @@ dbx: {}
         metavar="db",
         help=(
             "'default' for the default Microsoft certs or a path to a custom auth file. "
-            "If a custom file it must be a DER-encoded X509 certficate."
+            "If a custom file it must be an EFI .auth file, "
+            "a DER-encoded X509 certificate, or a PEM X509 certificate."
         ),
     )
 
@@ -618,7 +723,8 @@ dbx: {}
         help="""
 'latest' for the most recent UEFI dbx, a path to a custom auth file, or 'none' for no dbx.
 
-If a custom file, it must be an EFI .auth file.
+If a custom file, it must be an EFI .auth file, a DER-encoded X509 certificate,
+or a PEM X509 certificate.
 
 Choosing 'none' should be completely avoided in production systems hoping to
 benefit from Secure Boot. It renders Secure Boot practically meaningless
@@ -663,23 +769,20 @@ be passed to {} as custom auth files.
     report_parser.set_defaults(action=Actions.REPORT)
 
     if len(sys.argv) == 2 and sys.argv[1] == Actions.INSTALL:
-        print("""
+        print(
+            """
 No arguments provided to command install, default arguments will be used:
 - PK: default
 - KEK: default
 - db: default
 - dbx: latest
-""")
+"""
+        )
         session = session_init()
         key, crt = create_kek_keypair()
         install(
             session,
-            argparse.Namespace(
-                PK="default",
-                KEK="default",
-                db="default",
-                dbx="latest"
-            )
+            argparse.Namespace(PK="default", KEK="default", db="default", dbx="latest"),
         )
     else:
         args = parser.parse_args()
