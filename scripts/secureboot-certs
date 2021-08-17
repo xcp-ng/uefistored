@@ -98,34 +98,51 @@ def download(url, fname=None, tempdir=False):
     if fname is None:
         fname = os.path.basename(url)
 
-    req = urllib2.Request(url)
-    # For an unknown reason, microsoft.com reliably rejects the urllib2 User
-    # Agent with error 403 (but oddly doesn't block the python-requests User
-    # Agent). To avoid issues, just use the well-known Mozilla User Agent.
-    req.add_header("User-Agent", "Mozilla/5.0")
-
-    # These two headers are simply the defaults used by the requests library,
-    # which is known to work.  There is no deeper rationale for these exact
-    # headers.
-    req.add_header("Accept", "*/*")
-    req.add_header("Connection", "keep-alive")
-
-    resp = urllib2.urlopen(req)
-    data = resp.read()
-
     if tempdir:
         d = cd_tempdir()
 
-    with open(fname, "wb") as f:
-        f.write(data)
+    dest = None
+    try:
+        req = urllib2.Request(url)
+        # For an unknown reason, microsoft.com reliably rejects the urllib2 User
+        # Agent with error 403 (but oddly doesn't block the python-requests User
+        # Agent). To avoid issues, just use the well-known Mozilla User Agent.
+        req.add_header("User-Agent", "Mozilla/5.0")
 
-    # Get abspath in temp dir before returning to original directory
-    # if tempdir == True
-    dest = os.path.abspath(fname)
+        # These two headers are simply the defaults used by the requests library,
+        # which is known to work.  There is no deeper rationale for these exact
+        # headers.
+        req.add_header("Accept", "*/*")
+        req.add_header("Connection", "keep-alive")
 
-    if tempdir:
-        os.chdir(d)
+        resp = urllib2.urlopen(req)
+        data = resp.read()
 
+        with open(fname, "wb") as f:
+            f.write(data)
+
+        # Get abspath in temp dir before returning to original directory
+        # (only matters if tempdir == True, but also correct if False)
+        dest = os.path.abspath(fname)
+    except (urllib2.URLError, urllib2.HTTPError) as e:
+        print(
+            (
+                "error: unable to retrieve certificate from URL: %s. "
+                "Error message: %s.\n\nIf the failure can't be fixed at "
+                "the network configuration level, consider downloading "
+                "the certificates manually and then loading one or more "
+                "of them with secureboot-certs install <PK-filename>|default "
+                "<KEK-filename>|default <db-filename>|default <dbx-filename>|latest. "
+                "Check secureboot-certs install -h for usage details as "
+                "well as a list of the download links used by secureboot-certs "
+                "install."
+            )
+            % (url, e)
+        )
+        sys.exit(1)
+    finally:
+        if tempdir:
+            os.chdir(d)
     return dest
 
 
