@@ -70,6 +70,7 @@ class Actions:
     CLEAR = "clear"
     INSTALL = "install"
     REPORT = "report"
+    EXTRACT = "extract"
 
 
 class Urls:
@@ -337,6 +338,22 @@ def validate_args(args):
             "to --pk-priv."
         )
         sys.exit(1)
+
+
+def extract(session, args):
+    pool = Pool.get_all(session)[0]
+    paths = pool.save_certs_to_disk()
+    cert = None
+    for path in paths:
+        if args.cert in path:
+            cert = path
+            break
+
+    if not cert:
+        print("error: cert %s does not exist in XAPI pool DB." % args.cert)
+        sys.exit(1)
+
+    shutil.copy(cert, args.filename)
 
 
 def install(session, args):
@@ -768,6 +785,23 @@ be passed to {} as custom auth files.
     )
     report_parser.set_defaults(action=Actions.REPORT)
 
+    extract_parser = action_parsers.add_parser(
+        Actions.EXTRACT,
+        help=(
+            "Extract a certificate (.auth file) from XAPI and save it to disk."
+        ),
+    )
+    extract_parser.set_defaults(action=Actions.EXTRACT)
+    extract_parser.add_argument(
+        "cert",
+        choices=["PK", "KEK", "db", "dbx"],
+        help="The certificate (.auth file) to be extracted from XAPI.",
+    )
+    extract_parser.add_argument(
+        "filename",
+        help="The output file name.",
+    )
+
     if len(sys.argv) == 2 and sys.argv[1] == Actions.INSTALL:
         print(
             """
@@ -797,5 +831,7 @@ No arguments provided to command install, default arguments will be used:
             install(session, args)
         elif args.action == Actions.REPORT:
             report(session)
+        elif args.action == Actions.EXTRACT:
+            extract(session, args)
         else:
             sys.exit(1)
