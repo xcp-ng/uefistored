@@ -635,18 +635,21 @@ class Pool(Host):
     """
 
 
-def print_cert(path, uuid, klass):
+def print_cert(path, uuid, klass, verbose=False):
     print("\tCertificate: %s" % os.path.basename(path))
-    print("\t%s: %s" % (klass, uuid))
+    if verbose:
+        print("\t%s: %s" % (klass, uuid))
     print("\tAuth file md5: %s" % hashfile(path))
-    print("\tData:")
-    output = subprocess.check_output(["hexdump", "-Cv", path])
-    for line in output.splitlines():
-        print("\t\t%s" % line)
-    print("")
+
+    if verbose:
+        print("\tData:")
+        output = subprocess.check_output(["hexdump", "-Cv", path])
+        for line in output.splitlines():
+            print("\t\t%s" % line)
+        print("")
 
 
-def report(session):
+def report(session, verbose=False):
     try:
         print("\n{} -- Report".format(os.path.basename(sys.argv[0])))
         pool = Pool.get_all(session)[0]
@@ -657,20 +660,21 @@ def report(session):
         s += "\n"
         print(s)
         for path in paths:
-            print_cert(path, pool.uuid, klass="Pool")
+            print_cert(path, pool.uuid, klass="Pool", verbose=verbose)
 
-        hosts = Host.get_all(session)
-        print("Hosts(%s): %s" % (len(hosts), ", ".join(h.uuid for h in hosts)))
-        for host in hosts:
-            paths = host.save_certs_to_disk()
-            print("Certificate Info for host: %s):" % host.uuid)
-            s = "\tCertificates (%s): " % len(paths)
-            s += ", ".join(os.path.basename(p) for p in paths)
-            s += "\n"
-            print(s)
-            for path in paths:
-                print_cert(path, host.uuid, klass="Host")
-            print("")
+        if verbose:
+            hosts = Host.get_all(session)
+            print("Hosts(%s): %s" % (len(hosts), ", ".join(h.uuid for h in hosts)))
+            for host in hosts:
+                paths = host.save_certs_to_disk()
+                print("Certificate Info for host: %s):" % host.uuid)
+                s = "\tCertificates (%s): " % len(paths)
+                s += ", ".join(os.path.basename(p) for p in paths)
+                s += "\n"
+                print(s)
+                for path in paths:
+                    print_cert(path, host.uuid, klass="Host", verbose=verbose)
+                print("")
     except IOError:
         # This technique taken from: https://docs.python.org/3/library/signal.html#note-on-sigpipe
         # Redirect further stdout flushing (like the broken pipe err message) to /dev/null
@@ -685,9 +689,10 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--verbose",
+        "--debug",
+        "-d",
         action="store_true",
-        help="Verbose output.",
+        help="Debug output.",
     )
 
     action_parsers = parser.add_subparsers()
@@ -802,6 +807,13 @@ be passed to {} as custom auth files.
             "for a pool or every host in the system."
         ),
     )
+    report_parser.add_argument(
+        "--verbose",
+        "-v",
+        dest="report_verbose",
+        action="store_true",
+        help="Verbose report output.",
+    )
     report_parser.set_defaults(action=Actions.REPORT)
 
     extract_parser = action_parsers.add_parser(
@@ -840,7 +852,7 @@ No arguments provided to command install, default arguments will be used:
     else:
         args = parser.parse_args()
 
-        logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
+        logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING)
 
         session = session_init()
         if args.action == Actions.CLEAR:
@@ -849,7 +861,7 @@ No arguments provided to command install, default arguments will be used:
             key, crt = create_kek_keypair()
             install(session, args)
         elif args.action == Actions.REPORT:
-            report(session)
+            report(session, args.report_verbose)
         elif args.action == Actions.EXTRACT:
             extract(session, args)
         else:
