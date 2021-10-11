@@ -95,15 +95,27 @@ static int load_auth(struct auth_data *auth)
 
 void auth_lib_load(struct auth_data *auths, size_t n)
 {
+    bool skip_pk = false;
+    int ret;
     size_t i;
 
     if (!auths)
         return;
 
     for (i = 0; i < n; i++) {
-        if (load_auth(&auths[i]) < 0) {
-            WARNING("load_auth() failed, stop loading certs\n");
-            break;
+        if (skip_pk && !strcmp16((const UTF16*)&auths[i].var.name, L"PK")) {
+            WARNING("Loading the KEK failed, skipping loading the PK.\n");
+            continue;
+        }
+
+        ret = load_auth(&auths[i]);
+        if (ret < 0 && !strcmp16((const UTF16*)&auths[i].var.name, L"KEK")) {
+            /*
+             * If the KEK failed or is missing, then skip loading the PK.  This
+             * prevents the installed PK enabling SB and in advertently
+             * preventing users from loading db/dbx.
+             */
+            skip_pk = true;
         }
     }
 }
