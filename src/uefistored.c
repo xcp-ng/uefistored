@@ -122,6 +122,15 @@ struct auth_data auth_files[] = {
                         EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
     DEFINE_AUTH_FILE("/var/lib/uefistored/dbx.auth", L"dbx",
                         EFI_IMAGE_SECURITY_DATABASE_GUID, AT_ATTRS),
+
+    /*
+     * Ordering matters. The KEK element must always come before the PK
+     * element.  We need to refuse to load the PK if the KEK fails, or else PK
+     * will be set which enables SB and signature checking, causing users to be
+     * unable to update the dbx/db variables (because they'll all fail to pass
+     * verification without a KEK to verify them!). See auth_lib_load() for
+     * the implementation.
+     */
     DEFINE_AUTH_FILE("/var/lib/uefistored/KEK.auth", L"KEK",
                         EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
     /*
