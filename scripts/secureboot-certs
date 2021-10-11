@@ -103,6 +103,8 @@ def download(url, fname=None, tempdir=False):
 
     dest = None
     try:
+        print("Downloading %s..." % url)
+
         req = urllib2.Request(url)
         # For an unknown reason, microsoft.com reliably rejects the urllib2 User
         # Agent with error 403 (but oddly doesn't block the python-requests User
