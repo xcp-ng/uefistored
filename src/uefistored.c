@@ -32,6 +32,7 @@
 #include "uefi/authlib.h"
 #include "uefi/image_authentication.h"
 #include "uefi/types.h"
+#include "uefi/global_variable.h"
 #include "uefi/guids.h"
 #include "backend.h"
 #include "xen_variable_server.h"
@@ -63,6 +64,9 @@ static gid_t gid;
 static char *root_path = NULL;
 static char *pidfile;
 
+extern bool secure_boot_enabled;
+extern EFI_GUID gEfiGlobalVariableGuid;
+extern EFI_GUID gEfiImageSecurityDatabaseGuid;
 extern bool secure_boot_enabled;
 bool enforcement_level;
 
@@ -139,6 +143,36 @@ struct auth_data auth_files[] = {
     DEFINE_AUTH_FILE("/var/lib/uefistored/PK.auth", L"PK",
                         EFI_GLOBAL_VARIABLE_GUID, AT_ATTRS),
 };
+
+/**
+ * Return true if SecureBoot == 1. Otherwise, return false.
+ */
+static bool secure_boot_on(void)
+{
+    variable_t *secure_boot_mode;
+    EFI_STATUS status;
+
+    status = storage_get_var_ptr(&secure_boot_mode,
+            EFI_SECURE_BOOT_MODE_NAME, sizeof_wchar(EFI_SECURE_BOOT_MODE_NAME),
+            &gEfiGlobalVariableGuid);
+
+    if (status != EFI_SUCCESS) {
+        ERROR("Unable to get SB state from internal var database.\n");
+        return false;
+    }
+
+    return secure_boot_mode->data[0] == 1 ? true : false;
+}
+
+/**
+ * Return true if PK, KEK, and db exist. Otherwise, return false.
+ */
+static bool sb_certs_exist(void)
+{
+    return (storage_exists(L"PK", sizeof_wchar(L"PK"), &gEfiGlobalVariableGuid) &&
+            storage_exists(L"KEK", sizeof_wchar(L"KEK"), &gEfiGlobalVariableGuid) &&
+            storage_exists(L"db", sizeof_wchar(L"db"), &gEfiImageSecurityDatabaseGuid));
+}
 
 static int write_pidfile(void)
 {
@@ -925,6 +959,26 @@ int main(int argc, char **argv)
               efi_status_str(status), status);
 
         goto err;
+    }
+
+    /*
+     * If the user has enabled secure boot, but uefistored was unable to enable
+     * secure boot, then complain and die.
+     *
+     * Note that theoretically uefistored could fail to turn on SB due to
+     * internal errors, but by this time in the program those errors should
+     * have already propogated and terminated the process, and so they are not
+     * part of the error message.
+     */
+    if (secure_boot_enabled && (!secure_boot_on() || !sb_certs_exist())) {
+        backend_notify();
+        ERROR(
+            "Secure boot was enabled, but certificates are missing or weren't loaded. "
+            "Please enroll a PK, KEK, and db before enabling secure boot. "
+            "Killing uefistored to stop the VM...\n");
+        exit(1);
+    } else {
+        INFO("Secure boot disabled by host admin, not requiring certs to boot.\n");
     }
 
     if (write_pid() < 0)
