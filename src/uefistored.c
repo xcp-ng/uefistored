@@ -981,6 +981,9 @@ int main(int argc, char **argv)
         INFO("Secure boot disabled by host admin, not requiring certs to boot.\n");
     }
 
+    /* Update backend with new auth variables prior to entrying normal runtime */
+    backend_set();
+
     if (write_pid() < 0)
         goto err;
 
