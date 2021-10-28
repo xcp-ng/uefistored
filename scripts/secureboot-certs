@@ -689,6 +689,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--version",
+        "-V",
+        action="store_true",
+        help="Print the version number",
+    )
+
+    parser.add_argument(
         "--debug",
         "-d",
         action="store_true",
@@ -849,6 +856,9 @@ No arguments provided to command install, default arguments will be used:
             session,
             argparse.Namespace(PK="default", KEK="default", db="default", dbx="latest"),
         )
+    elif "--version" in sys.argv or "-V" in sys.argv:
+        print(__version__)
+        sys.exit(0)
     else:
         args = parser.parse_args()
 
