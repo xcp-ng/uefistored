@@ -1,6 +1,17 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.1.2] - 2021-10-28
+### Added
+- uefistored dies if certificates are misconfigured/missing
+- uefistored doesn't wait for variable writes to update XAPI DB
+- Add new `secureboot-certs extract` command.
+- Add new `secureboot-certs --version` command.
+- The secureboot-certs tool accepts all auth / cert formats
+- secureboot-certs clearly indicates the file being downloaded
+- secureboot-certs supports separate verbose and debug switches
+- Improve secureboot-certs URL/HTTP error display
+
 ## [1.1.1] - 2021-08-13
 ### Fixed
 - Fix build (Makefile)
