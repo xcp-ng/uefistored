@@ -61,7 +61,10 @@ static int load_auth(struct auth_data *auth)
     ret = stat(auth->path, &statbuf);
 
     if (ret < 0) {
-        ERROR("failed to stat %s\n", auth->path);
+        /*
+         * Auth files may not be on disk if the user hasn't configured
+         * secure boot for the host. Quietly ignore this situation.
+         */
         return ret;
     }
 

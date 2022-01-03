@@ -329,14 +329,13 @@ void handle_ioreq(struct ioreq *ioreq)
     uint32_t size = ioreq->size;
 
     if (!io_port_enabled) {
-        ERROR("ioport not yet enabled!\n");
+        WARNING("ioport not yet enabled!\n");
         return;
     }
 
+    /* If this IO was not intended for uefistored, ignore quietly */
     if (!(io_port_addr <= port_addr &&
           port_addr < io_port_addr + io_port_size)) {
-        ERROR("port addr 0x%lx not in range (0x%02lx-0x%02lx)\n", port_addr,
-              io_port_addr, io_port_addr + io_port_size - 1);
         return;
     }
 
@@ -955,7 +954,7 @@ int main(int argc, char **argv)
     status = auth_lib_initialize(auth_files, ARRAY_SIZE(auth_files));
 
     if (status != EFI_SUCCESS) {
-        ERROR("auth_lib_initialization() failed, status=%s (0x%lx)",
+        ERROR("auth_lib_initialization() failed, status=%s (0x%lx)\n",
               efi_status_str(status), status);
 
         goto err;
