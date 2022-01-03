@@ -135,8 +135,7 @@ out:
         loglevel = LOGLEVEL_INFO;
         ERROR("%s\n", err->message);
         g_error_free(err);
-        INFO("Opening/parsing %s failed, defaulting to loglevel=INFO\n",
-             CONFIG_PATH);
+        INFO("%s not found, defaulting to loglevel=INFO\n", CONFIG_PATH);
     }
     if (val) {
         free(val);
