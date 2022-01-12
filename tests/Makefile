@@ -20,7 +20,7 @@ ifeq ($(GCC_GTE_11),true)
 CFLAGS += -Wno-error=vla-parameter
 endif
 
-INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxml2 
+INC := -I../inc/ -Idata/ -I. -I../libs -Iinc -Imock/ -Isrc/ -I/usr/include/libxml2
 INC += -I./munit/
 INC += $(foreach pkg,$(PKGS),$$(pkg-config --libs $(pkg)))
 
