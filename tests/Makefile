@@ -3,7 +3,7 @@ include ../Common.mk
 CC := gcc
 
 GCCVERSION := $(shell gcc --version | grep ^gcc | sed 's/^.* //g')
-GCCMAJOR := $(shell echo $(GCCVERSION) | cut -f1 -d.)
+GCCMAJOR := $(shell echo "$(GCCVERSION)" | cut -f1 -d.)
 GCC_GTE_11 := $(shell [[ "$(GCCMAJOR)" -gt 10 ]] && echo "true")
 
 SRCS := $(patsubst %,../%,$(SRCS))
