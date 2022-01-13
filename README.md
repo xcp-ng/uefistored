@@ -33,6 +33,26 @@ help:              Display this help
 scan-build:        Use scan-build for static analysis
 ```
 
+### Building using Docker
+
+#### Building the container
+
+Run `docker build -t xcp-ng/xcp-ng-build-env:8.2-uefistored -f Dockerfile-8.2-uefistored .`
+`xcp-ng/xcp-ng-build-env:8.2` is needed to build the container, it's available in the [build-env git repo](https://github.com/xcp-ng/xcp-ng-build-env).
+
+#### Using the container
+
+To run manually a make command in the container:
+```
+$ make docker-shell
+container$ make <cmd>
+```
+
+To directly run a command in the container:
+```
+$ make docker-<cmd>
+```
+
 ### Dependencies
 
 `uefistored` depends on the following libraries:

@@ -1,5 +1,5 @@
 XCP_NG_VER := 8.2
-DOCKER_IMAGE := xcp-ng/xcp-ng-build-env:$(XCP_NG_VER)
+DOCKER_IMAGE := xcp-ng/xcp-ng-build-env:$(XCP_NG_VER)-uefistored
 DOCKER_ARGS := -v$(PWD):$(PWD) -w $(PWD) -it $(DOCKER_IMAGE)
 
 docker-shell:

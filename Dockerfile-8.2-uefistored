@@ -1,0 +1,14 @@
+FROM    xcp-ng/xcp-ng-build-env:8.2
+
+RUN     yum install -y \
+          clang-analyzer \
+          glib2-devel \
+          libseccomp-devel \
+          libxml2-devel \
+          openssl-devel \
+          xen-dom0-libs-devel
+
+# Tests
+RUN     yum install -y \
+          libasan \
+          valgrind
