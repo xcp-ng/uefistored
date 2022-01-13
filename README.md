@@ -37,9 +37,17 @@ scan-build:        Use scan-build for static analysis
 
 `uefistored` depends on the following libraries:
 
-- libxml-2.0
-- glib-2.0
-- Xen dom0 libs (xenstore, xencontrol, xenevtchn, etc...)
+- clang-analyzer
+- glib2-devel
+- libseccomp-devel
+- libxml2-devel
+- openssl-devel
+- xen-dom0-libs-devel
+
+#### Test dependencies
+
+- asan
+- valgrind
 
 ## Initializing keys for uefistored
 
@@ -167,9 +175,10 @@ Some helpful information may include:
   on XCP-ng) or from  uefistored stdout/stderr.
 * Screenshots or text from the guest.
 
-# Maintainers 
+# Maintainers
 
-* Bob Eshleman bobby.eshleman@gmail.com
+* REIS Benjamin <benjamin.reis@vates.fr>
+* SEMENOV Andreï <andrei.semenov@vates.fr>
 
 # Acknowledgements
 
