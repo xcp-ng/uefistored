@@ -57,18 +57,18 @@ all: scan-build valgrind asan
 	@printf '\n\n\x1B[32mvalgrind, ASAN, scan-build tests all passed\n\n\x1B[0m'
 
 .PHONY: scan-build
-scan-build:
+scan-build: fetch
 	$(MAKE) clean
 	scan-build --status-bugs make $(TEST_OBJS) -j$(shell nproc)
 
 .PHONY: asan
-asan:
+asan: fetch
 	$(MAKE) clean
 	ASAN=1 $(MAKE) test
 	ASAN_OPTIONS=detect_leaks=1 ./test
 
 .PHONY: valgrind
-valgrind: clean test
+valgrind: clean fetch test
 	valgrind --leak-check=full \
 			--show-leak-kinds=all \
 			--track-origins=yes \
@@ -97,4 +97,6 @@ print:
 
 .PHONY: fetch
 fetch:
-	git clone https://github.com/nemequ/munit.git
+	if [ ! -d "munit" ]; then \
+		git clone https://github.com/nemequ/munit.git; \
+	fi
