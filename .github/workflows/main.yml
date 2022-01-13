@@ -1,0 +1,23 @@
+
+name: Test build env
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build docker container
+      run: |
+        BUILD_ENV_PATH=/tmp/build-env
+        mkdir -p "$BUILD_ENV_PATH"
+        git clone https://github.com/xcp-ng/xcp-ng-build-env.git "$BUILD_ENV_PATH"
+        "$BUILD_ENV_PATH"/build.sh 8.2
+        docker build -t xcp-ng/xcp-ng-build-env:8.2-uefistored -f Dockerfile-8.2-uefistored .
+    - name: Build
+      shell: 'script -q -e -c "bash {0}"'
+      run: make docker-all
+    - name: Unit tests
+      shell: 'script -q -e -c "bash {0}"'
+      run: make docker-test
