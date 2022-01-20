@@ -571,7 +571,6 @@ int main(int argc, char **argv)
 {
     xc_dominfo_t domain_info;
     shared_iopage_t *shared_iopage;
-    uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     int ret;
     int option_index = 0;
@@ -724,24 +723,6 @@ int main(int argc, char **argv)
               domid);
         goto err;
     }
-
-    /* Retrieve IO req server page count, retry until available */
-    for (i = 0; i < 10; i++) {
-        ret = xc_hvm_param_get(xc_handle, domid,
-                               HVM_PARAM_NR_IOREQ_SERVER_PAGES,
-                               &ioreq_server_pages_cnt);
-        if (ret < 0) {
-            ERROR("xc_hvm_param_get failed: %d, %s\n", errno, strerror(errno));
-            goto err;
-        }
-
-        if (ioreq_server_pages_cnt != 0)
-            break;
-
-        printf("Waiting for ioreq server");
-        usleep(100000);
-    }
-    INFO("HVM_PARAM_NR_IOREQ_SERVER_PAGES = %ld\n", ioreq_server_pages_cnt);
 
     xc_interface_close(xc_handle);
     xc_handle = NULL;
