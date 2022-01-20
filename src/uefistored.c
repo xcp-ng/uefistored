@@ -45,9 +45,7 @@ struct backend *backend = NULL;
 struct backend xapidb;
 static bool resume;
 
-static xc_evtchn_port_or_error_t bufioreq_local_port;
 static xc_evtchn_port_or_error_t *ioreq_local_ports;
-static evtchn_port_t bufioreq_remote_port;
 static xendevicemodel_handle *dmod;
 static xenforeignmemory_handle *fmem;
 static xenforeignmemory_resource_handle *fmem_resource;
@@ -217,7 +215,6 @@ done:
 static int xen_map_ioreq_server(xenforeignmemory_handle *fmem, domid_t domid,
                                 ioservid_t ioservid,
                                 shared_iopage_t **shared_iopage,
-                                buffered_iopage_t **buffered_iopage,
                                 xenforeignmemory_resource_handle **fresp)
 {
     void *addr = NULL;
@@ -230,8 +227,8 @@ static int xen_map_ioreq_server(xenforeignmemory_handle *fmem, domid_t domid,
 
     fres = xenforeignmemory_map_resource(fmem, domid,
                                          XENMEM_resource_ioreq_server, ioservid,
-                                         0, 2, &addr, PROT_READ | PROT_WRITE,
-                                         0);
+                                         XENMEM_resource_ioreq_server_frame_ioreq(0), 1,
+                                         &addr, PROT_READ | PROT_WRITE, 0);
 
     if (!fres) {
         ERROR("failed to map ioreq server resources: error %d: %s", errno,
@@ -240,8 +237,7 @@ static int xen_map_ioreq_server(xenforeignmemory_handle *fmem, domid_t domid,
     }
 
     *fresp = fres;
-    *buffered_iopage = addr;
-    *shared_iopage = addr + PAGE_SIZE;
+    *shared_iopage = addr;
 
     return 0;
 }
@@ -397,57 +393,6 @@ static void handle_shared_iopage(shared_iopage_t *shared_iopage,
     xenevtchn_notify(xce, port);
 }
 
-static void poll_buffered_iopage(buffered_iopage_t *buffered_iopage)
-{
-    for (;;) {
-        unsigned int read_pointer;
-        unsigned int write_pointer;
-
-        read_pointer = buffered_iopage->read_pointer;
-        write_pointer = buffered_iopage->write_pointer;
-
-        if (read_pointer == write_pointer)
-            break;
-
-        while (read_pointer != write_pointer) {
-            unsigned int slot;
-            buf_ioreq_t *buf_ioreq;
-            ioreq_t ioreq;
-
-            slot = read_pointer % IOREQ_BUFFER_SLOT_NUM;
-
-            buf_ioreq = &buffered_iopage->buf_ioreq[slot];
-
-            ioreq.size = 1UL << buf_ioreq->size;
-            ioreq.count = 1;
-            ioreq.addr = buf_ioreq->addr;
-            ioreq.data = buf_ioreq->data;
-            ioreq.state = STATE_IOREQ_READY;
-            ioreq.dir = buf_ioreq->dir;
-            ioreq.df = 1;
-            ioreq.type = buf_ioreq->type;
-            ioreq.data_is_ptr = 0;
-
-            read_pointer++;
-
-            if (ioreq.size == 8) {
-                slot = read_pointer % IOREQ_BUFFER_SLOT_NUM;
-                buf_ioreq = &buffered_iopage->buf_ioreq[slot];
-
-                ioreq.data |= ((uint64_t)buf_ioreq->data) << 32;
-
-                read_pointer++;
-            }
-
-            handle_ioreq(&ioreq);
-            barrier();
-        }
-
-        buffered_iopage->read_pointer = read_pointer;
-        barrier();
-    }
-}
-
 static void signal_handler(int sig)
 {
     INFO("uefistored received signal: %s\n", strsignal(sig));
@@ -461,7 +406,6 @@ static void signal_handler(int sig)
         xenforeignmemory_unmap_resource(fmem, fmem_resource);
 
     if (xce) {
-        xenevtchn_unbind(xce, bufioreq_local_port);
         xenevtchn_close(xce);
     }
 
@@ -590,8 +534,7 @@ static int write_pid(void)
     return 0;
 }
 
-void handler_loop(buffered_iopage_t *buffered_iopage, size_t vcpu_count,
-                  shared_iopage_t *shared_iopage)
+void handler_loop(size_t vcpu_count, shared_iopage_t *shared_iopage)
 {
     size_t i;
     int ret;
@@ -615,15 +558,10 @@ void handler_loop(buffered_iopage_t *buffered_iopage, size_t vcpu_count,
 
         port = xenevtchn_pending(xce);
 
-        if (port == bufioreq_local_port) {
+        for (i = 0; i < vcpu_count; i++) {
             xenevtchn_unmask(xce, port);
-            poll_buffered_iopage(buffered_iopage);
-        } else {
-            for (i = 0; i < vcpu_count; i++) {
-                xenevtchn_unmask(xce, port);
-                if (ioreq_local_ports[i] == port) {
+            if (ioreq_local_ports[i] == port) {
                     handle_shared_iopage(shared_iopage, port, i);
-                }
             }
         }
     }
@@ -633,7 +571,6 @@ int main(int argc, char **argv)
 {
     xc_dominfo_t domain_info;
     shared_iopage_t *shared_iopage;
-    buffered_iopage_t *buffered_iopage;
     uint64_t ioreq_server_pages_cnt;
     size_t vcpu_count = 1;
     int ret;
@@ -849,7 +786,7 @@ int main(int argc, char **argv)
      * 0x101-0x103 are reserved.
      */
     ret = xendevicemodel_create_ioreq_server(
-            dmod, domid, HVM_IOREQSRV_BUFIOREQ_LEGACY, &ioservid);
+            dmod, domid, 0, &ioservid);
 
     if (ret < 0) {
         ERROR("Failed to create ioreq server: %d, %s\n", errno,
@@ -858,18 +795,10 @@ int main(int argc, char **argv)
     }
 
     ret = xen_map_ioreq_server(fmem, domid, ioservid, &shared_iopage,
-                               &buffered_iopage, &fmem_resource);
+                               &fmem_resource);
 
     if (ret < 0) {
         ERROR("Failed to map ioreq server: %d, %s\n", errno, strerror(errno));
-        goto err;
-    }
-
-    ret = xendevicemodel_get_ioreq_server_info(dmod, domid, ioservid, NULL,
-                                               NULL, &bufioreq_remote_port);
-    if (ret < 0) {
-        ERROR("Failed to get ioreq server info: %d, %s\n", errno,
-              strerror(errno));
         goto err;
     }
 
@@ -904,14 +833,6 @@ int main(int argc, char **argv)
         INFO("VCPU%lu: %u -> %u\n", i, ioreq_local_ports[i],
              shared_iopage->vcpu_ioreq[i].vp_eport);
     }
-
-    ret = xenevtchn_bind_interdomain(xce, domid, bufioreq_remote_port);
-    if (ret < 0) {
-        ERROR("failed to bind evtchns: %d, %s\n", errno, strerror(errno));
-        goto err;
-    }
-
-    bufioreq_local_port = ret;
 
     ret = setup_portio(dmod, fmem, domid, ioservid);
     if (ret < 0) {
@@ -987,7 +908,7 @@ int main(int argc, char **argv)
         goto err;
 
     /* No return from handler_loop() */
-    handler_loop(buffered_iopage, vcpu_count, shared_iopage);
+    handler_loop(vcpu_count, shared_iopage);
 
 err:
     ERROR("Did not enter loop! dying...\n");
