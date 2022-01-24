@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <poll.h>
 #include <sys/mman.h>
@@ -14,7 +15,6 @@
 #include <fcntl.h>
 #include <uchar.h>
 #include <wchar.h>
-#include <xenctrl.h>
 #include <xenstore.h>
 #include <xentoolcore.h>
 #include <xendevicemodel.h>
@@ -45,13 +45,12 @@ struct backend *backend = NULL;
 struct backend xapidb;
 static bool resume;
 
-static xc_evtchn_port_or_error_t *ioreq_local_ports;
+static xenevtchn_port_or_error_t *ioreq_local_ports;
 static xendevicemodel_handle *dmod;
 static xenforeignmemory_handle *fmem;
 static xenforeignmemory_resource_handle *fmem_resource;
 static ioservid_t ioservid;
 static xenevtchn_handle *xce;
-static xc_interface *xc_handle;
 struct xs_handle *xsh;
 
 /* Options/args */
@@ -420,9 +419,6 @@ static void signal_handler(int sig)
         xendevicemodel_close(dmod);
     }
 
-    if (xc_handle)
-        xc_interface_close(xc_handle);
-
     if (root_path)
         free(root_path);
 
@@ -539,7 +535,7 @@ void handler_loop(size_t vcpu_count, shared_iopage_t *shared_iopage)
     size_t i;
     int ret;
     struct pollfd pollfd;
-    xc_evtchn_port_or_error_t port;
+    xenevtchn_port_or_error_t port;
 
     pollfd.fd = xenevtchn_fd(xce);
     pollfd.events = POLLIN | POLLERR | POLLHUP;
@@ -569,7 +565,6 @@ void handler_loop(size_t vcpu_count, shared_iopage_t *shared_iopage)
 
 int main(int argc, char **argv)
 {
-    xc_dominfo_t domain_info;
     shared_iopage_t *shared_iopage;
     size_t vcpu_count = 1;
     int ret;
@@ -697,36 +692,6 @@ int main(int argc, char **argv)
     if (!root_path)
         ERROR("No root path\n");
 
-    /* Gain access to the hypervisor */
-    xc_handle = xc_interface_open(NULL, NULL, 0);
-
-    if (!xc_handle) {
-        ERROR("Failed to open xc_interface handle: %d, %s\n", errno,
-              strerror(errno));
-        goto err;
-    }
-
-    /* Get info on the domain */
-    ret = xc_domain_getinfo(xc_handle, domid, 1, &domain_info);
-
-    if (ret < 0) {
-        ERROR("Domid %u, xc_domain_getinfo error: %d, %s\n", domid, errno,
-              strerror(errno));
-        goto err;
-    }
-
-    vcpu_count = domain_info.max_vcpu_id + 1;
-
-    /* Verify the requested domain == the returned domain */
-    if (domid != domain_info.domid) {
-        ERROR("Domid %u does not match expected %u\n", domain_info.domid,
-              domid);
-        goto err;
-    }
-
-    xc_interface_close(xc_handle);
-    xc_handle = NULL;
-
     /* Open xen device model */
     dmod = xendevicemodel_open(NULL, 0);
 
@@ -762,6 +727,14 @@ int main(int argc, char **argv)
         goto err;
     }
 
+    ret = xendevicemodel_nr_vcpus(dmod, domid, &vcpu_count);
+    if (ret < 0) {
+        ERROR("Failed to query nr_vcpus: %d, %s\n", errno, strerror(errno));
+        goto err;
+    }
+
+    INFO("%d vCPU(s)\n", vcpu_count);
+
     /* Create an IO Req server for Port IO requests in the port
      * range 0x100 to 0x103.  XenVariable in OVMF uses 0x100,
      * 0x101-0x103 are reserved.
@@ -794,7 +767,7 @@ int main(int argc, char **argv)
 
     /* Initialize Port IO for domU */
     INFO("%lu vCPU(s)\n", vcpu_count);
-    ioreq_local_ports = malloc(sizeof(xc_evtchn_port_or_error_t) * vcpu_count);
+    ioreq_local_ports = malloc(sizeof(xenevtchn_port_or_error_t) * vcpu_count);
 
     if (!ioreq_local_ports) {
         ERROR("Failed to alloc ioreq_local_ports\n");

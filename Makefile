@@ -3,8 +3,7 @@ include Common.mk
 TARGET := uefistored
 CC ?= gcc
 
-PKGS += xencontrol          \
-        xenstore            \
+PKGS += xenstore            \
         xenforeignmemory    \
         xendevicemodel      \
         xenevtchn           \
