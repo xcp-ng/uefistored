@@ -794,7 +794,7 @@ int main(int argc, char **argv)
 
     /* Initialize Port IO for domU */
     INFO("%lu vCPU(s)\n", vcpu_count);
-    ioreq_local_ports = malloc(sizeof(xc_evtchn_port_or_error_t) * vcpu_count);
+    ioreq_local_ports = calloc(sizeof(xc_evtchn_port_or_error_t), vcpu_count);
 
     if (!ioreq_local_ports) {
         ERROR("Failed to alloc ioreq_local_ports\n");
