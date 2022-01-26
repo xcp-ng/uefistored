@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.1.3] - 2022-01-26
+
+### Changed
+- Drop all bufioreq logic
+- Don't wait for ioreq server frames to appear
+
 ## [1.1.2] - 2021-10-28
 ### Added
 - uefistored dies if certificates are misconfigured/missing
