@@ -1131,12 +1131,11 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
  * @return number of variables stored.
  */
 int xapi_variables_request(variable_t *vars, size_t n)
-
 {
     int ret;
     char session_id[SESSION_ID_SIZE];
-    uint8_t plaintext[MSG_SIZE];
-    char b64[MSG_SIZE] = {0};
+    uint8_t *plaintext;
+    char *b64;
 
     if (session_login_retry(session_id, SESSION_ID_SIZE) < 0) {
         ERROR("failed to login session\n");
@@ -1148,10 +1147,19 @@ int xapi_variables_request(variable_t *vars, size_t n)
         return 0;
     }
 
+    plaintext = (uint8_t*)calloc(2, MSG_SIZE);
+    if (!plaintext) {
+        ERROR("failed to allocate memory\n");
+        return -ENOMEM;
+    }
+
+    b64 = (char*)(plaintext + MSG_SIZE);
+
     ret = xapi_get_nvram(session_id, b64, MSG_SIZE);
 
     if (ret < 0) {
-        return 0;
+        ret = 0;
+        goto out;
     }
 
     session_logout(session_id);
@@ -1159,10 +1167,14 @@ int xapi_variables_request(variable_t *vars, size_t n)
     ret = base64_to_bytes(plaintext, MSG_SIZE, b64, strlen(b64));
 
     if (ret < 0) {
-        return 0;
+        goto out;
     }
 
-    return from_bytes_to_vars(vars, n, plaintext, ret);
+    ret = from_bytes_to_vars(vars, n, plaintext, ret);
+
+  out:
+    free(plaintext);
+    return ret;
 }
 
 /**
