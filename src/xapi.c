@@ -632,19 +632,29 @@ static void throttle(void)
  */
 int xapi_set(void)
 {
-    char buffer[MSG_SIZE];
+    char* buffer;
     int ret;
 
     throttle();
+
+    buffer = calloc(1, MSG_SIZE);
+    if (!buffer)  {
+        return -ENOMEM;
+    }
+
 
     ret = build_set_efi_vars_message(buffer, MSG_SIZE);
 
     if (ret < 0) {
         DBG("Failed to build VM.set_NVRAM_EFI_variables message, ret=%d\n", ret);
-        return ret;
+        goto out;
     }
 
-    return send_request(buffer, buffer, MSG_SIZE);
+    ret = send_request(buffer, buffer, MSG_SIZE);
+
+  out:
+    free(buffer);
+    return ret;
 }
 
 #define HTTP_LOGIN                                                             \
@@ -692,30 +702,43 @@ int xapi_connect(void)
 int xapi_request(char *response, size_t response_sz, const char *format, ...)
 {
     va_list ap;
-    char message[MSG_SIZE];
-    char body[MSG_SIZE];
+    char* message;
+    char* body;
     int hdr_len;
     size_t body_len;
     int ret;
+
+    message = (char*)calloc(2, MSG_SIZE);
+    if (!message) {
+        return -ENOMEM;
+    }
+
+    body = message + MSG_SIZE;
 
     va_start(ap, format);
     ret = vsnprintf(body, MSG_SIZE, format, ap);
     va_end(ap);
 
-    if (ret < 0)
-        return ret;
+    if (ret < 0) {
+        goto out;
+    }
 
     body_len = ret;
 
     hdr_len = create_header(body_len, message, MSG_SIZE);
 
     if (hdr_len < 0) {
-        return -1;
+        ret = -1;
+	goto out;
     }
 
     strncat(message, body, MSG_SIZE - hdr_len);
 
-    return send_request(message, response, response_sz);
+    ret = send_request(message, response, response_sz);
+
+  out:
+    free(message);
+    return ret;
 }
 
 /**
@@ -1094,7 +1117,12 @@ int base64_from_response(char *buffer, size_t n, char *response)
 static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 {
     int status;
-    char response[MSG_SIZE] = { 0 };
+    char* response;
+
+    response = (char*)calloc(1, MSG_SIZE);
+    if (!response) {
+        return -ENOMEM;
+    }
 
     status = xapi_request(response, MSG_SIZE,
                           "<?xmlversion=\'1.0\'?>"
@@ -1109,16 +1137,19 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 
     if (status != 0) {
         ERROR("VM.get_NVRAM failed: status=%d\n", status);
-        return -1;
+        status =  -1;
+        goto out;
     }
 
     status =  base64_from_response(buffer, n, response);
 
     if (status != 0) {
         ERROR("failed to parse XAPI response: status=%d\n", status);
-        return -1;
+        status = -1;
     }
 
+  out:
+    free(response);
     return status;
 }
 
