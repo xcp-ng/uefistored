@@ -15,7 +15,7 @@ OBJS := $(patsubst %.c,%.o,$(SRCS))
 PKG_CFLAGS := $(foreach pkg,$(PKGS),$$(pkg-config --cflags $(pkg)))
 
 CFLAGS = -I$(shell pwd)/inc
-CFLAGS += $(PKG_CFLAGS)
+CFLAGS += $(PKG_CFLAGS) -std=gnu99
 CFLAGS += -fshort-wchar -fstack-protector -O2
 CFLAGS += -Wp,-MD,$(@D)/.$(@F).d -MT $(@D)/$(@F)
 
