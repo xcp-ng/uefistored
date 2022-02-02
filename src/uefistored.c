@@ -45,6 +45,7 @@ struct backend *backend = NULL;
 struct backend xapidb;
 static bool resume;
 
+static size_t vcpu_count = 1;
 static xc_evtchn_port_or_error_t *ioreq_local_ports;
 static xendevicemodel_handle *dmod;
 static xenforeignmemory_handle *fmem;
@@ -397,6 +398,13 @@ static void signal_handler(int sig)
 {
     INFO("uefistored received signal: %s\n", strsignal(sig));
 
+    if (ioreq_local_ports) {
+        for (int i = 0; i < vcpu_count; i++) {
+            if (ioreq_local_ports[i])
+                xenevtchn_unbind(xce, ioreq_local_ports[i]);
+        }
+        free(ioreq_local_ports);
+    }
 
     backend_set();
     backend_save();
@@ -534,7 +542,7 @@ static int write_pid(void)
     return 0;
 }
 
-void handler_loop(size_t vcpu_count, shared_iopage_t *shared_iopage)
+void handler_loop(shared_iopage_t *shared_iopage)
 {
     size_t i;
     int ret;
@@ -571,7 +579,6 @@ int main(int argc, char **argv)
 {
     xc_dominfo_t domain_info;
     shared_iopage_t *shared_iopage;
-    size_t vcpu_count = 1;
     int ret;
     int option_index = 0;
     size_t i;
@@ -889,7 +896,7 @@ int main(int argc, char **argv)
         goto err;
 
     /* No return from handler_loop() */
-    handler_loop(vcpu_count, shared_iopage);
+    handler_loop(shared_iopage);
 
 err:
     ERROR("Did not enter loop! dying...\n");
