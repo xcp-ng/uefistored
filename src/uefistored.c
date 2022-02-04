@@ -878,13 +878,17 @@ int main(int argc, char **argv)
      * have already propogated and terminated the process, and so they are not
      * part of the error message.
      */
-    if (secure_boot_enabled && (!secure_boot_on() || !sb_certs_exist())) {
-        backend_notify();
-        ERROR(
-            "Secure boot was enabled, but certificates are missing or weren't loaded. "
-            "Please enroll a PK, KEK, and db before enabling secure boot. "
-            "Killing uefistored to stop the VM...\n");
-        exit(1);
+    if (secure_boot_enabled) {
+        if (!secure_boot_on() || !sb_certs_exist()) {
+            backend_notify();
+            ERROR(
+                "Secure boot was enabled, but certificates are missing or weren't loaded. "
+                "Please enroll a PK, KEK, and db before enabling secure boot. "
+                "Killing uefistored to stop the VM...\n");
+            exit(1);
+        } else {
+            INFO("VM start in secure boot mode\n");
+        }
     } else {
         INFO("Secure boot disabled by host admin, not requiring certs to boot.\n");
     }
