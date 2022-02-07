@@ -632,19 +632,28 @@ static void throttle(void)
  */
 int xapi_set(void)
 {
-    char buffer[MSG_SIZE];
     int ret;
 
     throttle();
+
+    char *buffer = calloc(1, MSG_SIZE);
+    if (!buffer) {
+        return -ENOMEM;
+    }
+
 
     ret = build_set_efi_vars_message(buffer, MSG_SIZE);
 
     if (ret < 0) {
         DBG("Failed to build VM.set_NVRAM_EFI_variables message, ret=%d\n", ret);
-        return ret;
+        goto out;
     }
 
-    return send_request(buffer, buffer, MSG_SIZE);
+    ret = send_request(buffer, buffer, MSG_SIZE);
+
+  out:
+    free(buffer);
+    return ret;
 }
 
 #define HTTP_LOGIN                                                             \
@@ -692,30 +701,41 @@ int xapi_connect(void)
 int xapi_request(char *response, size_t response_sz, const char *format, ...)
 {
     va_list ap;
-    char message[MSG_SIZE];
-    char body[MSG_SIZE];
     int hdr_len;
     size_t body_len;
     int ret;
+
+    char *message = (char *)calloc(2, MSG_SIZE);
+    if (!message) {
+        return -ENOMEM;
+    }
+
+    char *body = message + MSG_SIZE;
 
     va_start(ap, format);
     ret = vsnprintf(body, MSG_SIZE, format, ap);
     va_end(ap);
 
-    if (ret < 0)
-        return ret;
+    if (ret < 0) {
+        goto out;
+    }
 
     body_len = ret;
 
     hdr_len = create_header(body_len, message, MSG_SIZE);
 
     if (hdr_len < 0) {
-        return -1;
+        ret = -1;
+        goto out;
     }
 
     strncat(message, body, MSG_SIZE - hdr_len);
 
-    return send_request(message, response, response_sz);
+    ret = send_request(message, response, response_sz);
+
+  out:
+    free(message);
+    return ret;
 }
 
 /**
@@ -1094,7 +1114,11 @@ int base64_from_response(char *buffer, size_t n, char *response)
 static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 {
     int status;
-    char response[MSG_SIZE] = { 0 };
+
+    char *response = (char *)calloc(1, MSG_SIZE);
+    if (!response) {
+        return -ENOMEM;
+    }
 
     status = xapi_request(response, MSG_SIZE,
                           "<?xmlversion=\'1.0\'?>"
@@ -1109,16 +1133,19 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
 
     if (status != 0) {
         ERROR("VM.get_NVRAM failed: status=%d\n", status);
-        return -1;
+        status = -1;
+        goto out;
     }
 
     status =  base64_from_response(buffer, n, response);
 
     if (status != 0) {
         ERROR("failed to parse XAPI response: status=%d\n", status);
-        return -1;
+        status = -1;
     }
 
+  out:
+    free(response);
     return status;
 }
 
@@ -1131,12 +1158,9 @@ static int xapi_get_nvram(char *session_id, char *buffer, size_t n)
  * @return number of variables stored.
  */
 int xapi_variables_request(variable_t *vars, size_t n)
-
 {
     int ret;
     char session_id[SESSION_ID_SIZE];
-    uint8_t plaintext[MSG_SIZE];
-    char b64[MSG_SIZE] = {0};
 
     if (session_login_retry(session_id, SESSION_ID_SIZE) < 0) {
         ERROR("failed to login session\n");
@@ -1148,10 +1172,19 @@ int xapi_variables_request(variable_t *vars, size_t n)
         return 0;
     }
 
+    uint8_t *plaintext = (uint8_t *)calloc(2, MSG_SIZE);
+    if (!plaintext) {
+        ERROR("failed to allocate memory\n");
+        return -ENOMEM;
+    }
+
+    char *b64 = (char *)(plaintext + MSG_SIZE);
+
     ret = xapi_get_nvram(session_id, b64, MSG_SIZE);
 
     if (ret < 0) {
-        return 0;
+        ret = 0;
+        goto out;
     }
 
     session_logout(session_id);
@@ -1159,10 +1192,14 @@ int xapi_variables_request(variable_t *vars, size_t n)
     ret = base64_to_bytes(plaintext, MSG_SIZE, b64, strlen(b64));
 
     if (ret < 0) {
-        return 0;
+        goto out;
     }
 
-    return from_bytes_to_vars(vars, n, plaintext, ret);
+    ret = from_bytes_to_vars(vars, n, plaintext, ret);
+
+  out:
+    free(plaintext);
+    return ret;
 }
 
 /**
