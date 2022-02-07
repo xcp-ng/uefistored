@@ -133,7 +133,6 @@ void logging_init(void)
 out:
     if (err) {
         loglevel = LOGLEVEL_INFO;
-        ERROR("%s\n", err->message);
         g_error_free(err);
         INFO("%s not found, defaulting to loglevel=INFO\n", CONFIG_PATH);
     }
