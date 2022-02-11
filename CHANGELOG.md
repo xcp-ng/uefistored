@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.1.4] - 2022-02-11
+
+- Remove useless error in logs when log conf not found
+- Fix secure boot status report in logs
+- Unbind event channel before closing it
+- Use gnu99 instead of c89
+
 ## [1.1.3] - 2022-01-26
 
 ### Changed
