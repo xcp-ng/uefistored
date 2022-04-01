@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 """
 This script installs UEFI certificates for XCP-ng hosts.
 """
@@ -282,11 +283,6 @@ def session_init():
 
 
 def clear(session):
-    hosts = Host.get_all(session)
-    for host in hosts:
-        host.set_certs(b"")
-        print("Cleared certificates from XAPI DB for host %s." % host.uuid)
-
     for pool in Pool.get_all(session):
         pool.set_certs(b"")
         print("Cleared certificates from XAPI DB for pool %s." % pool.uuid)
@@ -347,7 +343,7 @@ def validate_args(args):
 
     for name in ["PK", "KEK", "db", "dbx"]:
         value = getattr(args, name)
-        if not value in valid_values[name] and not os.path.exists(value):
+        if value not in valid_values[name] and not os.path.exists(value):
             print("error: file %s does not exist." % value)
             sys.exit(1)
 
@@ -392,10 +388,6 @@ def install(session, args):
     tarball = create_tarball(paths)
     data = base64.b64encode(tarball.getvalue())
     tarball.close()
-
-    hosts = Host.get_all(session)
-    for host in hosts:
-        host.set_certs(data)
 
     pool = Pool.get_all(session)[0]
     if not pool:
@@ -540,22 +532,29 @@ def find(strings, substr):
     return None
 
 
-class Host(object):
+class Pool(object):
+    """
+    This class represents a XAPI Pool.
+    """
+
     def __init__(self, opaque_ref, session):
         self.session = session
         attrname = type(self).__name__.lower()
         self.xapi_class = getattr(session.xenapi, attrname)
-        self.xapi_class_string = "session.xenapi.%s" % attrname
         self.opaque_ref = opaque_ref
         self.__certs = None
 
     @property
-    def name_label(self):
-        return self.xapi_class.get_name_label(self.opaque_ref)
-
-    @property
     def uuid(self):
         return self.xapi_class.get_uuid(self.opaque_ref)
+
+    @classmethod
+    def get_all(cls, session):
+        attrname = cls.__name__.lower()
+        xapi_class = getattr(session.xenapi, attrname)
+        refs = xapi_class.get_all()
+        logging.debug("XAPI Request: session.xenapi.%s.get_all()" % attrname)
+        return [cls(ref, session) for ref in refs]
 
     def get_certs(self):
         if self.__certs is None:
@@ -566,11 +565,11 @@ class Host(object):
         self.xapi_class.set_uefi_certificates(self.opaque_ref, data)
 
     def save_certs_to_disk(self):
-        decoded = base64.b64decode(self.get_certs())
+        pool = Pool.get_all(self.session)[0]
+        decoded = base64.b64decode(pool.get_certs())
 
         d = cd_tempdir()
         _, fname = tempfile.mkstemp()
-
         atexit.register(lambda: os.remove(fname))
 
         if not decoded:
@@ -588,7 +587,7 @@ class Host(object):
             return []
 
         paths = []
-        for dirpath, dirnames, filenames in os.walk(os.curdir):
+        for dirpath, _, filenames in os.walk(os.curdir):
             for f in filenames:
                 path = os.path.join(dirpath, f)
                 if path.endswith(".auth"):
@@ -597,7 +596,6 @@ class Host(object):
         os.chdir(d)
 
         ret = []
-
         for name in ["PK.auth", "KEK.auth", "db.auth", "dbx.auth"]:
             p = find(paths, name)
             if p:
@@ -605,40 +603,11 @@ class Host(object):
 
         return ret
 
-    @classmethod
-    def get_by_uuid(cls, session, uuid):
-        attrname = cls.__name__.lower()
-        xapi_class = getattr(session.xenapi, attrname)
-        ref = xapi_class.get_by_uuid(uuid)
-        return cls(ref, session)
 
-    @classmethod
-    def get_all(cls, session):
-        attrname = cls.__name__.lower()
-        xapi_class = getattr(session.xenapi, attrname)
-        refs = xapi_class.get_all()
-        logging.debug("XAPI Request: session.xenapi.%s.get_all()" % attrname)
-        return [cls(ref, session) for ref in refs]
-
-    def log_request(self, string):
-        logging.debug("XAPI Request: %s.%s" % (self.xapi_class_string, string))
-
-    def __str__(self):
-        return "Host(uuid=%s)" % self.uuid
-
-
-class Pool(Host):
-    """This class represents a XAPI Pool.
-
-
-    It is API-equivalent with the Host class.
-    """
-
-
-def print_cert(path, uuid, klass, verbose=False):
+def print_cert(path, uuid, verbose=False):
     print("\tCertificate: %s" % os.path.basename(path))
     if verbose:
-        print("\t%s: %s" % (klass, uuid))
+        print("\tPool: %s" % uuid)
     print("\tAuth file md5: %s" % hashfile(path))
 
     if verbose:
@@ -660,21 +629,7 @@ def report(session, verbose=False):
         s += "\n"
         print(s)
         for path in paths:
-            print_cert(path, pool.uuid, klass="Pool", verbose=verbose)
-
-        if verbose:
-            hosts = Host.get_all(session)
-            print("Hosts(%s): %s" % (len(hosts), ", ".join(h.uuid for h in hosts)))
-            for host in hosts:
-                paths = host.save_certs_to_disk()
-                print("Certificate Info for host: %s):" % host.uuid)
-                s = "\tCertificates (%s): " % len(paths)
-                s += ", ".join(os.path.basename(p) for p in paths)
-                s += "\n"
-                print(s)
-                for path in paths:
-                    print_cert(path, host.uuid, klass="Host", verbose=verbose)
-                print("")
+            print_cert(path, pool.uuid, verbose=verbose)
     except IOError:
         # This technique taken from: https://docs.python.org/3/library/signal.html#note-on-sigpipe
         # Redirect further stdout flushing (like the broken pipe err message) to /dev/null
