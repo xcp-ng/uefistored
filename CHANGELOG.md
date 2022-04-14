@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2022-04-14
+
+### Changed
+- Update `secureboot-certs` for new UEFI certificates API in XAPI
+  - Use `Pool` API instead of deprecated `Host` one
+- Avoid stack allocation for large memory block
+
 ## [1.1.4] - 2022-02-11
 
 - Remove useless error in logs when log conf not found
