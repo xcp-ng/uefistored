@@ -32,6 +32,7 @@ __status__ = "Production"
 
 
 TEMPDIRS = []
+DEFAULT_USER_AGENT = "Mozilla/5.0 - Open source hypervisor"
 
 key = None
 crt = None
@@ -85,7 +86,7 @@ def hashfile(path):
         return hashlib.md5(f.read()).hexdigest()
 
 
-def download(url, fname=None, tempdir=False):
+def download(url, fname=None, tempdir=False, user_agent=DEFAULT_USER_AGENT):
     """Download a file.
 
     url:   the url to the remote file.
@@ -109,7 +110,7 @@ def download(url, fname=None, tempdir=False):
         # For an unknown reason, microsoft.com reliably rejects the urllib2 User
         # Agent with error 403 (but oddly doesn't block the python-requests User
         # Agent). To avoid issues, just use the well-known Mozilla User Agent.
-        req.add_header("User-Agent", "Mozilla/5.0")
+        req.add_header("User-Agent", user_agent)
 
         # These two headers are simply the defaults used by the requests library,
         # which is known to work.  There is no deeper rationale for these exact
@@ -247,9 +248,9 @@ def create_kek_keypair():
     return key, crt
 
 
-def create_msft_kek(signing_key, signing_crt):
+def create_msft_kek(signing_key, signing_crt, user_agent=DEFAULT_USER_AGENT):
     prevdir = cd_tempdir()
-    msft_kek = download(Urls.KEK)
+    msft_kek = download(Urls.KEK, user_agent=user_agent)
     kek_auth = create_auth(
         signing_key, signing_crt, "KEK", signing_crt, convert_der_to_pem(msft_kek)
     )
@@ -257,10 +258,10 @@ def create_msft_kek(signing_key, signing_crt):
     return kek_auth
 
 
-def create_msft_db(signing_key, signing_crt):
+def create_msft_db(signing_key, signing_crt, user_agent=DEFAULT_USER_AGENT):
     prevdir = cd_tempdir()
-    msft_ca = download(Urls.CA)
-    msft_pca = download(Urls.PCA)
+    msft_ca = download(Urls.CA, user_agent=user_agent)
+    msft_pca = download(Urls.PCA, user_agent=user_agent)
     db_auth = create_auth(
         signing_key,
         signing_crt,
@@ -302,24 +303,25 @@ def create_tarball(paths):
     return tarball
 
 
-def getdefault(name):
+def getdefault(name, user_agent=DEFAULT_USER_AGENT):
     global key
     global crt
 
     if name == "PK":
         return "/usr/share/uefistored/PK.auth"
     elif name == "db":
-        return create_msft_db(key, crt)
+        return create_msft_db(key, crt, user_agent=user_agent)
     elif name == "KEK":
-        return create_msft_kek(key, crt)
+        return create_msft_kek(key, crt, user_agent=user_agent)
     elif name == "dbx":
-        return download(Urls.dbx, "dbx.auth", tempdir=True)
+        return download(Urls.dbx, "dbx.auth", tempdir=True, user_agent=user_agent)
     else:
         return None
 
 
 def getpath(args, name):
     val = getattr(args, name)
+    user_agent = getattr(args, "user_agent") if getattr(args, "user_agent") is not None else DEFAULT_USER_AGENT
     if os.path.exists(val):
         if os.stat(val).st_size <= 0:
             logging.debug("file %s is empty, skipping..." % val)
@@ -328,7 +330,7 @@ def getpath(args, name):
         return os.path.abspath(val)
     elif val == "default" or val == "latest":
         logging.debug("%s for %s" % (val, name))
-        return getdefault(name)
+        return getdefault(name, user_agent=user_agent)
     elif name == "dbx" and val == "none":
         logging.debug("No path for dbx, set dbx to 'none'")
         return None
@@ -731,6 +733,12 @@ dbx: {}
     install_parser.set_defaults(action=Actions.INSTALL)
 
     install_parser.add_argument(
+        "--user-agent",
+        help="Sets a custom user agent to download default certificates from Microsoft.",
+        default=DEFAULT_USER_AGENT,
+        nargs='?'
+    )
+    install_parser.add_argument(
         "PK",
         metavar="PK",
         help=(
@@ -738,6 +746,8 @@ dbx: {}
             "If a custom file it must be an EFI .auth file, "
             "a DER-encoded X509 certificate, or a PEM X509 certificate."
         ),
+        default='default',
+        nargs='?'
     )
     install_parser.add_argument(
         "--pk-priv",
@@ -754,6 +764,8 @@ dbx: {}
             "If a custom file it must be an EFI .auth file, "
             "a DER-encoded X509 certificate, or a PEM X509 certificate."
         ),
+        default='default',
+        nargs='?'
     )
     install_parser.add_argument(
         "db",
@@ -763,6 +775,8 @@ dbx: {}
             "If a custom file it must be an EFI .auth file, "
             "a DER-encoded X509 certificate, or a PEM X509 certificate."
         ),
+        default='default',
+        nargs='?'
     )
 
     install_parser.add_argument(
@@ -794,6 +808,8 @@ be passed to {} as custom auth files.
 """.format(
             os.path.basename(sys.argv[0])
         ),
+        default='latest',
+        nargs='?'
     )
 
     clear_parser = action_parsers.add_parser(
@@ -840,23 +856,7 @@ be passed to {} as custom auth files.
         help="The output file name.",
     )
 
-    if len(sys.argv) == 2 and sys.argv[1] == Actions.INSTALL:
-        print(
-            """
-No arguments provided to command install, default arguments will be used:
-- PK: default
-- KEK: default
-- db: default
-- dbx: latest
-"""
-        )
-        session = session_init()
-        key, crt = create_kek_keypair()
-        install(
-            session,
-            argparse.Namespace(PK="default", KEK="default", db="default", dbx="latest"),
-        )
-    elif "--version" in sys.argv or "-V" in sys.argv:
+    if "--version" in sys.argv or "-V" in sys.argv:
         print(__version__)
         sys.exit(0)
     else:
