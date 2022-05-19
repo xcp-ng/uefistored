@@ -131,14 +131,13 @@ def download(url, fname=None, tempdir=False, user_agent=DEFAULT_USER_AGENT):
         print(
             (
                 "error: unable to retrieve certificate from URL: %s. "
-                "Error message: %s.\n\nIf the failure can't be fixed at "
-                "the network configuration level, consider downloading "
-                "the certificates manually and then loading one or more "
-                "of them with secureboot-certs install <PK-filename>|default "
-                "<KEK-filename>|default <db-filename>|default <dbx-filename>|latest. "
-                "Check secureboot-certs install -h for usage details as "
-                "well as a list of the download links used by secureboot-certs "
-                "install."
+                "Error message: %s.\n\nIf the download was blocked with a 403 "
+                "HTTP error, you may retry with a different user agent:\n"
+                "secureboot-certs install --user-agent=\"Mozilla/5.0 "
+                "My custom user agent\"\n\n"
+                "If this still doesn't work, you can download and install the "
+                "certificates manually:\n"
+                "https://xcp-ng.org/docs/guides.html#install-the-default-uefi-certificates-manually"
             )
             % (url, e)
         )
