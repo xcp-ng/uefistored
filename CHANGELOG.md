@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2022-10-03
+
+### Added
+- Add --user-agent parameter to secureboot-certs install
+
+### Changed
+- Change the default user agent in secureboot-certs install to avoid HTTP 403
+- Improve the error message in case of download failure to let users know about the --user-agent parameter, and add a link to documentation explaining how to install certificates manually
+
 ## [1.2.0] - 2022-04-14
 
 ### Changed
